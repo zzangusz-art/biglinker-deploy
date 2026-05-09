@@ -1,35 +1,31 @@
-FROM node:20-alpine
+FROM node:20-slim
 
-# 필수 빌드 도구 (better-sqlite3 컴파일용)
-RUN apk add --no-cache python3 make g++ sqlite
+# 빌드 도구 설치 (better-sqlite3 네이티브 컴파일용)
+RUN apt-get update && apt-get install -y \
+    python3 make g++ \
+    --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# 의존성 설치 (캐시 최적화)
+# 의존성 설치
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm install --only=production
 
 # 소스 복사
 COPY . .
 
-# 폴더 생성
-RUN mkdir -p /data/uploads && chmod 755 /data
-
-# 비루트 사용자
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-RUN chown -R appuser:appgroup /app /data
-USER appuser
-
-EXPOSE 3000
+# 데이터 폴더
+RUN mkdir -p /data/uploads
 
 ENV NODE_ENV=production \
     DB_PATH=/data/biglinker.db \
     UPLOADS_DIR=/data/uploads \
     PORT=3000
 
-VOLUME ["/data"]
+EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-  CMD wget -qO- http://localhost:3000/health || exit 1
+  CMD node -e "require('http').get('http://localhost:3000/health', r => process.exit(r.statusCode===200?0:1))"
 
 CMD ["node", "server.js"]

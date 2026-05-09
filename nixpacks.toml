@@ -1,0 +1,8 @@
+[phases.setup]
+nixPkgs = ["python3", "gnumake", "gcc"]
+
+[phases.install]
+cmds = ["npm ci --only=production"]
+
+[start]
+cmd = "node server.js"
