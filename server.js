@@ -249,7 +249,7 @@ app.post('/api/auth/login', authLimiter, (req, res) => {
   );
 
   // 로그인 응답에 필요한 초기 데이터 포함
-  const payload = { token, user: { id:user.id, username:user.username, role:user.role, name:user.name } };
+  const payload = { token, user: clean(user) };
 
   if (user.role === 'admin') {
     payload.students   = db.prepare("SELECT * FROM users WHERE role='student' ORDER BY created_at DESC").all().map(clean);
@@ -270,22 +270,42 @@ app.post('/api/auth/login', authLimiter, (req, res) => {
 
 function clean(u) {
   if (!u) return null;
-  const { password_hash, ...safe } = u;
-  return safe;
+  const { password_hash, consultant_id, target_univ, target_dept, created_at, ...safe } = u;
+  return {
+    ...safe,
+    consultantId: consultant_id || '',
+    targetUniv:   target_univ   || '',
+    targetDept:   target_dept   || '',
+    createdAt:    created_at    || 0,
+  };
+}
+
+function cleanExam(e) {
+  const { student_id, eval_type, teacher_note, due_date, consultant_note, created_at, ...rest } = e;
+  return {
+    ...rest,
+    studentId:      student_id,
+    evalType:       eval_type      || '제출',
+    teacherNote:    teacher_note   || '',
+    dueDate:        due_date       || '',
+    consultantNote: consultant_note|| '',
+    submitted:      !!e.submitted,
+    calFeedbacks:   db.prepare('SELECT * FROM exam_feedbacks WHERE exam_id=? ORDER BY created_at').all(e.id)
+                      .map(f => ({ ...f, ts: f.created_at * 1000 }))
+  };
 }
 
 function getFullStudentData(sid) {
-  const exams = db.prepare('SELECT * FROM exams WHERE student_id=? ORDER BY due_date').all(sid).map(e => ({
-    ...e,
-    submitted: !!e.submitted,
-    calFeedbacks: db.prepare('SELECT * FROM exam_feedbacks WHERE exam_id=? ORDER BY created_at').all(e.id).map(f => ({ ...f, ts: f.created_at * 1000 }))
+  const exams    = db.prepare('SELECT * FROM exams WHERE student_id=? ORDER BY due_date').all(sid).map(cleanExam);
+  const feedbacks= db.prepare('SELECT * FROM report_feedbacks WHERE student_id=? ORDER BY created_at DESC').all(sid).map(f => ({
+    ...f,
+    studentContent:    f.student_content,
+    consultantContent: f.consultant_content,
+    createdAt: f.created_at*1000, updatedAt: f.updated_at*1000, studentRead: !!f.student_read
   }));
-  const feedbacks = db.prepare('SELECT * FROM report_feedbacks WHERE student_id=? ORDER BY created_at DESC').all(sid).map(f => ({
-    ...f, createdAt: f.created_at*1000, updatedAt: f.updated_at*1000, studentRead: !!f.student_read
-  }));
-  const history = db.prepare('SELECT * FROM analysis_history WHERE student_id=? ORDER BY created_at DESC LIMIT 100').all(sid).map(h => ({ ...h, ts: h.created_at*1000 }));
-  const gb = db.prepare('SELECT content FROM gb_data WHERE student_id=?').get(sid)?.content || '';
-  const files = db.prepare('SELECT * FROM files WHERE student_id=? ORDER BY created_at DESC').all(sid);
+  const history  = db.prepare('SELECT * FROM analysis_history WHERE student_id=? ORDER BY created_at DESC LIMIT 100').all(sid).map(h => ({ ...h, ts: h.created_at*1000 }));
+  const gb       = db.prepare('SELECT content FROM gb_data WHERE student_id=?').get(sid)?.content || '';
+  const files    = db.prepare('SELECT * FROM files WHERE student_id=? ORDER BY created_at DESC').all(sid);
   return { exams, feedbacks, history, gb, files };
 }
 
@@ -380,12 +400,7 @@ app.put('/api/students/:studentId/gb', auth, canAccessStudent, (req, res) => {
 
 // ─── EXAMS ─────────────────────────────────────────────────────────────
 app.get('/api/students/:studentId/exams', auth, canAccessStudent, (req, res) => {
-  const exams = db.prepare('SELECT * FROM exams WHERE student_id=? ORDER BY due_date').all(req.params.studentId)
-    .map(e => ({
-      ...e, submitted: !!e.submitted,
-      calFeedbacks: db.prepare('SELECT * FROM exam_feedbacks WHERE exam_id=? ORDER BY created_at').all(e.id)
-        .map(f => ({ ...f, ts: f.created_at * 1000 }))
-    }));
+  const exams = db.prepare('SELECT * FROM exams WHERE student_id=? ORDER BY due_date').all(req.params.studentId).map(cleanExam);
   res.json(exams);
 });
 
@@ -399,8 +414,7 @@ app.post('/api/students/:studentId/exams', auth, adminOrConsultant, canAccessStu
   const id = `ex_${uid()}`;
   db.prepare(`INSERT INTO exams (id,student_id,subject,teacher,eval_type,time,teacher_note,topic,ratio,elements,due_date,status,submitted,consultant_note,materials) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
     .run(id, req.params.studentId, e.subject, e.teacher||'', evalType, e.time||'', e.teacherNote||'', e.topic, e.ratio||0, e.elements||'', e.dueDate||'', status, e.submitted?1:0, e.consultantNote||'', e.materials||'');
-  const created = { ...db.prepare('SELECT * FROM exams WHERE id=?').get(id), submitted: !!e.submitted, calFeedbacks: [] };
-  res.json(created);
+  res.json(cleanExam(db.prepare('SELECT * FROM exams WHERE id=?').get(id)));
 });
 
 app.put('/api/exams/:id', auth, adminOrConsultant, (req, res) => {
@@ -413,8 +427,7 @@ app.put('/api/exams/:id', auth, adminOrConsultant, (req, res) => {
   const status = VALID_STATUS.includes(e.status) ? e.status : ex.status;
   db.prepare(`UPDATE exams SET subject=?,teacher=?,eval_type=?,time=?,teacher_note=?,topic=?,ratio=?,elements=?,due_date=?,status=?,submitted=?,consultant_note=?,materials=? WHERE id=?`)
     .run(e.subject||ex.subject, e.teacher??ex.teacher, evalType, e.time??ex.time, e.teacherNote??ex.teacher_note, e.topic||ex.topic, e.ratio??ex.ratio, e.elements??ex.elements, e.dueDate??ex.due_date, status, (e.submitted??ex.submitted)?1:0, e.consultantNote??ex.consultant_note, e.materials??ex.materials, req.params.id);
-  const updated = { ...db.prepare('SELECT * FROM exams WHERE id=?').get(req.params.id), submitted: !!(e.submitted??ex.submitted), calFeedbacks: db.prepare('SELECT * FROM exam_feedbacks WHERE exam_id=?').all(req.params.id).map(f=>({...f,ts:f.created_at*1000})) };
-  res.json(updated);
+  res.json(cleanExam(db.prepare('SELECT * FROM exams WHERE id=?').get(req.params.id)));
 });
 
 app.delete('/api/exams/:id', auth, adminOrConsultant, (req, res) => {
@@ -436,9 +449,19 @@ app.post('/api/exams/:id/feedbacks', auth, (req, res) => {
 });
 
 // ─── REPORT FEEDBACKS ──────────────────────────────────────────────────
+function cleanFb(f) {
+  return {
+    ...f,
+    studentContent:    f.student_content,
+    consultantContent: f.consultant_content,
+    createdAt:  f.created_at  * 1000,
+    updatedAt:  f.updated_at  * 1000,
+    studentRead: !!f.student_read,
+  };
+}
+
 app.get('/api/students/:studentId/feedbacks', auth, canAccessStudent, (req, res) => {
-  const fbs = db.prepare('SELECT * FROM report_feedbacks WHERE student_id=? ORDER BY created_at DESC').all(req.params.studentId)
-    .map(f => ({ ...f, createdAt: f.created_at*1000, updatedAt: f.updated_at*1000, studentRead: !!f.student_read }));
+  const fbs = db.prepare('SELECT * FROM report_feedbacks WHERE student_id=? ORDER BY created_at DESC').all(req.params.studentId).map(cleanFb);
   res.json(fbs);
 });
 
@@ -461,8 +484,7 @@ app.put('/api/feedbacks/:id', auth, adminOrConsultant, (req, res) => {
   const ts = Math.floor(Date.now() / 1000);
   db.prepare('UPDATE report_feedbacks SET consultant_content=?,status=?,updated_at=? WHERE id=?')
     .run(consultantContent||fb.consultant_content, status||'피드백완료', ts, req.params.id);
-  const updated = db.prepare('SELECT * FROM report_feedbacks WHERE id=?').get(req.params.id);
-  res.json({ ...updated, createdAt: updated.created_at*1000, updatedAt: updated.updated_at*1000 });
+  res.json(cleanFb(db.prepare('SELECT * FROM report_feedbacks WHERE id=?').get(req.params.id)));
 });
 
 // ─── ANALYSIS HISTORY ──────────────────────────────────────────────────
@@ -519,8 +541,18 @@ app.post('/api/claude/stream', auth, aiLimiter, async (req, res) => {
   if (!apiKey) return res.status(503).json({ error: 'API 키가 설정되지 않았습니다. 관리자에게 문의하세요.' });
 
   const model = db.prepare("SELECT value FROM settings WHERE key='model'").get()?.value || 'claude-sonnet-4-6';
-  const { system, userMsg, maxTokens } = req.body;
-  if (!userMsg) return res.status(400).json({ error: '메시지가 없습니다' });
+  const { system, userMsg, messages, maxTokens } = req.body;
+
+  // messages 배열(모의면접 멀티턴) 또는 단일 userMsg 허용
+  if (!userMsg && (!messages || !messages.length))
+    return res.status(400).json({ error: '메시지가 없습니다' });
+
+  const msgArray = messages && messages.length
+    ? messages
+    : [{ role: 'user', content: userMsg }];
+
+  // 토큰 한도: 기본 4096, 최대 4096
+  const tokens = Math.min(parseInt(maxTokens) || 4096, 4096);
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -529,9 +561,9 @@ app.post('/api/claude/stream', auth, aiLimiter, async (req, res) => {
   try {
     const anthropic = new Anthropic({ apiKey });
     const stream = await anthropic.messages.create({
-      model, max_tokens: maxTokens || 1500, stream: true,
+      model, max_tokens: tokens, stream: true,
       system: system || '당신은 대입 전문 컨설턴트입니다.',
-      messages: [{ role: 'user', content: userMsg }]
+      messages: msgArray
     });
 
     let full = '';

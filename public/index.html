@@ -1128,55 +1128,100 @@ const SCHOOLS = [
 ];
 
 // ═══════════════════════════════════════
-// DB
+// IN-MEMORY STORE + SERVER API LAYER
 // ═══════════════════════════════════════
-const DB={
-  P:'bl_',
-  get(k){try{return JSON.parse(localStorage.getItem(this.P+k))}catch{return null}},
-  set(k,v){localStorage.setItem(this.P+k,JSON.stringify(v))},
-  del(k){localStorage.removeItem(this.P+k)},
-  gs(k){return localStorage.getItem(this.P+k)||''},
-  ss(k,v){localStorage.setItem(this.P+k,v)},
-  getStudents(){return this.get('students')||[]},
-  setStudents(v){this.set('students',v)},
-  getConsultants(){return this.get('consultants')||[]},
-  setConsultants(v){this.set('consultants',v)},
-  getAdmins(){return this.get('admins')||[]},
-  setAdmins(v){this.set('admins',v)},
-  getApiKey(){return this.gs('api_key')},
-  setApiKey(v){this.ss('api_key',v)},
-  getModel(){return this.gs('model')||'claude-sonnet-4-6'},
-  setModel(v){this.ss('model',v)},
-  getGb(sid){return this.gs('gb_'+sid)},
-  setGb(sid,v){this.ss('gb_'+sid,v)},
-  getHistory(sid){return this.get('hist_'+sid)||[]},
-  addHistory(sid,item){const h=this.getHistory(sid);h.unshift({...item,ts:Date.now()});if(h.length>100)h.pop();this.set('hist_'+sid,h)},
-  getExams(sid){return this.get('exams_'+sid)||[]},
-  setExams(sid,v){this.set('exams_'+sid,v)},
-  getFeedbacks(sid){return this.get('fbs_'+sid)||[]},
-  setFeedbacks(sid,v){this.set('fbs_'+sid,v)},
+let TOKEN = localStorage.getItem('bl_token') || '';
+
+const MEM = {
+  user: null,
+  students: [], consultants: [],
+  apiKey: '', model: 'claude-sonnet-4-6',
+  // 현재 로그인한 학생 데이터
+  student: null, gb: '', exams: [], feedbacks: [], history: [],
+  // admin·consultant가 조회한 학생 데이터 캐시 { [sid]: { gb, exams, feedbacks, history } }
+  cache: {},
+};
+
+async function api(method, url, body) {
+  const opts = { method, headers: { Authorization: `Bearer ${TOKEN}` } };
+  if (body !== undefined) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  const r = await fetch(url, opts);
+  if (r.status === 401) { logout(); throw new Error('세션이 만료되었습니다. 다시 로그인해주세요.'); }
+  if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || `HTTP ${r.status}`); }
+  return r.json();
+}
+
+// 학생 상세 데이터를 서버에서 로드해 캐시에 저장
+async function loadStudentCache(sid) {
+  if (MEM.cache[sid]) return MEM.cache[sid];
+  try {
+    const [exams, fbs, hist, gbRes] = await Promise.all([
+      api('GET', `/api/students/${sid}/exams`),
+      api('GET', `/api/students/${sid}/feedbacks`),
+      api('GET', `/api/students/${sid}/history`),
+      api('GET', `/api/students/${sid}/gb`),
+    ]);
+    MEM.cache[sid] = { exams: exams || [], feedbacks: fbs || [], history: hist || [], gb: gbRes?.content || '' };
+  } catch {
+    MEM.cache[sid] = { exams: [], feedbacks: [], history: [], gb: '' };
+  }
+  return MEM.cache[sid];
+}
+
+// DB 호환 래퍼: 모든 렌더 함수가 동기적으로 읽을 수 있게 MEM에서 반환
+const DB = {
+  getStudents() { return MEM.students; },
+  setStudents(v) { MEM.students = v; },
+  getConsultants() { return MEM.consultants; },
+  setConsultants(v) { MEM.consultants = v; },
+  getAdmins() { return MEM.user?.role === 'admin' ? [MEM.user] : []; },
+  setAdmins() {},
+  getApiKey() { return MEM.apiKey; },
+  setApiKey(v) { MEM.apiKey = v; },
+  getModel() { return MEM.model || 'claude-sonnet-4-6'; },
+  setModel(v) { MEM.model = v; },
+  getGb(sid) {
+    if (sid === MEM.student?.id) return MEM.gb;
+    return MEM.cache[sid]?.gb || '';
+  },
+  setGb(sid, v) {
+    if (sid === MEM.student?.id) MEM.gb = v;
+    else { if (!MEM.cache[sid]) MEM.cache[sid] = {}; MEM.cache[sid].gb = v; }
+  },
+  getHistory(sid) {
+    if (sid === MEM.student?.id) return MEM.history;
+    return MEM.cache[sid]?.history || [];
+  },
+  addHistory(sid, item) {
+    const arr = sid === MEM.student?.id ? MEM.history : (MEM.cache[sid]?.history || []);
+    arr.unshift({ ...item, ts: Date.now() });
+    if (arr.length > 100) arr.pop();
+    if (sid === MEM.student?.id) MEM.history = arr;
+    else { if (!MEM.cache[sid]) MEM.cache[sid] = {}; MEM.cache[sid].history = arr; }
+  },
+  getExams(sid) {
+    if (sid === MEM.student?.id) return MEM.exams;
+    return MEM.cache[sid]?.exams || [];
+  },
+  setExams(sid, v) {
+    if (sid === MEM.student?.id) MEM.exams = v;
+    else { if (!MEM.cache[sid]) MEM.cache[sid] = {}; MEM.cache[sid].exams = v; }
+  },
+  getFeedbacks(sid) {
+    if (sid === MEM.student?.id) return MEM.feedbacks;
+    return MEM.cache[sid]?.feedbacks || [];
+  },
+  setFeedbacks(sid, v) {
+    if (sid === MEM.student?.id) MEM.feedbacks = v;
+    else { if (!MEM.cache[sid]) MEM.cache[sid] = {}; MEM.cache[sid].feedbacks = v; }
+  },
 };
 
 function today(){return new Date().toLocaleDateString('ko-KR')}
 function now(){return new Date().toLocaleString('ko-KR')}
-
-// ═══════════════════════════════════════
-// INIT
-// ═══════════════════════════════════════
-function initDB(){
-  if(!DB.getAdmins().length){
-    DB.setAdmins([{id:'adm_1',username:'admin',password:'admin1234',role:'admin',name:'관리자',createdAt:today()}]);
-  }
-  if(!DB.getConsultants().length){
-    DB.setConsultants([{id:'cons_1',username:'cons01',password:'1234',role:'consultant',name:'김컨설턴트',email:'cons@biglinker.kr',specialties:'자연계·의약계',createdAt:today(),assignedStudents:[]}]);
-  }
-  if(!DB.getStudents().length){
-    const sid='st_'+Date.now();
-    DB.setStudents([{id:sid,username:'kim2024',password:'1234',role:'student',name:'김동형',school:'숭실고등학교',grade:'2',targetUniv:'가톨릭대학교',targetDept:'간호학과',consultantId:'cons_1',memo:'샘플 학생',createdAt:today(),analysisCount:0}]);
-    DB.setExams(sid,SAMPLE_EXAMS);
-    DB.setFeedbacks(sid,SAMPLE_FBS);
-  }
-}
 
 // ═══════════════════════════════════════
 // SESSION & AUTH
@@ -1189,26 +1234,57 @@ function setRole(r){
   ['admin','consultant','student'].forEach(x=>q('rb-'+x).classList.toggle('on',x===r));
 }
 
-function doLogin(){
+async function doLogin(){
   const id=v('lid'),pw=v('lpw');
   q('lerr').textContent='';
   if(!id||!pw){q('lerr').textContent='아이디와 비밀번호를 입력해주세요.';return;}
-  if(loginRole==='admin'){
-    const u=DB.getAdmins().find(a=>a.username===id&&a.password===pw);
-    if(!u){q('lerr').textContent='계정 정보가 올바르지 않습니다.';return;}
-    S.user=u; showAdmin();
-  } else if(loginRole==='consultant'){
-    const u=DB.getConsultants().find(c=>c.username===id&&c.password===pw);
-    if(!u){q('lerr').textContent='계정 정보가 올바르지 않습니다.';return;}
-    S.user=u;S.consultant=u; showConsultant();
-  } else {
-    const u=DB.getStudents().find(s=>s.username===id&&s.password===pw);
-    if(!u){q('lerr').textContent='계정 정보가 올바르지 않습니다.';return;}
-    S.user=u;S.student=u; showStudent();
-  }
+  const btn=q('scr-login').querySelector('.btn-main');
+  if(btn){btn.disabled=true;btn.textContent='로그인 중...';}
+  try{
+    const d=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:id,password:pw})});
+    const r=await d.json();
+    if(!d.ok){q('lerr').textContent=r.error||'로그인 실패';return;}
+    TOKEN=r.token;
+    localStorage.setItem('bl_token',TOKEN);
+    MEM.user=r.user;
+    const role=r.user.role;
+    if(role==='admin'){
+      MEM.students=r.students||[];
+      MEM.consultants=r.consultants||[];
+      MEM.apiKey=r.apiKey||'';
+      MEM.model=r.model||'claude-sonnet-4-6';
+      MEM.cache={};
+      S.user=r.user;
+      showAdmin();
+    } else if(role==='consultant'){
+      MEM.students=r.students||[];
+      MEM.consultants=r.consultants||[r.user];
+      MEM.cache={};
+      S.user=r.user;S.consultant=r.user;
+      showConsultant();
+    } else {
+      const sd=r.studentData||{};
+      MEM.student=r.user;
+      MEM.gb=sd.gb||'';
+      MEM.exams=sd.exams||[];
+      MEM.feedbacks=sd.feedbacks||[];
+      MEM.history=sd.history||[];
+      MEM.consultant=r.consultant;
+      S.user=r.user;S.student=r.user;
+      showStudent();
+    }
+  }catch(e){q('lerr').textContent=e.message||'서버 연결 오류';}
+  finally{if(btn){btn.disabled=false;btn.textContent='로그인';}}
 }
 
-function logout(){S={user:null,student:null,consultant:null};q('lid').value='';q('lpw').value='';q('lerr').textContent='';show('scr-login');}
+function logout(){
+  TOKEN='';localStorage.removeItem('bl_token');
+  S={user:null,student:null,consultant:null};
+  MEM.user=null;MEM.student=null;MEM.students=[];MEM.consultants=[];
+  MEM.gb='';MEM.exams=[];MEM.feedbacks=[];MEM.history=[];MEM.cache={};
+  q('lid').value='';q('lpw').value='';q('lerr').textContent='';
+  show('scr-login');
+}
 function show(id){document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));q(id).classList.add('on')}
 
 // ═══════════════════════════════════════
@@ -1220,8 +1296,8 @@ function showAdmin(){
   q('a-cnt').textContent=DB.getStudents().length;
   q('c-cnt').textContent=DB.getConsultants().length;
   renderAdminDash();
-  const k=DB.getApiKey();if(k)q('api-key-in').value=k;
-  q('model-sel').value=DB.getModel();
+  if(MEM.apiKey)q('api-key-in').value=MEM.apiKey;
+  q('model-sel').value=MEM.model||'claude-sonnet-4-6';
 }
 
 function aNav(btn,id){document.querySelectorAll('#scr-admin .tn').forEach(t=>t.classList.remove('on'));btn.classList.add('on');aSide(null,id);}
@@ -1275,11 +1351,18 @@ function renderStudentList(){
     </div>`;}).join('');
 }
 
-function viewStudent(sid,screen='admin'){
+async function viewStudent(sid,screen='admin'){
   const sts=DB.getStudents(),s=sts.find(x=>x.id===sid);
   if(!s)return;
+  // 서버에서 학생 데이터 로드 (캐시 없을 때)
+  if(!MEM.cache[sid]?.exams){
+    const targetEl=screen==='admin'?q('a-detail-ct'):q('c-detail-ct');
+    screen==='admin'?aSide(null,'a-student-detail'):cSide(null,'c-student-detail');
+    if(targetEl)targetEl.innerHTML='<div style="padding:40px;text-align:center;color:var(--muted)">데이터 로딩 중...</div>';
+    await loadStudentCache(sid);
+  }
   const cons=DB.getConsultants();
-  const mycons=cons.find(c=>c.id===s.consultantId);
+  const mycons=cons.find(c=>c.id===(s.consultantId||s.consultant_id));
   const exams=DB.getExams(sid);
   const hist=DB.getHistory(sid);
   const targetEl=screen==='admin'?q('a-detail-ct'):q('c-detail-ct');
@@ -1343,12 +1426,14 @@ function renderConsList(){
 // ═══════════════════════════════════════
 // CONSULTANT
 // ═══════════════════════════════════════
-function showConsultant(){
+async function showConsultant(){
   show('scr-consultant');
   const c=S.consultant;
   q('c-badge-nm').textContent=c.name+' 컨설턴트';
-  const myStudents=DB.getStudents().filter(s=>s.consultantId===c.id);
+  const myStudents=DB.getStudents().filter(s=>(s.consultantId||s.consultant_id)===c.id);
   q('c-my-cnt').textContent=myStudents.length;
+  // 담당 학생 데이터 백그라운드 프리페치
+  await Promise.all(myStudents.map(s=>loadStudentCache(s.id)));
   const pendingFbs=myStudents.flatMap(s=>DB.getFeedbacks(s.id).filter(f=>!f.consultantContent));
   q('c-fb-cnt').textContent=pendingFbs.length;
   q('c-dash-sub').textContent=`담당 학생 ${myStudents.length}명 · 미처리 피드백 ${pendingFbs.length}건 · ${today()}`;
@@ -1364,7 +1449,7 @@ function cSide(el,id){
   if(id==='c-performance')renderConsPerf();
   if(id==='c-cal'){
     const c=S.consultant;
-    const myStudents=DB.getStudents().filter(s=>s.consultantId===c.id);
+    const myStudents=DB.getStudents().filter(s=>(s.consultantId||s.consultant_id)===c.id);
     const allExams=myStudents.flatMap(s=>DB.getExams(s.id).map(e=>({...e,_studentName:s.name,_studentId:s.id})));
     CAL.init('c',allExams,'consultant');CAL.render('c');
   }
@@ -1372,7 +1457,7 @@ function cSide(el,id){
 
 function renderConsDash(){
   const c=S.consultant;
-  const myStudents=DB.getStudents().filter(s=>s.consultantId===c.id);
+  const myStudents=DB.getStudents().filter(s=>(s.consultantId||s.consultant_id)===c.id);
   const pendingFbs=myStudents.flatMap(s=>DB.getFeedbacks(s.id).filter(f=>!f.consultantContent));
   q('c-stats').innerHTML=`
     <div class="card"><div class="card-lbl">담당 학생</div><div class="sn c-p">${myStudents.length}</div><div class="ss">담당 학생 수</div></div>
@@ -1390,7 +1475,7 @@ function renderConsDash(){
 
 function renderConsStudentList(){
   const c=S.consultant;
-  const sts=DB.getStudents().filter(s=>s.consultantId===c.id);
+  const sts=DB.getStudents().filter(s=>(s.consultantId||s.consultant_id)===c.id);
   q('c-student-list').innerHTML=sts.map(s=>`
     <div class="st-row" onclick="viewStudent('${s.id}','consultant')">
       <div class="st-av" style="color:var(--purple)">${s.name[0]}</div>
@@ -1400,7 +1485,7 @@ function renderConsStudentList(){
 
 function renderConsFeedbacks(){
   const c=S.consultant;
-  const sts=DB.getStudents().filter(s=>s.consultantId===c.id);
+  const sts=DB.getStudents().filter(s=>(s.consultantId||s.consultant_id)===c.id);
   let html='';
   sts.forEach(s=>{
     const fbs=DB.getFeedbacks(s.id);
@@ -1413,7 +1498,7 @@ function renderConsFeedbacks(){
 
 function renderConsPerf(){
   const c=S.consultant;
-  const sts=DB.getStudents().filter(s=>s.consultantId===c.id);
+  const sts=DB.getStudents().filter(s=>(s.consultantId||s.consultant_id)===c.id);
   let html='';
   sts.forEach(s=>{
     const exams=DB.getExams(s.id);
@@ -1429,16 +1514,16 @@ function renderConsPerf(){
 // ═══════════════════════════════════════
 function showStudent(){
   show('scr-student');
-  const s=S.student;
-  q('s-badge').textContent=`${s.name} · ${s.school} ${s.grade}학년`;
+  const s=MEM.student||S.student;
+  q('s-badge').textContent=`${s.name} · ${s.school||''} ${s.grade||''}학년`;
   renderStudentDash();
   loadProfile();
   renderCutoffTables();
   renderPerfPage();
   renderFbPage();
   renderHistPage();
-  q('s-perf-cnt').textContent=DB.getExams(s.id).length;
-  q('s-fb-cnt').textContent=DB.getFeedbacks(s.id).filter(f=>!f.consultantContent).length;
+  q('s-perf-cnt').textContent=MEM.exams.length;
+  q('s-fb-cnt').textContent=MEM.feedbacks.filter(f=>!f.consultantContent).length;
 }
 
 function sNav(btn,id){document.querySelectorAll('#scr-student .tn').forEach(t=>t.classList.remove('on'));btn.classList.add('on');sSide(null,id);}
@@ -1453,8 +1538,8 @@ function sSide(el,id){
 }
 
 function renderStudentDash(){
-  const s=S.student;
-  const cons=DB.getConsultants().find(c=>c.id===s.consultantId);
+  const s=MEM.student||S.student;
+  const cons=MEM.consultant||DB.getConsultants().find(c=>c.id===s.consultantId);
   const fbs=DB.getFeedbacks(s.id);
   const pendingFbs=fbs.filter(f=>f.consultantContent&&!f.studentRead);
   const gb=DB.getGb(s.id)||'';
@@ -1678,17 +1763,18 @@ function renderFbThread(fb,student,role){
   </div>`;
 }
 
-function submitFbReply(fbId,sid){
+async function submitFbReply(fbId,sid){
   const content=v('fb-reply-'+fbId);
   if(!content)return;
-  const fbs=DB.getFeedbacks(sid);
-  const idx=fbs.findIndex(f=>f.id===fbId);
-  if(idx<0)return;
-  fbs[idx].consultantContent=content;
-  fbs[idx].status='피드백완료';
-  fbs[idx].updatedAt=Date.now();
-  DB.setFeedbacks(sid,fbs);
-  renderConsFeedbacks();
+  try{
+    const updated=await api('PUT',`/api/feedbacks/${fbId}`,{consultantContent:content,status:'피드백완료'});
+    // 캐시 갱신
+    const fbs=DB.getFeedbacks(sid);
+    const idx=fbs.findIndex(f=>f.id===fbId);
+    if(idx>=0){fbs[idx]={...fbs[idx],consultantContent:content,status:'피드백완료',updatedAt:updated.updated_at*1000||Date.now()};}
+    DB.setFeedbacks(sid,fbs);
+    renderConsFeedbacks();
+  }catch(e){alert('전송 실패: '+e.message);}
 }
 
 // ═══════════════════════════════════════
@@ -1716,24 +1802,23 @@ function openStModal(sid){
   openM('m-student');
 }
 
-function saveStudent(){
+async function saveStudent(){
   const sid=v('m-sid'),nm=v('m-nm'),uid=v('m-uid'),pw=v('m-pw');
   if(!nm||!uid){q('m-err').textContent='이름과 아이디는 필수입니다.';return;}
-  const sts=DB.getStudents();
   const consId=q('m-cons').value;
-  if(sid){
-    const idx=sts.findIndex(s=>s.id===sid);if(idx<0)return;
-    if(sts.find(s=>s.username===uid&&s.id!==sid)){q('m-err').textContent='이미 사용 중인 아이디';return;}
-    sts[idx]={...sts[idx],name:nm,username:uid,school:v('m-sch'),grade:v('m-gr'),targetUniv:v('m-univ'),targetDept:v('m-dept'),consultantId:consId,memo:v('m-memo')};
-    if(pw)sts[idx].password=pw;
-  } else {
-    if(!pw){q('m-err').textContent='비밀번호를 입력해주세요.';return;}
-    if(sts.find(s=>s.username===uid)){q('m-err').textContent='이미 사용 중인 아이디';return;}
-    sts.push({id:'st_'+Date.now(),username:uid,password:pw,role:'student',name:nm,school:v('m-sch'),grade:v('m-gr'),targetUniv:v('m-univ'),targetDept:v('m-dept'),consultantId:consId,memo:v('m-memo'),createdAt:today(),analysisCount:0});
-  }
-  DB.setStudents(sts);
-  q('a-cnt').textContent=sts.length;
-  closeM('m-student');renderStudentList();renderAdminDash();
+  const body={name:nm,username:uid,role:'student',school:v('m-sch'),grade:v('m-gr'),targetUniv:v('m-univ'),targetDept:v('m-dept'),consultantId:consId,memo:v('m-memo')};
+  if(pw)body.password=pw;
+  try{
+    let updated;
+    if(sid){updated=await api('PUT',`/api/users/${sid}`,body);}
+    else{if(!pw){q('m-err').textContent='비밀번호를 입력해주세요.';return;}updated=await api('POST','/api/users',body);}
+    // MEM 갱신
+    const idx=MEM.students.findIndex(s=>s.id===(sid||updated.id));
+    if(idx>=0)MEM.students[idx]={...MEM.students[idx],...updated};
+    else MEM.students.push(updated);
+    q('a-cnt').textContent=MEM.students.length;
+    closeM('m-student');renderStudentList();renderAdminDash();
+  }catch(e){q('m-err').textContent=e.message;}
 }
 
 function openConsModal(cid){
@@ -1750,22 +1835,21 @@ function openConsModal(cid){
   openM('m-consultant');
 }
 
-function saveConsultant(){
+async function saveConsultant(){
   const cid=v('m-cid'),nm=v('m-cnm'),uid=v('m-cuid'),pw=v('m-cpw');
   if(!nm||!uid){q('m-cerr').textContent='이름과 아이디는 필수';return;}
-  const cons=DB.getConsultants();
-  if(cid){
-    const idx=cons.findIndex(c=>c.id===cid);if(idx<0)return;
-    if(cons.find(c=>c.username===uid&&c.id!==cid)){q('m-cerr').textContent='이미 사용 중인 아이디';return;}
-    cons[idx]={...cons[idx],name:nm,username:uid,email:v('m-cemail'),specialties:v('m-cspec')};
-    if(pw)cons[idx].password=pw;
-  } else {
-    if(!pw){q('m-cerr').textContent='비밀번호를 입력해주세요.';return;}
-    if(cons.find(c=>c.username===uid)){q('m-cerr').textContent='이미 사용 중인 아이디';return;}
-    cons.push({id:'cons_'+Date.now(),username:uid,password:pw,role:'consultant',name:nm,email:v('m-cemail'),specialties:v('m-cspec'),createdAt:today()});
-  }
-  DB.setConsultants(cons);q('c-cnt').textContent=cons.length;
-  closeM('m-consultant');renderConsList();renderAdminDash();
+  const body={name:nm,username:uid,role:'consultant',email:v('m-cemail'),specialties:v('m-cspec')};
+  if(pw)body.password=pw;
+  try{
+    let updated;
+    if(cid){updated=await api('PUT',`/api/users/${cid}`,body);}
+    else{if(!pw){q('m-cerr').textContent='비밀번호를 입력해주세요.';return;}updated=await api('POST','/api/users',body);}
+    const idx=MEM.consultants.findIndex(c=>c.id===(cid||updated.id));
+    if(idx>=0)MEM.consultants[idx]={...MEM.consultants[idx],...updated};
+    else MEM.consultants.push(updated);
+    q('c-cnt').textContent=MEM.consultants.length;
+    closeM('m-consultant');renderConsList();renderAdminDash();
+  }catch(e){q('m-cerr').textContent=e.message;}
 }
 
 function openPerfModal(sid,pid){
@@ -1784,55 +1868,68 @@ function openPerfModal(sid,pid){
   openM('m-perf');
 }
 
-function savePerf(){
+async function savePerf(){
   const sid=v('m-psid'),pid=v('m-pid');
   if(!v('m-psubj')||!v('m-ptopic')){alert('과목과 주제는 필수입니다.');return;}
-  const exams=DB.getExams(sid);
-  const item={id:pid||'ex_'+Date.now(),subject:v('m-psubj'),teacher:v('m-pteacher'),evalType:q('m-petype').value||'제출',time:v('m-ptime'),teacherNote:v('m-ptnote'),topic:v('m-ptopic'),ratio:parseInt(v('m-pratio'))||0,dueDate:v('m-pdue'),status:q('m-pstatus').value,elements:v('m-pelements'),consultantNote:v('m-pnote'),materials:v('m-pmats'),submitted:q('m-psubmit').value==='true',calFeedbacks:pid?(DB.getExams(sid).find(e=>e.id===pid)?.calFeedbacks||[]):[]};
-  if(pid){const idx=exams.findIndex(e=>e.id===pid);if(idx>=0)exams[idx]=item;} else exams.push(item);
-  DB.setExams(sid,exams);closeM('m-perf');
-  if(S.student?.id===sid)renderPerfPage();
-  if(S.consultant)renderConsPerf();
+  const body={subject:v('m-psubj'),teacher:v('m-pteacher'),evalType:q('m-petype').value||'제출',time:v('m-ptime'),teacherNote:v('m-ptnote'),topic:v('m-ptopic'),ratio:parseInt(v('m-pratio'))||0,dueDate:v('m-pdue'),status:q('m-pstatus').value,elements:v('m-pelements'),consultantNote:v('m-pnote'),materials:v('m-pmats'),submitted:q('m-psubmit').value==='true'};
+  try{
+    let updated;
+    if(pid){updated=await api('PUT',`/api/exams/${pid}`,body);}
+    else{updated=await api('POST',`/api/students/${sid}/exams`,body);}
+    // MEM 갱신
+    const exams=DB.getExams(sid);
+    const idx=exams.findIndex(e=>e.id===(pid||updated.id));
+    if(idx>=0)exams[idx]=updated; else exams.push(updated);
+    DB.setExams(sid,exams);
+    closeM('m-perf');
+    if(S.student?.id===sid)renderPerfPage();
+    if(S.consultant)renderConsPerf();
+  }catch(e){alert('저장 실패: '+e.message);}
 }
 
 function openFbModal(){openM('m-fb');['m-fbtitle','m-fbcontent'].forEach(id=>q(id).value='');}
-function saveFb(){
+async function saveFb(){
   const title=v('m-fbtitle'),content=v('m-fbcontent');
   if(!title||!content){alert('제목과 내용을 입력해주세요.');return;}
   const sid=S.student?.id;if(!sid)return;
-  const fbs=DB.getFeedbacks(sid);
-  fbs.unshift({id:'fb_'+Date.now(),type:q('m-fbtype').value,title,studentContent:content,consultantContent:'',status:'요청중',createdAt:Date.now(),updatedAt:Date.now(),studentRead:true});
-  DB.setFeedbacks(sid,fbs);
-  closeM('m-fb');renderFbPage();
-  q('s-fb-cnt').textContent=fbs.filter(f=>!f.consultantContent).length;
+  try{
+    const created=await api('POST',`/api/students/${sid}/feedbacks`,{type:q('m-fbtype').value,title,studentContent:content});
+    MEM.feedbacks.unshift({...created,createdAt:created.createdAt||Date.now(),updatedAt:created.updatedAt||Date.now()});
+    closeM('m-fb');renderFbPage();
+    q('s-fb-cnt').textContent=MEM.feedbacks.filter(f=>!f.consultantContent).length;
+  }catch(e){alert('전송 실패: '+e.message);}
 }
 
 function confirmDel(sid,name){
   q('mc-t').textContent='학생 삭제';q('mc-msg').textContent=`"${name}" 학생의 모든 데이터를 삭제합니다. 되돌릴 수 없습니다.`;
-  q('mc-ok').onclick=()=>{
-    DB.setStudents(DB.getStudents().filter(s=>s.id!==sid));
-    DB.del('gb_'+sid);DB.del('hist_'+sid);DB.del('exams_'+sid);DB.del('fbs_'+sid);
-    q('a-cnt').textContent=DB.getStudents().length;
-    closeM('m-confirm');renderStudentList();renderAdminDash();
+  q('mc-ok').onclick=async()=>{
+    try{
+      await api('DELETE',`/api/users/${sid}`);
+      MEM.students=MEM.students.filter(s=>s.id!==sid);
+      delete MEM.cache[sid];
+      q('a-cnt').textContent=MEM.students.length;
+      closeM('m-confirm');renderStudentList();renderAdminDash();
+    }catch(e){alert('삭제 실패: '+e.message);}
   };openM('m-confirm');
 }
 function confirmDelCons(cid,name){
   q('mc-t').textContent='컨설턴트 삭제';q('mc-msg').textContent=`"${name}" 컨설턴트를 삭제합니다. 담당 학생 배정이 해제됩니다.`;
-  q('mc-ok').onclick=()=>{
-    const sts=DB.getStudents().map(s=>s.consultantId===cid?{...s,consultantId:''}:s);DB.setStudents(sts);
-    DB.setConsultants(DB.getConsultants().filter(c=>c.id!==cid));
-    closeM('m-confirm');renderConsList();renderAdminDash();
+  q('mc-ok').onclick=async()=>{
+    try{
+      await api('DELETE',`/api/users/${cid}`);
+      MEM.consultants=MEM.consultants.filter(c=>c.id!==cid);
+      MEM.students=MEM.students.map(s=>s.consultantId===cid?{...s,consultant_id:'',consultantId:''}:s);
+      closeM('m-confirm');renderConsList();renderAdminDash();
+    }catch(e){alert('삭제 실패: '+e.message);}
   };openM('m-confirm');
 }
 
 // ═══════════════════════════════════════
 // API
 // ═══════════════════════════════════════
-async function callAI(sys,msg,el,label='biglinker AI',sid=null){
+async function callAI(sys,msg,el,label='biglinker AI',sid=null,messages=null){
   if(!el)return;
   el.innerHTML=`<div class="ai-box"><div class="ai-head"><div class="ai-dot"></div>${label}</div><div class="ld-wrap"><div class="ld-tr"><div class="ld-fl"></div></div><div class="ld-tx">AI 분석 중...</div></div></div>`;
-  const k=DB.getApiKey();
-  if(!k){el.innerHTML=`<div class="ai-box"><div class="ai-head"><div class="ai-dot"></div>${label}</div><div class="ai-body"><b style="color:var(--red)">API 키가 설정되지 않았습니다.</b>\n관리자 설정에서 Anthropic API 키를 입력해주세요.</div></div>`;return;}
   const bodyEl=document.createElement('div');bodyEl.className='ai-body';
   const cur=document.createElement('span');cur.className='cblink';
   let full='';
@@ -1842,10 +1939,14 @@ async function callAI(sys,msg,el,label='biglinker AI',sid=null){
   head.innerHTML=`<div class="ai-dot"></div>${label} · 생성 중`;
   box.appendChild(head);box.appendChild(bodyEl);bodyEl.appendChild(cur);el.appendChild(box);
   try{
-    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':k,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:DB.getModel(),max_tokens:1500,stream:true,system:sys,messages:[{role:'user',content:msg}]})});
-    if(!r.ok){const e=await r.json();throw new Error(e.error?.message||`HTTP ${r.status}`);}
+    // 서버 프록시 사용 (API 키는 서버에서 관리, 토큰 4096)
+    const body = messages
+      ? {system:sys, messages, maxTokens:4096}
+      : {system:sys, userMsg:msg, maxTokens:4096};
+    const r=await fetch('/api/claude/stream',{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${TOKEN}`},
+      body:JSON.stringify(body)});
+    if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error||`HTTP ${r.status}`);}
     const reader=r.body.getReader();const dec=new TextDecoder();let buf='';
     while(true){
       const{done,value}=await reader.read();if(done)break;
@@ -1853,24 +1954,29 @@ async function callAI(sys,msg,el,label='biglinker AI',sid=null){
       const lines=buf.split('\n');buf=lines.pop();
       for(const ln of lines){
         if(!ln.startsWith('data:'))continue;
-        try{const d=JSON.parse(ln.slice(5));if(d.delta?.text){full+=d.delta.text;bodyEl.textContent=full;bodyEl.appendChild(cur);el.scrollIntoView({behavior:'smooth',block:'end'});}}catch{}
+        try{
+          const d=JSON.parse(ln.slice(5));
+          if(d.error)throw new Error(d.error);
+          if(d.text){full+=d.text;bodyEl.textContent=full;bodyEl.appendChild(cur);el.scrollIntoView({behavior:'smooth',block:'end'});}
+        }catch(pe){if(pe.message&&pe.message!=='Unexpected end of JSON input')throw pe;}
       }
     }
     cur.remove();head.innerHTML=`<div class="ai-dot"></div>${label} · 완료`;
     const fmt=full.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
       .replace(/\*\*(.*?)\*\*/g,'<b>$1</b>')
-      .replace(/^### (.+)$/gm,'<h3>$1</h3>')
+      .replace(/^### (.+)$/gm,'<h3 style="margin:10px 0 4px;font-size:13px;color:var(--blue)">$1</h3>')
+      .replace(/^## (.+)$/gm,'<h2 style="margin:12px 0 5px;font-size:14px;color:var(--text)">$1</h2>')
       .replace(/^- (.+)$/gm,'<div style="padding:2px 0 2px 13px;border-left:2px solid var(--border2);margin:2px 0;color:var(--muted);font-size:12px">$1</div>');
     bodyEl.innerHTML=fmt;
+    // 분석 완료 후 히스토리 서버 저장 + MEM 갱신 + 대시보드 즉시 반영
     const sid2=sid||S.student?.id;
     if(sid2){
       DB.addHistory(sid2,{type:label,content:full.slice(0,300)});
-      const sts=DB.getStudents();const idx=sts.findIndex(s=>s.id===sid2);
-      if(idx>=0){sts[idx].analysisCount=(sts[idx].analysisCount||0)+1;DB.setStudents(sts);if(S.student?.id===sid2)S.student=sts[idx];}
-      // 분석 완료 후 대시보드·히스토리 즉시 갱신
+      // 서버에 히스토리 비동기 저장
+      api('POST',`/api/students/${sid2}/history`,{type:label,content:full.slice(0,300)}).catch(()=>{});
       if(S.student?.id===sid2){renderStudentDash();renderHistPage();}
     }
-  }catch(e){cur.remove();head.innerHTML=`<div class="ai-dot"></div>${label} · 오류`;bodyEl.innerHTML=`<b style="color:var(--red)">오류: ${e.message}</b>\nAPI 키를 확인하거나 관리자에게 문의하세요.`;}
+  }catch(e){cur.remove();head.innerHTML=`<div class="ai-dot"></div>${label} · 오류`;bodyEl.innerHTML=`<b style="color:var(--red)">오류: ${e.message}</b>\n관리자 설정에서 API 키를 확인하거나 관리자에게 문의하세요.`;}
 }
 
 const ST=()=>{
@@ -1948,28 +2054,38 @@ async function runAnswerFb(btn){
 }
 
 // API Settings
-function saveApiKey(){const k=v('api-key-in');if(!k)return;DB.setApiKey(k);DB.setModel(q('model-sel').value);q('api-st').innerHTML='<div class="ntc ntc-g" style="margin-top:8px"><span>✓</span>저장되었습니다.</div>';renderAdminDash();}
+async function saveApiKey(){
+  const k=v('api-key-in');if(!k)return;
+  const model=q('model-sel').value;
+  try{
+    await api('POST','/api/settings',{apiKey:k,model});
+    MEM.apiKey=k;MEM.model=model;
+    q('api-st').innerHTML='<div class="ntc ntc-g" style="margin-top:8px"><span>✓</span>저장되었습니다.</div>';
+    renderAdminDash();
+  }catch(e){q('api-st').innerHTML=`<div class="ntc ntc-r" style="margin-top:8px"><span>✗</span>${e.message}</div>`;}
+}
 async function testApi(){
-  const el=q('api-test-r');const k=DB.getApiKey();
-  if(!k){el.innerHTML='<div class="ntc ntc-r" style="margin-top:8px"><span>✗</span>API 키를 먼저 저장해주세요.</div>';return;}
+  const el=q('api-test-r');
   el.innerHTML='<div class="ntc ntc-b" style="margin-top:8px"><span>·</span>테스트 중...</div>';
   try{
-    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':k,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:DB.getModel(),max_tokens:20,messages:[{role:'user',content:'안녕'}]})});
-    const d=await r.json();
-    if(d.content)el.innerHTML='<div class="ntc ntc-g" style="margin-top:8px"><span>✓</span>API 연결 성공!</div>';
-    else el.innerHTML=`<div class="ntc ntc-r" style="margin-top:8px"><span>✗</span>${d.error?.message||'오류'}</div>`;
+    // 서버 프록시로 테스트 (API 키 직접 노출 없음)
+    const r=await fetch('/api/claude/stream',{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${TOKEN}`},
+      body:JSON.stringify({userMsg:'안녕',maxTokens:20})});
+    if(r.ok)el.innerHTML='<div class="ntc ntc-g" style="margin-top:8px"><span>✓</span>API 연결 성공!</div>';
+    else{const d=await r.json().catch(()=>({}));el.innerHTML=`<div class="ntc ntc-r" style="margin-top:8px"><span>✗</span>${d.error||'오류'}</div>`;}
   }catch(e){el.innerHTML=`<div class="ntc ntc-o" style="margin-top:8px"><span>⚠</span>${e.message}</div>`;}
 }
 
-function changeAdmPw(){
-  const el=q('adm-pw-r');const admins=DB.getAdmins();const me=admins.find(a=>a.id===S.user?.id);
-  if(!me||me.password!==v('adm-cur')){el.innerHTML='<span style="color:var(--red)">현재 비밀번호 오류</span>';return;}
+async function changeAdmPw(){
+  const el=q('adm-pw-r');
   if(v('adm-new').length<4){el.innerHTML='<span style="color:var(--red)">4자 이상 입력</span>';return;}
   if(v('adm-new')!==v('adm-new2')){el.innerHTML='<span style="color:var(--red)">비밀번호 불일치</span>';return;}
-  me.password=v('adm-new');DB.setAdmins(admins);
-  el.innerHTML='<span style="color:var(--green)">변경 완료</span>';
+  try{
+    await api('PUT',`/api/users/${S.user?.id}`,{password:v('adm-new'),currentPassword:v('adm-cur')});
+    el.innerHTML='<span style="color:var(--green)">변경 완료</span>';
+    ['adm-cur','adm-new','adm-new2'].forEach(id=>q(id).value='');
+  }catch(e){el.innerHTML=`<span style="color:var(--red)">${e.message}</span>`;}
 }
 
 function exportData(){
@@ -1987,18 +2103,25 @@ function loadProfile(){
   const s=S.student;if(!s)return;
   q('p-nm').value=s.name||'';q('p-sch').value=s.school||'';q('p-gr').value=s.grade||'2';q('p-univ').value=s.targetUniv||'';q('p-dept').value=s.targetDept||'';
 }
-function saveProfile(){
-  const sts=DB.getStudents();const idx=sts.findIndex(s=>s.id===S.student?.id);if(idx<0)return;
-  sts[idx]={...sts[idx],name:v('p-nm'),school:v('p-sch'),grade:v('p-gr'),targetUniv:v('p-univ'),targetDept:v('p-dept')};
-  DB.setStudents(sts);S.student=sts[idx];q('s-badge').textContent=`${sts[idx].name} · ${sts[idx].school} ${sts[idx].grade}학년`;
-  q('p-r').innerHTML='<span style="color:var(--green)">저장 완료</span>';setTimeout(()=>q('p-r').innerHTML='',2000);
+async function saveProfile(){
+  const sid=S.student?.id;if(!sid)return;
+  const body={name:v('p-nm'),school:v('p-sch'),grade:v('p-gr'),targetUniv:v('p-univ'),targetDept:v('p-dept')};
+  try{
+    const updated=await api('PUT',`/api/users/${sid}`,body);
+    MEM.student={...MEM.student,...updated};S.student=MEM.student;
+    q('s-badge').textContent=`${updated.name} · ${updated.school||''} ${updated.grade||''}학년`;
+    q('p-r').innerHTML='<span style="color:var(--green)">저장 완료</span>';setTimeout(()=>q('p-r').innerHTML='',2000);
+  }catch(e){q('p-r').innerHTML=`<span style="color:var(--red)">${e.message}</span>`;}
 }
-function changeStPw(){
-  const el=q('st-pw-r');const sts=DB.getStudents();const idx=sts.findIndex(s=>s.id===S.student?.id);
-  if(idx<0)return;if(sts[idx].password!==v('st-cur')){el.innerHTML='<span style="color:var(--red)">현재 비밀번호 오류</span>';return;}
+async function changeStPw(){
+  const el=q('st-pw-r');
   if(v('st-new').length<4){el.innerHTML='<span style="color:var(--red)">4자 이상</span>';return;}
   if(v('st-new')!==v('st-new2')){el.innerHTML='<span style="color:var(--red)">불일치</span>';return;}
-  sts[idx].password=v('st-new');DB.setStudents(sts);el.innerHTML='<span style="color:var(--green)">변경 완료</span>';
+  try{
+    await api('PUT',`/api/users/${S.student?.id}`,{password:v('st-new'),currentPassword:v('st-cur')});
+    el.innerHTML='<span style="color:var(--green)">변경 완료</span>';
+    ['st-cur','st-new','st-new2'].forEach(id=>q(id).value='');
+  }catch(e){el.innerHTML=`<span style="color:var(--red)">${e.message}</span>`;}
 }
 function renderHistPage(){
   const h=DB.getHistory(S.student?.id)||[];
@@ -2036,13 +2159,19 @@ function loadSample(){q('gb-in').value=SAMPLE_GB;}
 function loadSavedGb(){const gb=DB.getGb(S.student?.id);if(gb)q('gb-in').value=gb;else alert('저장된 생기부 없음');}
 async function runUpload(){
   const text=v('gb-in');if(!text){alert('내용을 입력하세요.');return;}
-  if(S.student?.id)DB.setGb(S.student.id,text);
+  const sid=S.student?.id;if(!sid)return;
   const el=q('upload-r');
-  // 업로드 후 대시보드 갱신
-  setTimeout(()=>renderStudentDash(),500);
-  await callAI('당신은 대입 전문 컨설턴트입니다. 학생의 생기부를 정밀 분석하여 (1)3대 역량(학업·진로·공동체) 점수 추정 및 진단 (2)핵심 강점 키워드 (3)즉시 보완 필요 항목 (4)목표 대학 합격 맞춤 전략을 구체적으로 제시하세요. **굵게**, ### 소제목 활용.',
-    `학생: ${S.student?.name}, ${S.student?.school} ${S.student?.grade}학년\n목표: ${S.student?.targetUniv} ${S.student?.targetDept}\n\n생기부:\n${text}`,
-    el,'biglinker AI — 생기부 분석',S.student?.id);
+  el.innerHTML='<div class="ntc ntc-b" style="margin-top:8px"><span>·</span>서버에 저장 중...</div>';
+  try{
+    // 서버에 생기부 저장
+    await api('PUT',`/api/students/${sid}/gb`,{content:text});
+    MEM.gb=text;
+    renderStudentDash();
+    await callAI(
+      '당신은 대입 전문 컨설턴트입니다. 학생의 생기부를 정밀 분석하여 (1)3대 역량(학업·진로·공동체) 점수 추정 및 진단 (2)핵심 강점 키워드 (3)즉시 보완 필요 항목 (4)목표 대학 합격 맞춤 전략을 구체적으로 제시하세요. **굵게**, ### 소제목 활용.',
+      `학생: ${S.student?.name}, ${S.student?.school} ${S.student?.grade}학년\n목표: ${S.student?.targetUniv} ${S.student?.targetDept}\n\n생기부:\n${text}`,
+      el,'biglinker AI — 생기부 분석',sid);
+  }catch(e){el.innerHTML=`<div class="ntc ntc-r" style="margin-top:8px"><span>✗</span>저장 실패: ${e.message}</div>`;}
 }
 
 // Mock Interview
@@ -2071,18 +2200,25 @@ async function submitMock(){
   div.innerHTML=`<div class="cmsg-lbl">면접관</div><span id="ms"></span><span class="cblink"></span>`;
   chat.appendChild(div);chat.scrollTop=chat.scrollHeight;
   const se=document.getElementById('ms');let full='';
-  const k=DB.getApiKey();
-  if(!k){se.textContent='API 키 없음';div.querySelector('.cblink')?.remove();btn.disabled=false;btn.innerHTML='답변 제출 →';return;}
-  const _gb=DB.getGb(S.student?.id)||'';
+  const _gb=MEM.gb||'';
   const _s=S.student||{};
   const sys=`당신은 ${q('mock-univ').value} 입학사정관입니다. 학생: ${_s.name||''}(${_s.school||''} ${_s.grade||''}학년, 목표: ${_s.targetUniv||''} ${_s.targetDept||''}).${_gb?' 생기부: '+_gb.slice(0,800):''} 규칙: 학생 답변에 한 줄 코멘트 후 다음 질문. 2~3문장.`;
   try{
-    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':k,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:DB.getModel(),max_tokens:350,stream:true,system:sys,messages:mHist})});
+    // 서버 프록시로 멀티턴 스트리밍
+    const r=await fetch('/api/claude/stream',{method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${TOKEN}`},
+      body:JSON.stringify({system:sys,messages:mHist,maxTokens:400})});
     const reader=r.body.getReader();const dec=new TextDecoder();let buf='';
-    while(true){const{done,value}=await reader.read();if(done)break;buf+=dec.decode(value,{stream:true});const lines=buf.split('\n');buf=lines.pop();for(const ln of lines){if(!ln.startsWith('data:'))continue;try{const d=JSON.parse(ln.slice(5));if(d.delta?.text){full+=d.delta.text;se.textContent=full;chat.scrollTop=chat.scrollHeight;}}catch{}}}
-  }catch(e){full='좋은 답변이었습니다.\n\n생기부에서 체온 조절 탐구를 하셨는데, 저체온증 환자 간호와 어떻게 연결되는지 설명해주세요.';}
+    while(true){
+      const{done,value}=await reader.read();if(done)break;
+      buf+=dec.decode(value,{stream:true});
+      const lines=buf.split('\n');buf=lines.pop();
+      for(const ln of lines){
+        if(!ln.startsWith('data:'))continue;
+        try{const d=JSON.parse(ln.slice(5));if(d.text){full+=d.text;se.textContent=full;chat.scrollTop=chat.scrollHeight;}}catch{}
+      }
+    }
+  }catch(e){full='좋은 답변이었습니다.\n\n다음 질문을 이어가겠습니다. 간호학과를 선택한 구체적인 동기를 말씀해주세요.';}
   div.querySelector('.cblink')?.remove();se.textContent=full;mHist.push({role:'assistant',content:full});
   btn.disabled=false;btn.innerHTML='답변 제출 →';
 }
@@ -2310,8 +2446,9 @@ function renderDashCalPreview(pfx){
   </div>`;
 }
 
-// BOOT
-initDB();
+// BOOT — 서버 API 기반으로 전환, localStorage 초기화 불필요
+// 로그인 화면 표시
+show('scr-login');
 </script>
 </body>
 </html>
