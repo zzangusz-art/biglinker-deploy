@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\user\\\\Desktop\\\\대입 AI\\\\biglinker-deploy\" -Force)",
+      "Bash(Select-Object Name, Mode)",
+      "Bash(Format-Table -AutoSize)",
+      "PowerShell(ls -Recurse \"C:\\\\Users\\\\user\\\\Desktop\\\\대입 AI\\\\biglinker-deploy\\\\public\" | ForEach-Object { $_.FullName })",
+      "Bash(node -e \"console.log\\(require\\('crypto'\\).randomBytes\\(64\\).toString\\('hex'\\)\\)\")",
+      "PowerShell(node -e \"console.log\\(require\\('crypto'\\).randomBytes\\(64\\).toString\\('hex'\\)\\)\")",
+      "PowerShell(Get-ChildItem \"C:\\\\Program Files\\\\nodejs\", \"C:\\\\Program Files \\(x86\\)\\\\nodejs\", \"$env:APPDATA\\\\nvm\", \"$env:LOCALAPPDATA\\\\nvm\" -ErrorAction SilentlyContinue | Select-Object FullName)",
+      "PowerShell($env:PATH = \"C:\\\\Program Files\\\\nodejs;\" + $env:PATH; Set-Location \"C:\\\\Users\\\\user\\\\Desktop\\\\대입 AI\\\\biglinker-deploy\"; npm install 2>&1)",
+      "PowerShell(Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Seconds 1; $env:PATH = \"C:\\\\Program Files\\\\nodejs;\" + $env:PATH; Start-Process -FilePath \"C:\\\\Program Files\\\\nodejs\\\\node.exe\" -ArgumentList \"server.js\" -WorkingDirectory \"C:\\\\Users\\\\user\\\\Desktop\\\\대입 AI\\\\biglinker-deploy\" -PassThru -WindowStyle Normal | Out-Null; Start-Sleep -Seconds 3; \\(Invoke-RestMethod \"http://localhost:3000/health\"\\).status)"
+    ]
+  }
+}

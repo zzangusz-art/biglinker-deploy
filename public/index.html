@@ -1,0 +1,2317 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>BigLinker — 코칭그룹 LMS</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;900&family=Noto+Serif+KR:wght@700;900&family=JetBrains+Mono:wght@400;500&display=swap');
+:root{
+  --bg:#07090f;--s1:#0c0e18;--s2:#11142200;--s2:#111422;--s3:#171b30;--s4:#1e233d;
+  --border:rgba(255,255,255,0.055);--border2:rgba(255,255,255,0.1);--border3:rgba(255,255,255,0.16);
+  --text:#dde1f5;--muted:#5a5e80;--dim:#282d50;
+  --blue:#4f7dff;--blue2:rgba(79,125,255,.12);--blue3:rgba(79,125,255,.06);
+  --orange:#ff6b35;--orange2:rgba(255,107,53,.1);
+  --green:#2dd4a0;--green2:rgba(45,212,160,.1);
+  --purple:#a78bfa;--purple2:rgba(167,139,250,.1);
+  --yellow:#fbbf24;--yellow2:rgba(251,191,36,.1);
+  --red:#f87171;--red2:rgba(248,113,113,.1);
+  --teal:#22d3ee;--teal2:rgba(34,211,238,.1);
+  --r4:4px;--r8:8px;--r12:12px;--r16:16px;--r20:20px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text);font-size:13px;line-height:1.6}
+::-webkit-scrollbar{width:4px;height:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--s4);border-radius:2px}
+
+/* ── SCREENS ── */
+.scr{display:none;flex-direction:column;min-height:100vh}
+.scr.on{display:flex}
+
+/* ══════════ LOGIN ══════════ */
+#scr-login{align-items:center;justify-content:center;background:radial-gradient(ellipse at 30% 20%,rgba(79,125,255,.08) 0%,transparent 60%),var(--bg);padding:20px}
+.login-wrap{width:100%;max-width:440px}
+.login-brand{text-align:center;margin-bottom:32px}
+.brand-logo{font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:500;letter-spacing:-.5px}
+.brand-logo .bl-big{color:var(--text)}
+.brand-logo .bl-link{color:var(--blue)}
+.brand-logo .bl-er{color:var(--orange)}
+.brand-tag{font-size:12px;color:var(--muted);margin-top:4px;font-weight:500;letter-spacing:.5px}
+.login-card{background:var(--s1);border:1px solid var(--border2);border-radius:var(--r20);overflow:hidden}
+.login-head{padding:28px 36px 20px;border-bottom:1px solid var(--border)}
+.login-head h2{font-size:16px;font-weight:700;margin-bottom:3px}
+.login-head p{font-size:11px;color:var(--muted)}
+.role-sel{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin:0 36px 0;padding:16px 0;border-bottom:1px solid var(--border)}
+.role-btn{padding:9px 6px;text-align:center;border-radius:var(--r8);cursor:pointer;font-size:12px;font-weight:600;color:var(--muted);transition:all .15s;border:1px solid transparent;font-family:'Noto Sans KR',sans-serif}
+.role-btn:hover{background:var(--s3);color:var(--text)}
+.role-btn.on.role-admin{background:var(--blue3);border-color:rgba(79,125,255,.25);color:var(--blue)}
+.role-btn.on.role-consultant{background:var(--purple2);border-color:rgba(167,139,250,.25);color:var(--purple)}
+.role-btn.on.role-student{background:var(--orange2);border-color:rgba(255,107,53,.25);color:var(--orange)}
+.login-form{padding:20px 36px 28px}
+.fl{margin-bottom:13px}
+.fl label{display:block;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px}
+input[type=text],input[type=password],input[type=email],input[type=date],textarea,select{
+  width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:var(--r8);
+  padding:10px 14px;color:var(--text);font-family:'Noto Sans KR',sans-serif;font-size:13px;outline:none;transition:border-color .15s}
+input:focus,textarea:focus,select:focus{border-color:var(--blue)}
+.btn-main{width:100%;padding:12px;background:var(--blue);color:#fff;border:none;border-radius:var(--r8);font-size:14px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:background .15s;margin-top:6px}
+.btn-main:hover{background:#6b93ff}
+.login-err{color:var(--red);font-size:11px;text-align:center;margin-top:8px;min-height:16px}
+.login-hint{font-size:11px;color:var(--dim);text-align:center;margin-top:16px;line-height:1.7;padding:0 36px}
+.login-hint b{color:var(--muted)}
+
+/* ══════════ SHARED LAYOUT ══════════ */
+.topbar{
+  position:sticky;top:0;z-index:100;height:52px;
+  background:rgba(7,9,15,.96);backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 20px;gap:14px;flex-shrink:0}
+.tb-logo{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:500;flex-shrink:0;white-space:nowrap}
+.tb-logo .tl-big{color:var(--text)}.tb-logo .tl-link{color:var(--blue)}.tb-logo .tl-er{color:var(--orange)}
+.tb-logo .tl-dot{color:var(--muted);font-size:11px;margin-left:2px}
+.tb-nav{display:flex;gap:2px;flex:1}
+.tn{padding:6px 13px;border-radius:var(--r8);border:none;background:transparent;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:all .15s;display:flex;align-items:center;gap:5px}
+.tn:hover{color:var(--text);background:var(--s3)}
+.tn.on{color:var(--blue);background:var(--blue3)}
+.tn.on.c-role{color:var(--purple);background:var(--purple2)}
+.tn.on.s-role{color:var(--orange);background:var(--orange2)}
+.tb-right{display:flex;align-items:center;gap:10px;margin-left:auto;flex-shrink:0}
+.role-badge{font-size:11px;color:var(--muted);border:1px solid var(--border2);border-radius:20px;padding:4px 12px;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.badge-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;animation:blink 2s ease-in-out infinite}
+.dot-admin{background:var(--blue)}.dot-consultant{background:var(--purple)}.dot-student{background:var(--orange)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.btn-logout{font-size:11px;color:var(--muted);border:1px solid var(--border);border-radius:var(--r8);padding:5px 10px;background:transparent;cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:all .15s}
+.btn-logout:hover{color:var(--red);border-color:rgba(248,113,113,.4)}
+
+.layout{display:flex;flex:1;overflow:hidden}
+.sidebar{width:215px;flex-shrink:0;border-right:1px solid var(--border);padding:10px 8px;overflow-y:auto;background:var(--bg)}
+.sg{font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:1.3px;padding:14px 8px 4px;font-weight:700}
+.si{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:var(--r8);cursor:pointer;transition:all .12s;color:var(--muted);font-size:12px;font-weight:500;border:1px solid transparent}
+.si:hover{color:var(--text);background:var(--s2)}
+.si.on{color:var(--text);background:var(--s2);border-color:var(--border2)}
+.si-ic{font-size:12px;flex-shrink:0;width:16px;text-align:center}
+.si-bd{margin-left:auto;font-size:9px;padding:2px 5px;border-radius:8px;font-family:'JetBrains Mono',monospace}
+.bd-b{background:var(--blue2);color:var(--blue)}.bd-o{background:var(--orange2);color:var(--orange)}
+.bd-r{background:var(--red2);color:var(--red)}.bd-g{background:var(--green2);color:var(--green)}
+.bd-p{background:var(--purple2);color:var(--purple)}.bd-y{background:var(--yellow2);color:var(--yellow)}
+.content{flex:1;overflow-y:auto;padding:24px 28px}
+
+/* ── PAGES ── */
+.page{display:none}.page.on{display:block;animation:fi .2s ease}
+@keyframes fi{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+/* ── PAGE HEADER ── */
+.ph{margin-bottom:20px}
+.ph-tag{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px;font-weight:700}
+.ph-title{font-family:'Noto Serif KR',serif;font-size:21px;font-weight:900;line-height:1.2}
+.ph-title em{font-style:normal;color:var(--blue)}
+.ph-title .em-o{color:var(--orange)}.ph-title .em-g{color:var(--green)}.ph-title .em-p{color:var(--purple)}
+.ph-sub{margin-top:5px;color:var(--muted);font-size:12px}
+.ph-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+
+/* ── GRID ── */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+
+/* ── CARDS ── */
+.card{background:var(--s1);border:1px solid var(--border);border-radius:var(--r12);padding:16px;transition:border-color .15s}
+.card:hover{border-color:var(--border2)}
+.card-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-weight:700}
+.sn{font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:500;line-height:1}
+.ss{font-size:11px;color:var(--muted);margin-top:4px}
+.c-b{color:var(--blue)}.c-o{color:var(--orange)}.c-g{color:var(--green)}.c-p{color:var(--purple)}
+.c-y{color:var(--yellow)}.c-r{color:var(--red)}.c-t{color:var(--teal)}.c-m{color:var(--muted)}
+
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 15px;border-radius:var(--r8);border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:all .15s;white-space:nowrap}
+.btn-b{background:var(--blue);color:#fff}.btn-b:hover{background:#6b93ff;transform:translateY(-1px)}
+.btn-o{background:var(--orange2);color:var(--orange);border:1px solid rgba(255,107,53,.2)}.btn-o:hover{background:rgba(255,107,53,.18)}
+.btn-g{background:var(--green2);color:var(--green);border:1px solid rgba(45,212,160,.2)}.btn-g:hover{background:rgba(45,212,160,.18)}
+.btn-p{background:var(--purple2);color:var(--purple);border:1px solid rgba(167,139,250,.2)}.btn-p:hover{background:rgba(167,139,250,.18)}
+.btn-s2{background:var(--s2);color:var(--text);border:1px solid var(--border2)}.btn-s2:hover{background:var(--s3)}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border2)}.btn-ghost:hover{color:var(--text);border-color:var(--border3)}
+.btn-red{background:var(--red2);color:var(--red);border:1px solid rgba(248,113,113,.2)}.btn-red:hover{background:rgba(248,113,113,.2)}
+.btn-sm{padding:5px 11px;font-size:11px}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none!important}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+
+/* ── BADGE ── */
+.bdg{display:inline-block;font-size:10px;padding:2px 7px;border-radius:4px;font-weight:700}
+.bdg-b{background:var(--blue2);color:var(--blue)}.bdg-o{background:var(--orange2);color:var(--orange)}
+.bdg-g{background:var(--green2);color:var(--green)}.bdg-p{background:var(--purple2);color:var(--purple)}
+.bdg-r{background:var(--red2);color:var(--red)}.bdg-y{background:var(--yellow2);color:var(--yellow)}
+.bdg-t{background:var(--teal2);color:var(--teal)}
+
+/* ── NOTICE ── */
+.ntc{padding:9px 13px;border-radius:var(--r8);font-size:12px;display:flex;align-items:flex-start;gap:8px;margin-bottom:14px;line-height:1.6;font-weight:500}
+.ntc-b{background:var(--blue3);border:1px solid rgba(79,125,255,.18);color:var(--blue)}
+.ntc-o{background:var(--orange2);border:1px solid rgba(255,107,53,.2);color:var(--orange)}
+.ntc-g{background:var(--green2);border:1px solid rgba(45,212,160,.2);color:var(--green)}
+.ntc-r{background:var(--red2);border:1px solid rgba(248,113,113,.2);color:var(--red)}
+.ntc-y{background:var(--yellow2);border:1px solid rgba(251,191,36,.2);color:var(--yellow)}
+
+/* ── SCORE BARS ── */
+.sb-row{display:flex;align-items:center;gap:9px;margin-bottom:8px}
+.sb-nm{width:70px;font-size:12px;color:var(--muted);flex-shrink:0;font-weight:500}
+.sb-tr{flex:1;height:4px;background:var(--s4);border-radius:2px;overflow:hidden}
+.sb-fl{height:100%;border-radius:2px;transition:width 1.2s ease}
+.sb-vl{width:38px;text-align:right;font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--muted)}
+.sb-ch{font-size:10px;padding:2px 6px;border-radius:4px;flex-shrink:0;font-weight:700;white-space:nowrap}
+.ch-ok{background:var(--green2);color:var(--green)}.ch-warn{background:var(--yellow2);color:var(--yellow)}
+.ch-bad{background:var(--red2);color:var(--red)}.ch-good{background:var(--blue2);color:var(--blue)}
+
+/* ── ISSUE ── */
+.iss{display:flex;gap:10px;align-items:flex-start;padding:10px 13px;background:var(--s2);border-radius:var(--r8);margin-bottom:7px;border-left:2px solid transparent;font-size:12px}
+.iss-r{border-color:var(--red)}.iss-o{border-color:var(--orange)}.iss-g{border-color:var(--green)}.iss-b{border-color:var(--blue)}
+.i-t{font-weight:700;margin-bottom:2px;font-size:12.5px}.i-d{color:var(--muted);line-height:1.5}
+.i-tag{display:inline-block;margin-top:4px;font-size:10px;padding:2px 7px;border-radius:4px;background:var(--s3);border:1px solid var(--border2);color:var(--muted)}
+
+/* ── TABLE ── */
+.tbl{width:100%;border-collapse:collapse;font-size:12px}
+.tbl th{color:var(--muted);font-weight:700;text-align:left;padding:7px 10px;border-bottom:1px solid var(--border);font-size:10px;text-transform:uppercase;letter-spacing:.5px}
+.tbl td{padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:rgba(255,255,255,.02)}
+.tbl td.num{font-family:'JetBrains Mono',monospace}
+
+/* ── SCHOOL TABLE COLORS ── */
+.cat-reach{color:var(--red)}.cat-match{color:var(--yellow)}.cat-safe{color:var(--green)}
+.cat-bar-reach{background:var(--red)}.cat-bar-match{background:var(--yellow)}.cat-bar-safe{background:var(--green)}
+
+/* ── DIVIDER ── */
+.divider{height:1px;background:var(--border);margin:18px 0}
+
+/* ── TABS ── */
+.tabrow{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:16px}
+.tb{padding:8px 15px;cursor:pointer;font-size:12px;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s}
+.tb:hover{color:var(--text)}.tb.on{color:var(--blue);border-bottom-color:var(--blue)}
+.tc{display:none}.tc.on{display:block}
+
+/* ── SPINNER ── */
+.spin{width:13px;height:13px;border:2px solid rgba(255,255,255,.15);border-top-color:var(--blue);border-radius:50%;animation:spn .6s linear infinite;flex-shrink:0}
+@keyframes spn{to{transform:rotate(360deg)}}
+.spin-w{border-top-color:#fff;border-color:rgba(255,255,255,.25)}
+
+/* ── AI BOX ── */
+.ai-box{background:var(--s1);border:1px solid var(--border);border-radius:var(--r12);margin-top:12px;overflow:hidden}
+.ai-head{display:flex;align-items:center;gap:6px;padding:9px 14px;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted);font-weight:600}
+.ai-dot{width:5px;height:5px;border-radius:50%;background:var(--blue)}
+.ai-body{padding:14px;font-size:13px;line-height:1.85;white-space:pre-wrap;word-break:break-word;font-family:'Noto Sans KR',sans-serif}
+.ai-body b{color:var(--blue);font-weight:700}.ai-body h3{font-size:13px;font-weight:700;color:var(--teal);margin:13px 0 5px}
+.cblink{display:inline-block;width:2px;height:13px;background:var(--blue);animation:blkb .8s step-end infinite;vertical-align:text-bottom;margin-left:1px}
+@keyframes blkb{50%{opacity:0}}
+.ld-wrap{display:flex;flex-direction:column;align-items:center;gap:10px;padding:26px}
+.ld-tr{width:150px;height:2px;background:var(--s4);border-radius:1px;overflow:hidden}
+.ld-fl{height:100%;background:var(--blue);border-radius:1px;animation:ldmove 1.6s ease-in-out infinite}
+@keyframes ldmove{0%{width:0%;margin-left:0}50%{width:60%;margin-left:0}100%{width:0%;margin-left:100%}}
+.ld-tx{font-size:11px;color:var(--muted)}
+
+/* ── MODAL ── */
+.modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:500;display:none;align-items:center;justify-content:center;padding:20px}
+.modal-ov.on{display:flex}.modal{background:var(--s1);border:1px solid var(--border2);border-radius:var(--r16);width:100%;overflow:hidden}
+.mhead{display:flex;align-items:center;justify-content:space-between;padding:16px 22px;border-bottom:1px solid var(--border)}
+.mhead-t{font-size:14px;font-weight:700}
+.mclose{background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;line-height:1;padding:0;font-family:'Noto Sans KR',sans-serif}
+.mclose:hover{color:var(--text)}.mbody{padding:22px}.mfoot{padding:14px 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
+
+/* ── FORM ── */
+.fr2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.fr3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+textarea{resize:vertical;min-height:72px}
+
+/* ── CHIPS ── */
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.chip{font-size:11px;padding:4px 10px;border-radius:20px;border:1px solid;font-weight:500;cursor:default}
+.chip-b{border-color:rgba(79,125,255,.3);color:var(--blue);background:var(--blue3)}
+.chip-o{border-color:rgba(255,107,53,.3);color:var(--orange);background:var(--orange2)}
+.chip-g{border-color:rgba(45,212,160,.3);color:var(--green);background:var(--green2)}
+.chip-p{border-color:rgba(167,139,250,.3);color:var(--purple);background:var(--purple2)}
+.chip-t{border-color:rgba(34,211,238,.3);color:var(--teal);background:var(--teal2)}
+.chip-y{border-color:rgba(251,191,36,.3);color:var(--yellow);background:var(--yellow2)}
+
+/* ── STUDENT ROW ── */
+.st-row{display:flex;align-items:center;gap:11px;padding:11px 14px;background:var(--s2);border-radius:var(--r8);margin-bottom:7px;border:1px solid var(--border);transition:border-color .15s;cursor:pointer}
+.st-row:hover{border-color:var(--border2)}
+.st-av{width:34px;height:34px;border-radius:50%;background:var(--s4);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0}
+.st-info{flex:1;min-width:0}.st-nm{font-size:13px;font-weight:700;margin-bottom:1px}.st-mt{font-size:11px;color:var(--muted)}
+.st-sc{text-align:right;flex-shrink:0}
+.st-sc .sv{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500}
+.st-sc .sl{font-size:10px;color:var(--muted)}
+
+/* ── SEARCH ── */
+.search-wr{position:relative;margin-bottom:12px}
+.search-ic{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:13px;pointer-events:none}
+.search-in{padding-left:34px!important}
+
+/* ── PERFORMANCE TABLE ── */
+.perf-table{width:100%;border-collapse:collapse;font-size:12px}
+.perf-table th{background:var(--s2);color:var(--muted);font-weight:700;text-align:left;padding:8px 10px;border:1px solid var(--border);font-size:10px;text-transform:uppercase;letter-spacing:.4px}
+.perf-table td{padding:9px 10px;border:1px solid var(--border);vertical-align:top}
+.perf-table tr:hover td{background:rgba(255,255,255,.01)}
+.status-chip{display:inline-block;font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px}
+.st-planned{background:var(--s4);color:var(--muted)}
+.st-progress{background:var(--yellow2);color:var(--yellow)}
+.st-done{background:var(--green2);color:var(--green)}
+.st-submitted{background:var(--blue2);color:var(--blue)}
+
+/* ── FEEDBACK ── */
+.fb-thread{background:var(--s1);border:1px solid var(--border);border-radius:var(--r12);margin-bottom:10px;overflow:hidden}
+.fb-head{display:flex;align-items:center;justify-content:space-between;padding:11px 16px;border-bottom:1px solid var(--border);cursor:pointer}
+.fb-head:hover{background:rgba(255,255,255,.02)}
+.fb-title{font-size:13px;font-weight:700}.fb-meta{font-size:10px;color:var(--muted);margin-top:2px}
+.fb-body{padding:14px 16px;display:none}
+.fb-thread.open .fb-body{display:block}
+.msg-bubble{padding:11px 14px;border-radius:var(--r8);margin-bottom:10px;font-size:12px;line-height:1.7}
+.msg-student{background:var(--s3);border-left:2px solid var(--orange)}
+.msg-consultant{background:var(--blue3);border-left:2px solid var(--blue)}
+.msg-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
+.msg-student .msg-lbl{color:var(--orange)}.msg-consultant .msg-lbl{color:var(--blue)}
+.msg-time{font-size:10px;color:var(--muted);margin-top:4px;font-family:'JetBrains Mono',monospace}
+
+/* ── ROADMAP KEYWORDS ── */
+.rk-section{background:var(--s1);border:1px solid var(--border);border-radius:var(--r12);padding:16px;margin-bottom:12px}
+.rk-title{font-size:13px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.rk-sub{font-size:11px;color:var(--muted);margin-bottom:10px}
+.kw-group{margin-bottom:10px}
+.kw-group-lbl{font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px}
+
+/* ── RING ── */
+.ring-wr{display:flex;align-items:center;gap:16px}
+.ring-n{font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:500}
+.ring-s{font-size:11px;color:var(--muted);margin-top:2px}.ring-d{font-size:11px;margin-top:4px}
+
+/* ── UPLOAD ── */
+.up-drop{border:1.5px dashed var(--border2);border-radius:var(--r12);padding:28px 20px;text-align:center;cursor:pointer;transition:all .15s;background:var(--s1);position:relative}
+.up-drop:hover{border-color:var(--blue);background:var(--blue3)}
+.up-drop input{position:absolute;inset:0;opacity:0;cursor:pointer}
+
+/* ── MOCK CHAT ── */
+.chat-box{background:var(--s1);border:1px solid var(--border);border-radius:var(--r12);padding:14px;min-height:280px;max-height:460px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
+.cmsg{max-width:82%;padding:10px 14px;border-radius:var(--r12);font-size:13px;line-height:1.7;font-family:'Noto Sans KR',sans-serif}
+.cmsg-ai{background:var(--s2);border-left:2px solid var(--purple);align-self:flex-start}
+.cmsg-st{background:var(--orange2);border-right:2px solid var(--orange);align-self:flex-end}
+.cmsg-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;font-weight:700}
+.cmsg-ai .cmsg-lbl{color:var(--purple)}.cmsg-st .cmsg-lbl{color:var(--orange)}
+
+/* ── INTERVIEW Q ── */
+.qcard{background:var(--s2);border:1px solid var(--border);border-radius:var(--r12);padding:13px 15px;margin-bottom:9px;cursor:pointer;transition:border-color .12s}
+.qcard:hover{border-color:var(--border2)}.qcard.open .qhint{display:block}.qcard.open .qans{display:block}
+.qmeta{display:flex;align-items:center;gap:7px;margin-bottom:7px}
+.qt{font-size:9px;font-weight:700;padding:3px 8px;border-radius:4px}
+.qt-m{background:var(--purple2);color:var(--purple)}.qt-f{background:var(--red2);color:var(--red)}
+.qt-c{background:var(--green2);color:var(--green)}.qt-k{background:var(--blue2);color:var(--blue)}
+.qq{font-size:13px;line-height:1.6}
+.qhint{display:none;font-size:11px;color:var(--muted);margin-top:9px;padding-top:9px;border-top:1px solid var(--border);line-height:1.6}
+.qans{display:none;margin-top:9px}
+
+/* ── EMPTY ── */
+.empty{text-align:center;padding:40px 20px;color:var(--muted)}
+.empty-ic{font-size:28px;margin-bottom:10px}.empty-t{font-size:14px;font-weight:600;color:var(--text);margin-bottom:5px}
+
+/* ── CONSULTANT CARD ── */
+.cons-card{display:flex;align-items:center;gap:12px;padding:12px 15px;background:var(--s2);border-radius:var(--r8);margin-bottom:7px;border:1px solid var(--border)}
+.cons-av{width:38px;height:38px;border-radius:50%;background:var(--purple2);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.cons-info{flex:1}.cons-nm{font-size:13px;font-weight:700;margin-bottom:2px}.cons-mt{font-size:11px;color:var(--muted)}
+
+/* ── ROAD ITEM ── */
+.road-wr{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;margin-top:12px}
+.road-col{padding:0 12px;border-right:1px solid var(--border)}
+.road-col:first-child{padding-left:0}.road-col:last-child{border-right:none;padding-right:0}
+.road-gd{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:9px;font-weight:700}
+.road-it{padding:9px 11px;background:var(--s2);border-radius:var(--r8);margin-bottom:7px;border-left:2px solid}
+.road-it-t{font-size:12px;font-weight:700;margin-bottom:2px}.road-it-d{font-size:11px;color:var(--muted);line-height:1.5}
+
+/* ── CALENDAR ── */
+.cal-layout{display:flex;gap:0;height:calc(100vh - 180px);min-height:520px}
+.cal-main{flex:1;min-width:0;display:flex;flex-direction:column;border:1px solid var(--border);border-radius:var(--r12);overflow:hidden;background:var(--s1)}
+.cal-hdr{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap;background:var(--s1)}
+.cal-mnav{display:flex;align-items:center;gap:6px}
+.cal-mnav button{width:26px;height:26px;border:1px solid var(--border2);background:var(--s2);border-radius:var(--r8);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px}
+.cal-mnav button:hover{background:var(--s3);color:var(--text)}
+.cal-mon-label{font-size:14px;font-weight:700;min-width:110px;text-align:center;font-family:'JetBrains Mono',monospace}
+.cal-today-btn{padding:4px 10px;font-size:11px;font-weight:600;border:1px solid var(--border2);background:transparent;border-radius:var(--r8);cursor:pointer;color:var(--muted);font-family:'Noto Sans KR',sans-serif}
+.cal-today-btn:hover{background:var(--s3);color:var(--text)}
+.cal-type-filters{display:flex;gap:5px;flex-wrap:wrap;margin-left:auto}
+.cal-fc{padding:3px 10px;font-size:11px;font-weight:600;border-radius:20px;cursor:pointer;border:1px solid;transition:all .12s;font-family:'Noto Sans KR',sans-serif}
+.cal-wk-hdr{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--border)}
+.cal-wkd{padding:6px 0;text-align:center;font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.5px}
+.cal-wkd.sun{color:var(--red)}.cal-wkd.sat{color:var(--blue)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);flex:1;overflow-y:auto}
+.cal-day{border-right:1px solid var(--border);border-bottom:1px solid var(--border);padding:5px 4px;min-height:80px;cursor:pointer;transition:background .1s;position:relative;overflow:hidden}
+.cal-day:hover{background:var(--s2)}
+.cal-day.sel{background:rgba(79,125,255,.07);border-color:rgba(79,125,255,.25)}
+.cal-day.other{opacity:.38}
+.cal-day.today .cal-daynum{background:var(--blue);color:#fff;border-radius:50%}
+.cal-daynum{font-size:11px;font-weight:600;width:22px;height:22px;display:flex;align-items:center;justify-content:center;margin-bottom:3px;color:var(--muted)}
+.cal-ev{font-size:10px;font-weight:600;padding:2px 6px;border-radius:3px;margin-bottom:2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;border-left:2px solid;transition:filter .1s}
+.cal-ev:hover{filter:brightness(1.15)}
+.cal-more{font-size:9px;color:var(--muted);padding-left:3px}
+.cal-side{width:260px;flex-shrink:0;margin-left:12px;display:flex;flex-direction:column;gap:0;border:1px solid var(--border);border-radius:var(--r12);overflow:hidden;background:var(--s1)}
+.cal-side-hd{padding:12px 14px 8px;border-bottom:1px solid var(--border);background:var(--s1)}
+.cal-side-hd-t{font-size:13px;font-weight:700}
+.cal-side-hd-s{font-size:11px;color:var(--muted);margin-top:2px}
+.cal-side-scroll{flex:1;overflow-y:auto;padding:8px}
+.cal-up-item{padding:10px;border-radius:var(--r8);margin-bottom:7px;cursor:pointer;border:1px solid var(--border);background:var(--s2);transition:border-color .12s}
+.cal-up-item:hover{border-color:var(--border2)}
+.cal-up-meta{display:flex;align-items:center;gap:5px;margin-bottom:5px;flex-wrap:wrap}
+.cal-tp{font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px;border-left:2px solid}
+.cal-st{font-size:9px;font-weight:600;padding:2px 7px;border-radius:3px}
+.cal-up-t{font-size:12px;font-weight:700;margin-bottom:1px}
+.cal-up-sub{font-size:11px;color:var(--muted)}
+.cal-up-dt{font-size:10px;color:var(--muted);margin-top:4px;display:flex;align-items:center;gap:4px}
+.cal-det{display:flex;flex-direction:column;height:100%}
+.cal-det-hd{padding:12px 14px 8px;border-bottom:1px solid var(--border)}
+.cal-back{background:none;border:none;color:var(--muted);cursor:pointer;font-size:11px;font-family:'Noto Sans KR',sans-serif;display:flex;align-items:center;gap:4px;padding:0;margin-bottom:8px}
+.cal-back:hover{color:var(--text)}
+.cal-det-tp{display:flex;align-items:center;gap:6px;margin-bottom:5px}
+.cal-det-title{font-size:13px;font-weight:700}
+.cal-det-info{padding:10px 14px;border-bottom:1px solid var(--border)}
+.cal-inf-row{display:flex;align-items:flex-start;gap:8px;margin-bottom:5px;font-size:11px}
+.cal-inf-lbl{color:var(--muted);width:48px;flex-shrink:0}
+.cal-inf-val{color:var(--text);line-height:1.5}
+.cal-st-row{display:flex;gap:4px;padding:8px 14px 0}
+.cal-stc{font-size:10px;padding:3px 8px;border-radius:3px;border:1px solid;cursor:pointer;background:transparent;font-family:'Noto Sans KR',sans-serif;font-weight:600}
+.cal-fb-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.cal-fb-hd{padding:8px 14px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:5px}
+.cal-fb-thread{flex:1;overflow-y:auto;padding:8px 10px;display:flex;flex-direction:column;gap:7px}
+.cal-fb-msg{padding:8px 10px;border-radius:var(--r8);font-size:11px;line-height:1.6}
+.cal-fb-msg.cons{background:var(--blue3);border-left:2px solid var(--blue)}
+.cal-fb-msg.stud{background:var(--orange2);border-left:2px solid var(--orange)}
+.cal-fb-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px}
+.cal-fb-msg.cons .cal-fb-lbl{color:var(--blue)}.cal-fb-msg.stud .cal-fb-lbl{color:var(--orange)}
+.cal-fb-body{color:var(--text)}
+.cal-fb-time{font-size:9px;color:var(--muted);margin-top:3px;font-family:'JetBrains Mono',monospace}
+.cal-fb-inp-area{padding:8px 10px;border-top:1px solid var(--border)}
+.cal-fb-inp{width:100%;font-size:11px;padding:7px 9px;border:1px solid var(--border2);border-radius:var(--r8);background:var(--s2);color:var(--text);font-family:'Noto Sans KR',sans-serif;resize:none;outline:none}
+.cal-fb-inp:focus{border-color:var(--blue)}
+.cal-fb-send{margin-top:5px;width:100%;padding:6px;font-size:11px;font-weight:700;border:1px solid var(--border2);border-radius:var(--r8);background:transparent;color:var(--muted);cursor:pointer;font-family:'Noto Sans KR',sans-serif}
+.cal-fb-send:hover{background:var(--s3);color:var(--text)}
+.cal-legend{display:flex;gap:10px;flex-wrap:wrap;padding:8px 14px;border-top:1px solid var(--border);background:var(--s1)}
+.cal-leg{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--muted)}
+.cal-leg-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+.cal-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;padding:20px;text-align:center;gap:7px}
+.cal-empty-ic{font-size:24px}.cal-empty-t{font-size:12px;font-weight:700;color:var(--text)}.cal-empty-s{font-size:11px;color:var(--muted)}
+.cal-mini-preview{background:var(--s2);border:1px solid var(--border);border-radius:var(--r8);padding:10px 12px;margin-bottom:7px;cursor:pointer;transition:border-color .12s}
+.cal-mini-preview:hover{border-color:var(--border2)}
+.cal-mini-dt{font-size:10px;color:var(--muted);margin-bottom:5px;font-family:'JetBrains Mono',monospace}
+.cal-mini-items{display:flex;gap:5px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+
+<!-- ════════════ LOGIN ════════════ -->
+<div class="scr on" id="scr-login">
+  <div class="login-wrap">
+    <div class="login-brand">
+      <div class="brand-logo">big<span class="bl-link">link</span><span class="bl-er">er</span></div>
+      <div class="brand-tag">COACHING GROUP LMS</div>
+    </div>
+    <div class="login-card">
+      <div class="login-head"><h2>로그인</h2><p>역할을 선택하고 계정 정보를 입력하세요</p></div>
+      <div class="role-sel">
+        <div class="role-btn role-admin on" id="rb-admin" onclick="setRole('admin')">⚙ 관리자</div>
+        <div class="role-btn role-consultant" id="rb-consultant" onclick="setRole('consultant')">👨‍💼 컨설턴트</div>
+        <div class="role-btn role-student" id="rb-student" onclick="setRole('student')">🎓 학생</div>
+      </div>
+      <div class="login-form">
+        <div class="fl"><label>아이디</label><input type="text" id="lid" placeholder="아이디 입력" onkeydown="if(event.key==='Enter')doLogin()"></div>
+        <div class="fl"><label>비밀번호</label><input type="password" id="lpw" placeholder="비밀번호 입력" onkeydown="if(event.key==='Enter')doLogin()"></div>
+        <button class="btn-main" onclick="doLogin()">로그인</button>
+        <div class="login-err" id="lerr"></div>
+      </div>
+    </div>
+    <div class="login-hint">기본 계정 | 관리자: <b>admin / admin1234</b> &nbsp;|&nbsp; 컨설턴트: <b>cons01 / 1234</b> &nbsp;|&nbsp; 학생: <b>kim2024 / 1234</b></div>
+  </div>
+</div>
+
+<!-- ════════════ ADMIN SCREEN ════════════ -->
+<div class="scr" id="scr-admin">
+  <div class="topbar">
+    <div class="tb-logo"><span class="tl-big">big</span><span class="tl-link">link</span><span class="tl-er">er</span><span class="tl-dot">admin</span></div>
+    <div class="tb-nav">
+      <button class="tn on" onclick="aNav(this,'a-dash')">대시보드</button>
+      <button class="tn" onclick="aNav(this,'a-students')">학생 관리</button>
+      <button class="tn" onclick="aNav(this,'a-consultants')">컨설턴트</button>
+      <button class="tn" onclick="aNav(this,'a-settings')">설정</button>
+    </div>
+    <div class="tb-right">
+      <div class="role-badge"><span class="badge-dot dot-admin"></span>관리자</div>
+      <button class="btn-logout" onclick="logout()">로그아웃</button>
+    </div>
+  </div>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sg">관리</div>
+      <div class="si on" onclick="aSide(this,'a-dash')"><span class="si-ic">◈</span>대시보드</div>
+      <div class="si" onclick="aSide(this,'a-students')"><span class="si-ic">◉</span>학생 관리<span class="si-bd bd-b" id="a-cnt">0</span></div>
+      <div class="si" onclick="aSide(this,'a-student-detail')"><span class="si-ic">≋</span>학생 상세</div>
+      <div class="si" onclick="aSide(this,'a-consultants')"><span class="si-ic">◆</span>컨설턴트<span class="si-bd bd-p" id="c-cnt">0</span></div>
+      <div class="sg">시스템</div>
+      <div class="si" onclick="aSide(this,'a-settings')"><span class="si-ic">⚙</span>API·설정</div>
+    </aside>
+    <main class="content">
+      <!-- ADMIN DASHBOARD -->
+      <div class="page on" id="a-dash">
+        <div class="ph"><div class="ph-tag">관리자 대시보드</div><div class="ph-title">biglinker <em>운영 현황</em></div><div class="ph-sub" id="a-dash-dt"></div></div>
+        <div class="g4" style="margin-bottom:14px" id="a-stats"></div>
+        <div class="g2"><div class="card"><div class="card-lbl" style="margin-bottom:10px">최근 등록 학생</div><div id="a-recent"></div></div>
+          <div class="card"><div class="card-lbl" style="margin-bottom:10px">컨설턴트 현황</div><div id="a-cons-stat"></div></div></div>
+      </div>
+      <!-- ADMIN STUDENTS -->
+      <div class="page" id="a-students">
+        <div class="ph"><div class="ph-tag">학생 관리</div><div class="ph-title">학생 <em>계정 관리</em></div><div class="ph-sub">학생 생성·수정·삭제 및 컨설턴트 배정</div>
+          <div class="ph-acts"><button class="btn btn-b" onclick="openStModal()">+ 학생 추가</button><button class="btn btn-ghost" onclick="renderStudentList()">새로고침</button></div></div>
+        <div class="search-wr"><span class="search-ic">🔍</span><input class="search-in" type="text" id="st-search" placeholder="이름, 학교, 아이디 검색..." oninput="renderStudentList()"></div>
+        <div id="student-list"></div>
+      </div>
+      <!-- ADMIN STUDENT DETAIL -->
+      <div class="page" id="a-student-detail"><div id="a-detail-ct"><div class="empty"><div class="empty-ic">◉</div><div class="empty-t">학생을 선택하세요</div></div></div></div>
+      <!-- ADMIN CONSULTANTS -->
+      <div class="page" id="a-consultants">
+        <div class="ph"><div class="ph-tag">컨설턴트 관리</div><div class="ph-title">컨설턴트 <em>계정 관리</em></div>
+          <div class="ph-acts"><button class="btn btn-b" onclick="openConsModal()">+ 컨설턴트 추가</button></div></div>
+        <div id="cons-list"></div>
+      </div>
+      <!-- ADMIN SETTINGS -->
+      <div class="page" id="a-settings">
+        <div class="ph"><div class="ph-tag">시스템 설정</div><div class="ph-title">API · <em>설정</em></div></div>
+        <div class="g2">
+          <div class="card">
+            <div class="card-lbl" style="margin-bottom:12px">Anthropic Claude API</div>
+            <div class="ntc ntc-b" style="margin-bottom:12px"><span>ℹ</span><div>API 키는 로컬에 저장됩니다. Anthropic 콘솔에서 발급하세요.</div></div>
+            <div class="fl"><label>API Key</label><div style="display:flex;gap:8px"><input type="password" id="api-key-in" placeholder="sk-ant-api03-..."><button class="btn btn-b btn-sm" onclick="saveApiKey()" style="flex-shrink:0">저장</button></div></div>
+            <div class="fl"><label>모델</label><select id="model-sel"><option value="claude-sonnet-4-6">Claude Sonnet 4.6 (권장)</option><option value="claude-opus-4-6">Claude Opus 4.6</option><option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option></select></div>
+            <div id="api-st"></div>
+            <div class="btn-row"><button class="btn btn-s2 btn-sm" onclick="testApi()">연결 테스트</button><button class="btn btn-ghost btn-sm" onclick="exportData()">📤 백업</button><button class="btn btn-ghost btn-sm" onclick="q('imp-f').click()">📥 복원</button><input type="file" id="imp-f" accept=".json" style="display:none" onchange="importData(this)"></div>
+            <div id="api-test-r"></div>
+          </div>
+          <div class="card">
+            <div class="card-lbl" style="margin-bottom:12px">관리자 비밀번호</div>
+            <div class="fl"><label>현재 비밀번호</label><input type="password" id="adm-cur"></div>
+            <div class="fl"><label>새 비밀번호</label><input type="password" id="adm-new"></div>
+            <div class="fl"><label>확인</label><input type="password" id="adm-new2"></div>
+            <button class="btn btn-s2 btn-sm" onclick="changeAdmPw()">변경</button><div id="adm-pw-r" style="margin-top:8px;font-size:12px"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- ════════════ CONSULTANT SCREEN ════════════ -->
+<div class="scr" id="scr-consultant">
+  <div class="topbar">
+    <div class="tb-logo"><span class="tl-big">big</span><span class="tl-link">link</span><span class="tl-er">er</span><span class="tl-dot">consultant</span></div>
+    <div class="tb-nav">
+      <button class="tn c-role on" onclick="cNav(this,'c-dash')">대시보드</button>
+      <button class="tn c-role" onclick="cNav(this,'c-students')">학생 관리</button>
+      <button class="tn c-role" onclick="cNav(this,'c-feedback')">피드백 관리</button>
+    </div>
+    <div class="tb-right">
+      <div class="role-badge"><span class="badge-dot dot-consultant"></span><span id="c-badge-nm"></span></div>
+      <button class="btn-logout" onclick="logout()">로그아웃</button>
+    </div>
+  </div>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sg">담당 학생</div>
+      <div class="si on" onclick="cSide(this,'c-dash')"><span class="si-ic">◈</span>대시보드</div>
+      <div class="si" onclick="cSide(this,'c-cal')"><span class="si-ic">◫</span>수행평가 캘린더<span class="si-bd bd-p">NEW</span></div>
+      <div class="si" onclick="cSide(this,'c-students')"><span class="si-ic">◉</span>학생 목록<span class="si-bd bd-p" id="c-my-cnt">0</span></div>
+      <div class="si" onclick="cSide(this,'c-student-detail')"><span class="si-ic">≋</span>학생 상세</div>
+      <div class="sg">피드백</div>
+      <div class="si" onclick="cSide(this,'c-feedback')"><span class="si-ic">✉</span>피드백 관리<span class="si-bd bd-o" id="c-fb-cnt">0</span></div>
+      <div class="si" onclick="cSide(this,'c-performance')"><span class="si-ic">✓</span>수행평가 관리</div>
+    </aside>
+    <main class="content">
+      <div class="page on" id="c-dash">
+        <div class="ph"><div class="ph-tag">컨설턴트 대시보드</div><div class="ph-title">담당 학생 <em class="em-p">현황</em></div><div class="ph-sub" id="c-dash-sub"></div></div>
+        <div class="g3" style="margin-bottom:14px" id="c-stats"></div>
+        <div class="g2" style="margin-bottom:14px">
+          <div class="card"><div class="card-lbl" style="margin-bottom:10px">담당 학생 목록</div><div id="c-my-students"></div></div>
+          <div class="card"><div class="card-lbl" style="margin-bottom:10px">이번 달 수행평가</div><div id="c-dash-cal-preview"></div><div class="btn-row" style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="cSide(null,'c-cal')">전체 캘린더 →</button></div></div>
+        </div>
+      </div>
+      <div class="page" id="c-students">
+        <div class="ph"><div class="ph-tag">학생 목록</div><div class="ph-title">담당 <em class="em-p">학생 관리</em></div></div>
+        <div id="c-student-list"></div>
+      </div>
+      <div class="page" id="c-cal">
+        <div class="ph">
+          <div class="ph-tag">수행평가 캘린더</div>
+          <div class="ph-title">담당 학생 <em class="em-p">일정 관리</em></div>
+          <div class="ph-sub">모든 담당 학생의 수행평가 일정 통합 조회 · 피드백 직접 작성</div>
+        </div>
+        <div class="cal-layout">
+          <div class="cal-main">
+            <div class="cal-hdr">
+              <div class="cal-mnav">
+                <button onclick="calPrev('c')" aria-label="이전 달">‹</button>
+                <div class="cal-mon-label" id="c-cal-label"></div>
+                <button onclick="calNext('c')" aria-label="다음 달">›</button>
+              </div>
+              <button class="cal-today-btn" onclick="calToday('c')">오늘</button>
+              <div class="cal-type-filters" id="c-cal-filters"></div>
+            </div>
+            <div class="cal-wk-hdr">
+              <div class="cal-wkd sun">일</div><div class="cal-wkd">월</div><div class="cal-wkd">화</div>
+              <div class="cal-wkd">수</div><div class="cal-wkd">목</div><div class="cal-wkd">금</div><div class="cal-wkd sat">토</div>
+            </div>
+            <div class="cal-grid" id="c-cal-grid"></div>
+            <div class="cal-legend">
+              <div class="cal-leg"><div class="cal-leg-dot" style="background:var(--purple)"></div>구술</div>
+              <div class="cal-leg"><div class="cal-leg-dot" style="background:var(--blue)"></div>발표</div>
+              <div class="cal-leg"><div class="cal-leg-dot" style="background:var(--teal)"></div>토론</div>
+              <div class="cal-leg"><div class="cal-leg-dot" style="background:var(--green)"></div>제출</div>
+            </div>
+          </div>
+          <div class="cal-side" id="c-cal-side"></div>
+        </div>
+      </div>
+      <div class="page" id="c-student-detail"><div id="c-detail-ct"><div class="empty"><div class="empty-ic">◉</div><div class="empty-t">학생을 선택하세요</div></div></div></div>
+      <div class="page" id="c-feedback">
+        <div class="ph"><div class="ph-tag">피드백 관리</div><div class="ph-title">피드백 <em class="em-p">처리 현황</em></div></div>
+        <div id="c-feedback-list"></div>
+      </div>
+      <div class="page" id="c-performance">
+        <div class="ph"><div class="ph-tag">수행평가 관리</div><div class="ph-title">수행평가 <em class="em-p">피드백</em></div></div>
+        <div id="c-perf-list"></div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- ════════════ STUDENT SCREEN ════════════ -->
+<div class="scr" id="scr-student">
+  <div class="topbar">
+    <div class="tb-logo"><span class="tl-big">big</span><span class="tl-link">link</span><span class="tl-er">er</span><span class="tl-dot">student</span></div>
+    <div class="tb-nav">
+      <button class="tn s-role on" onclick="sNav(this,'s-dash')">대시보드</button>
+      <button class="tn s-role" onclick="sNav(this,'s-essay')">논술 대비</button>
+      <button class="tn s-role" onclick="sNav(this,'s-interview')">면접 코칭</button>
+    </div>
+    <div class="tb-right">
+      <div class="role-badge"><span class="badge-dot dot-student"></span><span id="s-badge"></span></div>
+      <button class="btn-logout" onclick="logout()">로그아웃</button>
+    </div>
+  </div>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sg">입시 현황</div>
+      <div class="si on" onclick="sSide(this,'s-dash')"><span class="si-ic">◈</span>종합 대시보드</div>
+      <div class="si" onclick="sSide(this,'s-cutoff')"><span class="si-ic">📊</span>합격 컷·학교 추천</div>
+      <div class="si" onclick="sSide(this,'s-admission')"><span class="si-ic">⊕</span>전형 전략</div>
+      <div class="sg">생기부 관리</div>
+      <div class="si" onclick="sSide(this,'s-upload')"><span class="si-ic">↑</span>생기부 분석</div>
+      <div class="si" onclick="sSide(this,'s-scores')"><span class="si-ic">≋</span>역량 점수</div>
+      <div class="si" onclick="sSide(this,'s-roadmap')"><span class="si-ic">→</span>활동 로드맵<span class="si-bd bd-b">NEW</span></div>
+      <div class="si" onclick="sSide(this,'s-subjects')"><span class="si-ic">◎</span>과목 전략</div>
+      <div class="sg">수행평가</div>
+      <div class="si" onclick="sSide(this,'s-cal')"><span class="si-ic">◫</span>수행평가 캘린더<span class="si-bd bd-b">NEW</span></div>
+      <div class="si" onclick="sSide(this,'s-perf')"><span class="si-ic">✓</span>수행평가 현황<span class="si-bd bd-y" id="s-perf-cnt">0</span></div>
+      <div class="si" onclick="sSide(this,'s-feedback')"><span class="si-ic">✉</span>보고서 피드백<span class="si-bd bd-o" id="s-fb-cnt">0</span></div>
+      <div class="sg">AI 도구</div>
+      <div class="si" onclick="sSide(this,'s-essay')"><span class="si-ic">✦</span>논술 기출</div>
+      <div class="si" onclick="sSide(this,'s-essay-fb')"><span class="si-ic">✎</span>AI 첨삭</div>
+      <div class="si" onclick="sSide(this,'s-interview')"><span class="si-ic">◆</span>면접 질문</div>
+      <div class="si" onclick="sSide(this,'s-mock')"><span class="si-ic">▷</span>AI 모의면접</div>
+      <div class="sg">내 계정</div>
+      <div class="si" onclick="sSide(this,'s-profile')"><span class="si-ic">○</span>프로필</div>
+      <div class="si" onclick="sSide(this,'s-history')"><span class="si-ic">⊞</span>분석 히스토리</div>
+    </aside>
+    <main class="content">
+      <!-- ── STUDENT DASHBOARD ── -->
+      <div class="page on" id="s-dash">
+        <div class="ph"><div class="ph-tag">종합 대시보드</div><div class="ph-title" id="s-dash-t">AI 입시 분석</div><div class="ph-sub" id="s-dash-s"></div></div>
+        <div id="s-dash-notice"></div>
+        <div class="g4" style="margin-bottom:14px" id="s-stat-cards"></div>
+        <div class="g2" style="margin-bottom:14px" id="s-dash-mid"></div>
+        <div style="margin-bottom:14px" id="s-interview-summary"></div>
+        <div style="margin-bottom:14px" id="s-dash-cal-preview"></div>
+        <div class="btn-row" id="s-dash-acts"></div><div id="s-dash-ai"></div>
+      </div>
+
+      <!-- ── CUTOFF & SCHOOL RECOMMEND ── -->
+      <div class="page" id="s-cutoff">
+        <div class="ph"><div class="ph-tag">합격 컷 · 학교 추천</div><div class="ph-title">2025 간호학과 <em>합격선 분석</em></div><div class="ph-sub">2025학년도 기준 · 내신 4.70등급 기준 상향·적정·하향 분류 · 참고용 데이터</div></div>
+        <div class="ntc ntc-y"><span>⚠</span><div>아래 데이터는 <b>참고용 추정치</b>입니다. 실제 합격선은 매년 변동되며, 반드시 각 대학 입학처에서 확인하세요.</div></div>
+        <div class="tabrow">
+          <div class="tb on" onclick="switchTab(this,'ct-all')">전체 목록</div>
+          <div class="tb" onclick="switchTab(this,'ct-reach')">상향 도전</div>
+          <div class="tb" onclick="switchTab(this,'ct-match')">적정</div>
+          <div class="tb" onclick="switchTab(this,'ct-safe')">하향 안정</div>
+        </div>
+        <div class="tc on" id="ct-all"><div id="cutoff-table-all"></div></div>
+        <div class="tc" id="ct-reach"><div id="cutoff-table-reach"></div></div>
+        <div class="tc" id="ct-match"><div id="cutoff-table-match"></div></div>
+        <div class="tc" id="ct-safe"><div id="cutoff-table-safe"></div></div>
+        <div class="divider"></div>
+        <div class="card">
+          <div class="card-lbl" style="margin-bottom:10px">AI 맞춤 지원 전략 분석</div>
+          <button class="btn btn-b" onclick="runAI('cutoff-ai',this,q('cutoff-ai-r'))">🤖 내 내신 기준 지원 전략 생성</button>
+          <div id="cutoff-ai-r"></div>
+        </div>
+      </div>
+
+      <!-- ── ADMISSION ── -->
+      <div class="page" id="s-admission">
+        <div class="ph"><div class="ph-tag">전형 전략</div><div class="ph-title">수시 6장 <em>최적 배분</em></div></div>
+        <div class="g2" style="margin-bottom:14px">
+          <div class="card"><div class="card-lbl" style="margin-bottom:10px">배분 제안</div>
+            <div class="iss iss-r"><div><div class="i-t">도전 1장</div><div class="i-d">가톨릭대 학교장추천 — 현 위험권, 3학년 개선 후 재평가</div></div></div>
+            <div class="iss iss-o"><div><div class="i-t">소신 2장</div><div class="i-d">중상위 간호학과 학종·논술 병행 전략</div></div></div>
+            <div class="iss iss-g"><div><div class="i-t">안정 3장</div><div class="i-d">지방 거점 간호학과 교과전형 (내신 4등급대)</div></div></div>
+          </div>
+          <div class="card"><div class="card-lbl" style="margin-bottom:10px">전형별 적합도</div>
+            <div class="sb-row"><div class="sb-nm">학생부종합</div><div class="sb-tr"><div class="sb-fl" style="width:32%;background:var(--yellow)"></div></div><div class="sb-ch ch-warn">소신</div></div>
+            <div class="sb-row"><div class="sb-nm">학생부교과</div><div class="sb-tr"><div class="sb-fl" style="width:55%;background:var(--blue)"></div></div><div class="sb-ch ch-good">적정</div></div>
+            <div class="sb-row"><div class="sb-nm">논술전형</div><div class="sb-tr"><div class="sb-fl" style="width:45%;background:var(--teal)"></div></div><div class="sb-ch ch-ok">준비</div></div>
+            <div class="sb-row"><div class="sb-nm">정시</div><div class="sb-tr"><div class="sb-fl" style="width:20%;background:var(--red)"></div></div><div class="sb-ch ch-bad">불리</div></div>
+          </div>
+        </div>
+        <button class="btn btn-b" onclick="runAI('admission',this,q('res-admission'))">🤖 AI 지원 전략 상세 분석</button>
+        <div id="res-admission"></div>
+      </div>
+
+      <!-- ── UPLOAD ── -->
+      <div class="page" id="s-upload">
+        <div class="ph"><div class="ph-tag">생기부 분석</div><div class="ph-title">생기부 <em>AI 분석</em></div></div>
+        <div class="up-drop" style="margin-bottom:12px" onclick="this.querySelector('input').click()">
+          <div style="font-size:24px;margin-bottom:8px">📄</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:3px">PDF · TXT 업로드</div>
+          <div style="font-size:11px;color:var(--muted)">클릭하거나 파일을 끌어다 놓으세요</div>
+          <input type="file" accept=".pdf,.txt" onchange="handleGbFile(this)">
+        </div>
+        <div style="text-align:center;color:var(--muted);font-size:11px;margin:8px 0">또는 직접 붙여넣기</div>
+        <textarea id="gb-in" rows="11" placeholder="학교생활기록부 내용을 붙여넣으세요..."></textarea>
+        <div class="btn-row"><button class="btn btn-b" onclick="runUpload()">🤖 AI 분석 시작</button><button class="btn btn-ghost" onclick="loadSample()">샘플 불러오기</button><button class="btn btn-ghost" onclick="loadSavedGb()">저장된 불러오기</button></div>
+        <div id="upload-r"></div>
+      </div>
+
+      <!-- ── SCORES ── -->
+      <div class="page" id="s-scores">
+        <div class="ph"><div class="ph-tag">역량 점수 분석</div><div class="ph-title">항목별 <em>세부 진단</em></div></div>
+        <div class="tabrow">
+          <div class="tb on" onclick="switchTab(this,'sc-hak')">학업역량</div>
+          <div class="tb" onclick="switchTab(this,'sc-jin')">진로역량</div>
+          <div class="tb" onclick="switchTab(this,'sc-gong')">공동체역량</div>
+        </div>
+        <div class="tc on" id="sc-hak">
+          <div class="g2" style="margin-bottom:12px">
+            <div class="card"><div class="card-lbl">학업역량 점수</div>
+              <div class="ring-wr" style="margin-top:10px">
+                <svg width="84" height="84" viewBox="0 0 84 84"><circle cx="42" cy="42" r="31" fill="none" stroke="var(--s4)" stroke-width="6"/><circle cx="42" cy="42" r="31" fill="none" stroke="var(--purple)" stroke-width="6" stroke-dasharray="194.8" stroke-dashoffset="111" stroke-linecap="round" transform="rotate(-90 42 42)"/><text x="42" y="46" text-anchor="middle" font-size="13" fill="var(--text)" font-family="JetBrains Mono,monospace" font-weight="500">43.3</text></svg>
+                <div><div class="ring-n">43.3<span style="font-size:14px;color:var(--muted)">/100</span></div><div class="ring-s">경쟁자 평균 69.4점</div><div class="ring-d c-r">▼ 26.1점 부족</div></div>
+              </div>
+            </div>
+            <div class="card"><div class="card-lbl">세부 항목</div>
+              <div style="margin-top:8px">
+                <div class="sb-row"><div class="sb-nm">적극성</div><div class="sb-tr"><div class="sb-fl" style="width:62%;background:var(--teal)"></div></div><div class="sb-ch ch-ok">양호</div></div>
+                <div class="sb-row"><div class="sb-nm">탐구정신</div><div class="sb-tr"><div class="sb-fl" style="width:32%;background:var(--orange)"></div></div><div class="sb-ch ch-warn">보완</div></div>
+                <div class="sb-row"><div class="sb-nm">전공진로</div><div class="sb-tr"><div class="sb-fl" style="width:28%;background:var(--red)"></div></div><div class="sb-ch ch-bad">취약</div></div>
+                <div class="sb-row"><div class="sb-nm">협력성</div><div class="sb-tr"><div class="sb-fl" style="width:66%;background:var(--blue)"></div></div><div class="sb-ch ch-good">양호</div></div>
+              </div>
+            </div>
+          </div>
+          <div class="card"><div class="card-lbl" style="margin-bottom:10px">AI 학업역량 보완 전략</div>
+            <button class="btn btn-b" onclick="runAI('academic',this,q('res-academic'))">🤖 보완 전략 생성</button><div id="res-academic"></div></div>
+        </div>
+        <div class="tc" id="sc-jin">
+          <div class="g2" style="margin-bottom:12px">
+            <div class="card"><div class="card-lbl">진로역량 — 최우선 보완</div>
+              <div class="ring-wr" style="margin-top:10px">
+                <svg width="84" height="84" viewBox="0 0 84 84"><circle cx="42" cy="42" r="31" fill="none" stroke="var(--s4)" stroke-width="6"/><circle cx="42" cy="42" r="31" fill="none" stroke="var(--orange)" stroke-width="6" stroke-dasharray="194.8" stroke-dashoffset="118" stroke-linecap="round" transform="rotate(-90 42 42)"/><text x="42" y="46" text-anchor="middle" font-size="13" fill="var(--text)" font-family="JetBrains Mono,monospace" font-weight="500">39.6</text></svg>
+                <div><div class="ring-n">39.6<span style="font-size:14px;color:var(--muted)">/100</span></div><div class="ring-s">경쟁자 평균 68.3점</div><div class="ring-d c-r">▼ 28.7점 · 최우선</div></div>
+              </div>
+            </div>
+            <div class="card"><div class="card-lbl">전공 연계 과목</div>
+              <table class="tbl" style="margin-top:8px">
+                <tr><th>과목</th><th>구분</th><th>등급</th><th>상태</th></tr>
+                <tr><td>생명과학Ⅰ</td><td>핵심</td><td><span class="bdg bdg-p">5등급</span></td><td style="color:var(--orange)">미흡</td></tr>
+                <tr style="opacity:.5"><td>생명과학Ⅱ</td><td>핵심</td><td>—</td><td style="color:var(--red)">미이수</td></tr>
+                <tr style="opacity:.5"><td>확률과통계</td><td>핵심</td><td>—</td><td style="color:var(--red)">미이수</td></tr>
+                <tr style="opacity:.5"><td>화학Ⅰ</td><td>권장</td><td>—</td><td style="color:var(--orange)">미이수</td></tr>
+              </table>
+            </div>
+          </div>
+          <div class="card"><div class="card-lbl" style="margin-bottom:8px">진로 강점 키워드</div>
+            <div class="chips"><span class="chip chip-p">간호학 진로탐색</span><span class="chip chip-t">응급처치</span><span class="chip chip-b">코로나 모델링</span><span class="chip chip-o">심폐소생술</span><span class="chip chip-g">의료윤리</span></div>
+            <div class="btn-row"><button class="btn btn-b" onclick="runAI('career',this,q('res-career'))">🤖 진로역량 보완 전략</button></div><div id="res-career"></div></div>
+        </div>
+        <div class="tc" id="sc-gong">
+          <div class="card"><div class="card-lbl">공동체역량 — 강점</div>
+            <div class="ring-wr" style="margin-top:10px">
+              <svg width="84" height="84" viewBox="0 0 84 84"><circle cx="42" cy="42" r="31" fill="none" stroke="var(--s4)" stroke-width="6"/><circle cx="42" cy="42" r="31" fill="none" stroke="var(--green)" stroke-width="6" stroke-dasharray="194.8" stroke-dashoffset="58" stroke-linecap="round" transform="rotate(-90 42 42)"/><text x="42" y="46" text-anchor="middle" font-size="13" fill="var(--text)" font-family="JetBrains Mono,monospace" font-weight="500">70.7</text></svg>
+              <div><div class="ring-n">70.7<span style="font-size:14px;color:var(--muted)">/100</span></div><div class="ring-s">전체 상위 24.8% · 우수</div><div class="ring-d c-g">✓ 경쟁자 평균 초과</div></div>
+            </div>
+            <div class="chips" style="margin-top:14px"><span class="chip chip-g">출결 무결점</span><span class="chip chip-g">반대표</span><span class="chip chip-b">서번트 리더십</span><span class="chip chip-t">배려·포용</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── ROADMAP + KEYWORDS ── -->
+      <div class="page" id="s-roadmap">
+        <div class="ph"><div class="ph-tag">활동 로드맵 · 생기부 키워드 가이드</div><div class="ph-title">세부 항목별 <em>키워드 전략</em></div><div class="ph-sub">간호학과 합격 생기부 기반 권장 키워드 · 컨설턴트 가이드 포함</div></div>
+        <div class="tabrow">
+          <div class="tb on" onclick="switchTab(this,'rm-map')">3년 로드맵</div>
+          <div class="tb" onclick="switchTab(this,'rm-setech')">세특 키워드</div>
+          <div class="tb" onclick="switchTab(this,'rm-chang')">창체 키워드</div>
+          <div class="tb" onclick="switchTab(this,'rm-club')">동아리 키워드</div>
+          <div class="tb" onclick="switchTab(this,'rm-career')">진로 키워드</div>
+        </div>
+        <div class="tc on" id="rm-map">
+          <div class="ntc ntc-b"><span>◎</span><div>현재 <b>2학년 2학기</b> — 남은 기간 집중 전략으로 역전 가능합니다</div></div>
+          <div class="road-wr">
+            <div class="road-col"><div class="road-gd">1학년 (완료)</div>
+              <div class="road-it" style="border-color:var(--muted)"><div class="road-it-t" style="color:var(--muted)">기초 탐색</div><div class="road-it-d">통합과학·통합사회 수강<br>심전도·체온조절 탐구<br>국어 2등급 강점 확보</div></div>
+              <div class="road-it" style="border-color:var(--muted)"><div class="road-it-t" style="color:var(--muted)">공동체 기반</div><div class="road-it-d">학급회장 · 출결 무결점<br>심폐소생술 영상 제작</div></div>
+            </div>
+            <div class="road-col"><div class="road-gd">2학년 (진행중)</div>
+              <div class="road-it" style="border-color:var(--red)"><div class="road-it-t" style="color:var(--red)">▶ 지금 당장</div><div class="road-it-d">생명과학 세특 3건↑<br>항상성·면역·유전자 치료<br>수학 의료통계 모델링</div></div>
+              <div class="road-it" style="border-color:var(--orange)"><div class="road-it-t" style="color:var(--orange)">▶ 이번 학기</div><div class="road-it-d">동아리 발표 주도<br>수업대표·모둠장 역할<br>진로 스터디 보고서 완성</div></div>
+            </div>
+            <div class="road-col"><div class="road-gd">3학년 (예정)</div>
+              <div class="road-it" style="border-color:var(--blue)"><div class="road-it-t" style="color:var(--blue)">1학기 필수</div><div class="road-it-d">생명과학Ⅱ + 확률과통계<br>세특 스토리 완성<br>간호 윤리 탐구 심화</div></div>
+              <div class="road-it" style="border-color:var(--green)"><div class="road-it-t" style="color:var(--green)">마무리</div><div class="road-it-d">논술·면접 집중 대비<br>수시 6장 최적 배분<br>모의면접 10회↑</div></div>
+            </div>
+          </div>
+          <div class="btn-row" style="margin-top:14px"><button class="btn btn-b" onclick="runAI('roadmap',this,q('res-roadmap'))">🤖 AI 맞춤 로드맵 생성</button></div>
+          <div id="res-roadmap"></div>
+        </div>
+        <!-- 세특 키워드 -->
+        <div class="tc" id="rm-setech">
+          <div class="rk-section">
+            <div class="rk-title">🔬 생명과학 세특 <span class="bdg bdg-b">핵심 과목</span></div>
+            <div class="rk-sub">간호학과 평가에서 가장 중요하게 반영되는 세특입니다. 아래 키워드를 중심으로 탐구 활동을 구성하세요.</div>
+            <div class="kw-group"><div class="kw-group-lbl">추천 탐구 키워드</div>
+              <div class="chips"><span class="chip chip-b">항상성·음성피드백</span><span class="chip chip-b">체온조절 기작</span><span class="chip chip-b">면역반응</span><span class="chip chip-b">유전자 치료</span><span class="chip chip-b">CRISPR-Cas9</span><span class="chip chip-t">신경전달물질</span><span class="chip chip-t">호르몬 조절</span><span class="chip chip-t">감염병 역학</span><span class="chip chip-g">혈압 조절</span><span class="chip chip-g">저체온증 처치</span></div>
+            </div>
+            <div class="kw-group"><div class="kw-group-lbl">포함 요소 (반드시 포함)</div>
+              <div class="chips"><span class="chip chip-o">자기주도 탐구과정</span><span class="chip chip-o">가설→검증 구조</span><span class="chip chip-o">간호학 연계 결론</span><span class="chip chip-o">데이터 시각화</span><span class="chip chip-o">한계점·발전방향</span></div>
+            </div>
+            <div class="kw-group"><div class="kw-group-lbl">피해야 할 표현</div>
+              <div class="chips"><span class="chip chip-p">단순 개념 정리</span><span class="chip chip-p">교과서 요약</span><span class="chip chip-p">인상 깊었다</span><span class="chip chip-p">배웠다·알았다</span></div>
+            </div>
+          </div>
+          <div class="rk-section">
+            <div class="rk-title">📐 수학 세특 <span class="bdg bdg-g">전략적 연계</span></div>
+            <div class="rk-sub">의료·간호 분야와 수학을 연계하면 진로역량 점수를 동시에 높일 수 있습니다.</div>
+            <div class="kw-group"><div class="kw-group-lbl">추천 탐구 키워드</div>
+              <div class="chips"><span class="chip chip-b">감염병 SIR 모델</span><span class="chip chip-b">지수함수 활용</span><span class="chip chip-b">확률과통계 의료</span><span class="chip chip-t">R₀ 기초감염재생산</span><span class="chip chip-t">의료 통계 분석</span><span class="chip chip-g">생존율 곡선</span><span class="chip chip-g">카플란-마이어</span></div>
+            </div>
+          </div>
+          <div class="rk-section">
+            <div class="rk-title">📚 국어·영어 세특 <span class="bdg bdg-p">보조 역량</span></div>
+            <div class="chips"><span class="chip chip-b">의료 비문학 비판적 분석</span><span class="chip chip-b">헌혈 통계 논리 구조</span><span class="chip chip-t">WHO 영문 보고서 분석</span><span class="chip chip-t">의학 용어 어원 탐구</span><span class="chip chip-g">간호사 역할 에세이</span></div>
+          </div>
+        </div>
+        <!-- 창체 키워드 -->
+        <div class="tc" id="rm-chang">
+          <div class="rk-section">
+            <div class="rk-title">🏫 자율활동 <span class="bdg bdg-o">리더십 강화</span></div>
+            <div class="rk-sub">학급·학년 단위 활동에서 리더십과 공동체 기여를 구체적으로 기록해야 합니다.</div>
+            <div class="kw-group"><div class="kw-group-lbl">추천 활동 키워드</div>
+              <div class="chips"><span class="chip chip-o">학급자치활동 주도</span><span class="chip chip-o">건강·의료 캠페인</span><span class="chip chip-o">AED 위치 홍보</span><span class="chip chip-b">데이터 시각화 발표</span><span class="chip chip-b">의료기기 체험</span><span class="chip chip-g">감염병 예방 홍보</span></div>
+            </div>
+            <div class="kw-group"><div class="kw-group-lbl">포함 요소</div>
+              <div class="chips"><span class="chip chip-o">주도적 역할 명시</span><span class="chip chip-o">배움→실천 연결</span><span class="chip chip-o">간호직 연계 성찰</span></div>
+            </div>
+          </div>
+          <div class="rk-section">
+            <div class="rk-title">🔬 진로탐색활동 (창체 내)</div>
+            <div class="chips"><span class="chip chip-b">병원·보건소 견학</span><span class="chip chip-b">간호사 인터뷰</span><span class="chip chip-t">응급처치 교육 이수</span><span class="chip chip-t">대학 전공 설명회</span><span class="chip chip-g">의학 드라마 비판적 분석</span><span class="chip chip-p">간호 관련 뉴스 스크랩</span></div>
+          </div>
+        </div>
+        <!-- 동아리 키워드 -->
+        <div class="tc" id="rm-club">
+          <div class="rk-section">
+            <div class="rk-title">🩺 의료·보건 동아리 <span class="bdg bdg-r">최우선 구성</span></div>
+            <div class="rk-sub">간호학과는 동아리에서 전공 연계 활동 비중이 평가에 크게 반영됩니다.</div>
+            <div class="kw-group"><div class="kw-group-lbl">핵심 활동 키워드</div>
+              <div class="chips"><span class="chip chip-b">심폐소생술 실습·영상</span><span class="chip chip-b">활력징후 측정</span><span class="chip chip-b">응급처치 시나리오</span><span class="chip chip-t">의료 AI 탐구</span><span class="chip chip-t">공황장애·정신건강</span><span class="chip chip-g">감염관리 방법론</span><span class="chip chip-g">재난의료 대응</span><span class="chip chip-o">부장·발표 주도 역할</span></div>
+            </div>
+            <div class="kw-group"><div class="kw-group-lbl">포함 요소 (차별화)</div>
+              <div class="chips"><span class="chip chip-o">본인이 직접 주도한 활동</span><span class="chip chip-o">팀 내 역할 명확히</span><span class="chip chip-o">탐구 결과 보고서</span><span class="chip chip-p">동료 가르치기(멘토)</span></div>
+            </div>
+          </div>
+        </div>
+        <!-- 진로 키워드 -->
+        <div class="tc" id="rm-career">
+          <div class="rk-section">
+            <div class="rk-title">🎯 진로활동 핵심 키워드</div>
+            <div class="rk-sub">진로 일관성과 심화 탐색이 핵심입니다. 1학년부터 3학년까지 점점 구체화되는 스토리를 만드세요.</div>
+            <div class="kw-group"><div class="kw-group-lbl">1학년 (탐색기)</div>
+              <div class="chips"><span class="chip chip-b">간호사 직업 탐색</span><span class="chip chip-b">의료 직군 비교</span><span class="chip chip-t">간호 관련 도서 독서</span></div>
+            </div>
+            <div class="kw-group"><div class="kw-group-lbl">2학년 (심화기)</div>
+              <div class="chips"><span class="chip chip-o">전공 설명회 참가</span><span class="chip chip-o">간호 스터디 조직</span><span class="chip chip-o">남성 간호사 탐구</span><span class="chip chip-b">실제 간호 현장 이해</span></div>
+            </div>
+            <div class="kw-group"><div class="kw-group-lbl">3학년 (확신기)</div>
+              <div class="chips"><span class="chip chip-g">간호사 인터뷰 보고서</span><span class="chip chip-g">진로 포트폴리오 완성</span><span class="chip chip-g">임상 간호 분야 선택</span></div>
+            </div>
+            <div class="kw-group"><div class="kw-group-lbl">추천 독서 (면접 활용)</div>
+              <div class="chips"><span class="chip chip-p">미스터 나이팅게일</span><span class="chip chip-p">간호사가 말하는 간호사</span><span class="chip chip-p">아픔이 길이 되려면</span><span class="chip chip-p">돌봄의 역설</span><span class="chip chip-p">무너지지 말고 무뎌지지도</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── SUBJECTS ── -->
+      <div class="page" id="s-subjects">
+        <div class="ph"><div class="ph-tag">과목 전략</div><div class="ph-title">고교학점제 <em>최적 이수</em></div></div>
+        <div class="g2">
+          <div class="card"><div class="card-lbl" style="margin-bottom:10px">🔴 반드시 이수</div>
+            <div class="iss iss-r"><div><div class="i-t">생명과학Ⅱ (3학년 1학기)</div><div class="i-d">핵심과목 · 세포신호전달·유전자발현 기초<br>항상성 탐구 → 임상 연계 심화 가능</div></div></div>
+            <div class="iss iss-r"><div><div class="i-t">확률과통계 (3학년 1학기)</div><div class="i-d">핵심과목 · 의료 데이터 분석 기반<br>코로나 모델링 세특과 완벽 연계</div></div></div>
+          </div>
+          <div class="card"><div class="card-lbl" style="margin-bottom:10px">🟠 권장 이수</div>
+            <div class="iss iss-o"><div><div class="i-t">화학Ⅰ</div><div class="i-d">권장과목 · 약물 작용 원리 기초<br>생명과학과 연계 탐구 확장</div></div></div>
+            <div class="iss iss-o"><div><div class="i-t">생활과 윤리 / 심리학</div><div class="i-d">간호 윤리·환자 심리 탐구 연계<br>면접 답변 깊이 향상</div></div></div>
+          </div>
+        </div>
+        <div class="btn-row"><button class="btn btn-b" onclick="runAI('subjects',this,q('res-subjects'))">🤖 AI 과목 선택 조언</button></div>
+        <div id="res-subjects"></div>
+      </div>
+
+      <!-- ── 수행평가 캘린더 ── -->
+      <div class="page" id="s-cal">
+        <div class="ph">
+          <div class="ph-tag">수행평가 캘린더</div>
+          <div class="ph-title">일정 <em>캘린더</em></div>
+          <div class="ph-sub">구술·발표·토론·제출 유형별 색상 구분 · 날짜 클릭 시 상세 및 피드백</div>
+        </div>
+        <div class="cal-layout">
+          <div class="cal-main">
+            <div class="cal-hdr">
+              <div class="cal-mnav">
+                <button onclick="calPrev('s')" aria-label="이전 달">‹</button>
+                <div class="cal-mon-label" id="s-cal-label"></div>
+                <button onclick="calNext('s')" aria-label="다음 달">›</button>
+              </div>
+              <button class="cal-today-btn" onclick="calToday('s')">오늘</button>
+              <div class="cal-type-filters" id="s-cal-filters"></div>
+            </div>
+            <div class="cal-wk-hdr">
+              <div class="cal-wkd sun">일</div><div class="cal-wkd">월</div><div class="cal-wkd">화</div>
+              <div class="cal-wkd">수</div><div class="cal-wkd">목</div><div class="cal-wkd">금</div><div class="cal-wkd sat">토</div>
+            </div>
+            <div class="cal-grid" id="s-cal-grid"></div>
+            <div class="cal-legend">
+              <div class="cal-leg"><div class="cal-leg-dot" style="background:var(--purple)"></div>구술</div>
+              <div class="cal-leg"><div class="cal-leg-dot" style="background:var(--blue)"></div>발표</div>
+              <div class="cal-leg"><div class="cal-leg-dot" style="background:var(--teal)"></div>토론</div>
+              <div class="cal-leg"><div class="cal-leg-dot" style="background:var(--green)"></div>제출</div>
+              <div class="cal-leg" style="margin-left:10px"><div class="cal-leg-dot" style="background:var(--yellow)"></div>진행중</div>
+              <div class="cal-leg"><div class="cal-leg-dot" style="background:var(--green)"></div>완료</div>
+            </div>
+          </div>
+          <div class="cal-side" id="s-cal-side"></div>
+        </div>
+      </div>
+
+      <!-- ── 수행평가 ── -->
+      <div class="page" id="s-perf">
+        <div class="ph"><div class="ph-tag">수행평가 현황</div><div class="ph-title">수행평가 <em>관리 대시보드</em></div><div class="ph-sub">과목별 주제·반영비율·진행상태·피드백 통합 관리</div></div>
+        <div class="g3" style="margin-bottom:14px" id="perf-stats"></div>
+        <div style="overflow-x:auto"><div id="perf-table-wrap"></div></div>
+        <div class="card" style="margin-top:18px">
+          <div class="card-lbl" style="margin-bottom:10px">🤖 생기부 기반 수행평가 전략 분석</div>
+          <div id="perf-ai-notice"></div>
+          <button class="btn btn-b" onclick="runPerfAI(this)">🤖 수행평가별 맞춤 전략 생성</button>
+          <div id="res-perf-ai"></div>
+        </div>
+      </div>
+
+      <!-- ── 피드백 ── -->
+      <div class="page" id="s-feedback">
+        <div class="ph"><div class="ph-tag">보고서 피드백</div><div class="ph-title">컨설턴트 <em>피드백</em></div><div class="ph-sub">수행평가 보고서, 생기부 세특, 논술 등 피드백 요청 및 수신</div></div>
+        <div class="btn-row" style="margin-bottom:14px"><button class="btn btn-b" onclick="openFbModal()">+ 피드백 요청</button></div>
+        <div id="fb-list"></div>
+      </div>
+
+      <!-- ── ESSAY ── -->
+      <div class="page" id="s-essay">
+        <div class="ph"><div class="ph-tag">논술 기출 분석</div><div class="ph-title">기출 분석 &amp; <em>AI 풀이</em></div></div>
+        <div class="ntc ntc-b"><span>ℹ</span><div>가톨릭대 학교장추천은 논술 없음. <b>논술 전형 병행</b> 대비 자료입니다.</div></div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:7px">연세대학교 의학계열 논술 · 2024</div>
+        <div style="background:var(--s2);border-radius:var(--r8);padding:13px 15px;font-size:13px;line-height:1.75;margin-bottom:10px;border-left:2px solid var(--teal)">
+          [제시문] 항상성이란 생물체가 외부 환경 변화에도 내부 환경을 일정하게 유지하려는 성질이다. 시상하부는 피부 혈관을 수축시키고 근육 떨림을 유도하여 체온을 보존하는 음성 피드백 메커니즘을 사용한다.<br><br>
+          [문제] 스트레스 상황에서의 신체 항상성 유지 메커니즘을 설명하고, 응급실 간호사가 이를 어떻게 활용해야 하는지 논술하시오. (800자 내외)
+        </div>
+        <div class="chips" style="margin-bottom:10px"><span class="chip chip-b">항상성</span><span class="chip chip-b">음성피드백</span><span class="chip chip-g">응급간호</span><span class="chip chip-o">⭐ 생기부 최적 연계</span></div>
+        <div class="btn-row"><button class="btn btn-b" onclick="runAI('essay1',this,q('res-essay1'))">🤖 AI 모범답안 생성</button><button class="btn btn-ghost" onclick="sSide(null,'s-essay-fb')">내 답안 첨삭 →</button></div>
+        <div id="res-essay1"></div>
+        <div class="divider"></div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:7px">성균관대학교 자연계열 논술 · 2023</div>
+        <div style="background:var(--s2);border-radius:var(--r8);padding:13px 15px;font-size:13px;line-height:1.75;margin-bottom:10px;border-left:2px solid var(--teal)">
+          [제시문] 코로나19 초기 감염자 수는 N(t)=N₀eʳᵗ로 증가하였다. R₀는 한 감염자가 평균 감염시키는 사람 수이다.<br><br>
+          [문제] R₀의 수학적 의미를 설명하고, 의료 자원 배분 전략을 수리적으로 논술하시오.
+        </div>
+        <div class="chips" style="margin-bottom:10px"><span class="chip chip-b">지수함수</span><span class="chip chip-b">R₀</span><span class="chip chip-g">수학 모델링</span><span class="chip chip-o">⭐ 세특 연계</span></div>
+        <div class="btn-row"><button class="btn btn-b" onclick="runAI('essay2',this,q('res-essay2'))">🤖 AI 모범답안 생성</button></div>
+        <div id="res-essay2"></div>
+      </div>
+
+      <!-- ── ESSAY FEEDBACK ── -->
+      <div class="page" id="s-essay-fb">
+        <div class="ph"><div class="ph-tag">AI 논술 첨삭</div><div class="ph-title">내 답안 <em>AI 첨삭</em></div></div>
+        <textarea id="essay-in" rows="12" placeholder="논술 답안을 입력하세요..."></textarea>
+        <div class="btn-row"><button class="btn btn-b" onclick="runAI('essay-fb',this,q('res-essay-fb'))">🤖 첨삭 받기</button><button class="btn btn-ghost" onclick="q('essay-in').value=''">초기화</button></div>
+        <div id="res-essay-fb"></div>
+      </div>
+
+      <!-- ── INTERVIEW ── -->
+      <div class="page" id="s-interview">
+        <div class="ph"><div class="ph-tag">면접 예상 질문</div><div class="ph-title">생기부 기반 <em>예상 질문</em></div></div>
+        <div class="ntc ntc-o"><span>⚠</span><div>각 질문 카드를 클릭하면 답변 힌트와 작성란이 펼쳐집니다.</div></div>
+        <div id="qlist">
+          <div class="qcard" onclick="this.classList.toggle('open')"><div class="qmeta"><span class="qt qt-m">전공 적합성</span></div><div class="qq">심폐소생술 영상 제작 시 대본 작성과 편집을 담당하셨는데, 어떤 점에 가장 신경 썼고 간호사 역량과 어떻게 연결되나요?</div>
+            <div class="qhint">💡 근거: "대본·영상편집, 틀리기 쉬운 자세 꼼꼼히 지적" → STAR: 상황→과제→행동→결과→간호 연계</div>
+            <div class="qans"><textarea rows="4" placeholder="답변 초안..."></textarea><div class="btn-row"><button class="btn btn-b btn-sm" onclick="event.stopPropagation();runAnswerFb(this)">🤖 AI 피드백</button></div><div class="q-fb-r"></div></div></div>
+          <div class="qcard" onclick="this.classList.toggle('open')"><div class="qmeta"><span class="qt qt-k">학업 역량</span></div><div class="qq">차가운 물 속 수영 시 체온 조절 기작을 탐구하셨는데, 시상하부의 역할과 저체온증 예방을 설명하고 간호학 어느 영역과 연결되는지 말씀해주세요.</div>
+            <div class="qhint">💡 근거: "시상하부→피부혈관수축→근육떨림, 열 보존" → 수술 후 체온관리, 저체온증 응급처치 연결</div>
+            <div class="qans"><textarea rows="4" placeholder="답변 초안..."></textarea><div class="btn-row"><button class="btn btn-b btn-sm" onclick="event.stopPropagation();runAnswerFb(this)">🤖 AI 피드백</button></div><div class="q-fb-r"></div></div></div>
+          <div class="qcard" onclick="this.classList.toggle('open')"><div class="qmeta"><span class="qt qt-f">꼬리 질문</span></div><div class="qq">'미스터 나이팅게일'을 읽고 남성 간호사에 관심을 갖게 되셨는데, 가장 인상 깊었던 내용과 남성 간호사로서 본인만의 강점을 말씀해주세요.</div>
+            <div class="qhint">💡 근거: "남성 간호사 직무 전문성, 의료 현장 인식 변화" → 책 에피소드 + 진로 스터디 조직 연결</div>
+            <div class="qans"><textarea rows="4" placeholder="답변 초안..."></textarea><div class="btn-row"><button class="btn btn-b btn-sm" onclick="event.stopPropagation();runAnswerFb(this)">🤖 AI 피드백</button></div><div class="q-fb-r"></div></div></div>
+          <div class="qcard" onclick="this.classList.toggle('open')"><div class="qmeta"><span class="qt qt-c">인성 확인</span></div><div class="qq">교육여행 조 편성에 어려운 학생을 도왔다고 하셨는데, 구체적으로 설명하고 간호사의 배려와 어떻게 연결되는지 말씀해주세요.</div>
+            <div class="qhint">💡 근거: "자발적으로 조 포함, 소외 방지" → 취약 환자 케어, 팀워크 연결</div>
+            <div class="qans"><textarea rows="4" placeholder="답변 초안..."></textarea><div class="btn-row"><button class="btn btn-b btn-sm" onclick="event.stopPropagation();runAnswerFb(this)">🤖 AI 피드백</button></div><div class="q-fb-r"></div></div></div>
+          <div class="qcard" onclick="this.classList.toggle('open')"><div class="qmeta"><span class="qt qt-k">전공 지식</span></div><div class="qq">코로나19 확산을 지수함수로 분석하셨는데, R₀가 1 초과·미만일 때 의료 현장 대응이 어떻게 달라야 하는지 설명해주세요.</div>
+            <div class="qhint">💡 근거: "지수함수로 코로나 확산 분석, 수학적 모델링" → R₀>1: 격리·집중치료 / R₀<1: 재활·지역사회</div>
+            <div class="qans"><textarea rows="4" placeholder="답변 초안..."></textarea><div class="btn-row"><button class="btn btn-b btn-sm" onclick="event.stopPropagation();runAnswerFb(this)">🤖 AI 피드백</button></div><div class="q-fb-r"></div></div></div>
+        </div>
+        <div class="btn-row"><button class="btn btn-b" onclick="runAI('more-q',this,q('res-more-q'))">🤖 질문 5개 더 생성</button><button class="btn btn-s2" onclick="sSide(null,'s-mock')">▷ AI 모의면접</button></div>
+        <div id="res-more-q"></div>
+      </div>
+
+      <!-- ── MOCK ── -->
+      <div class="page" id="s-mock">
+        <div class="ph"><div class="ph-tag">AI 모의면접</div><div class="ph-title"><em>실전 면접</em> 시뮬레이션</div></div>
+        <div id="mock-setup">
+          <div class="card" style="margin-bottom:12px"><div class="card-lbl" style="margin-bottom:10px">면접 설정</div>
+            <div class="g2">
+              <div class="fl"><label>지원 대학·학과</label><select id="mock-univ" id="mock-univ-sel"></select></div>
+              <div class="fl"><label>문항 수</label><select id="mock-cnt"><option value="5">5문항 (~8분)</option><option value="7">7문항 (~12분)</option><option value="10">10문항 (~15분)</option></select></div>
+            </div>
+          </div>
+          <button class="btn btn-b" style="font-size:14px;padding:12px 22px" onclick="startMock()">▷ 모의면접 시작</button>
+        </div>
+        <div id="mock-run" style="display:none">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <div style="font-size:11px;color:var(--muted);font-weight:600" id="mock-prog">질문 1/5</div>
+            <button class="btn btn-ghost btn-sm" onclick="endMock()">종료</button>
+          </div>
+          <div class="chat-box" id="mock-chat"></div>
+          <textarea id="mock-ans" rows="3" placeholder="답변 입력 (Enter = 제출, Shift+Enter = 줄바꿈)"></textarea>
+          <div class="btn-row"><button class="btn btn-b" id="mock-btn" onclick="submitMock()">답변 제출 →</button></div>
+        </div>
+        <div id="mock-result"></div>
+      </div>
+
+      <!-- ── PROFILE ── -->
+      <div class="page" id="s-profile">
+        <div class="ph"><div class="ph-tag">내 계정</div><div class="ph-title">프로필 <em>설정</em></div></div>
+        <div class="g2">
+          <div class="card"><div class="card-lbl" style="margin-bottom:12px">기본 정보</div>
+            <div class="fl"><label>이름</label><input type="text" id="p-nm"></div>
+            <div class="fr2"><div class="fl"><label>학교</label><input type="text" id="p-sch"></div><div class="fl"><label>학년</label><select id="p-gr"><option value="1">1학년</option><option value="2">2학년</option><option value="3">3학년</option></select></div></div>
+            <div class="fl"><label>목표 대학</label><input type="text" id="p-univ"></div>
+            <div class="fl"><label>목표 학과</label><input type="text" id="p-dept"></div>
+            <button class="btn btn-b btn-sm" onclick="saveProfile()">저장</button><div id="p-r" style="margin-top:6px;font-size:12px"></div>
+          </div>
+          <div class="card"><div class="card-lbl" style="margin-bottom:12px">비밀번호 변경</div>
+            <div class="fl"><label>현재</label><input type="password" id="st-cur"></div>
+            <div class="fl"><label>새 비밀번호</label><input type="password" id="st-new"></div>
+            <div class="fl"><label>확인</label><input type="password" id="st-new2"></div>
+            <button class="btn btn-s2 btn-sm" onclick="changeStPw()">변경</button><div id="st-pw-r" style="margin-top:6px;font-size:12px"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── HISTORY ── -->
+      <div class="page" id="s-history">
+        <div class="ph"><div class="ph-tag">분석 히스토리</div><div class="ph-title">이전 <em>분석 기록</em></div></div>
+        <div id="hist-list"></div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- ════════ MODALS ════════ -->
+<!-- Student Modal -->
+<div class="modal-ov" id="m-student"><div class="modal" style="max-width:540px">
+  <div class="mhead"><div class="mhead-t" id="m-st-title">학생 추가</div><button class="mclose" onclick="closeM('m-student')">×</button></div>
+  <div class="mbody">
+    <input type="hidden" id="m-sid">
+    <div class="fr2"><div class="fl"><label>이름 *</label><input type="text" id="m-nm" placeholder="홍길동"></div><div class="fl"><label>아이디 *</label><input type="text" id="m-uid" placeholder="hong2024"></div></div>
+    <div class="fr2"><div class="fl"><label>비밀번호 *</label><input type="password" id="m-pw" placeholder="4자 이상"></div><div class="fl"><label>학교</label><input type="text" id="m-sch" placeholder="○○고등학교"></div></div>
+    <div class="fr3"><div class="fl"><label>학년</label><select id="m-gr"><option value="1">1학년</option><option value="2" selected>2학년</option><option value="3">3학년</option></select></div><div class="fl"><label>목표 대학</label><input type="text" id="m-univ" placeholder="○○대학교"></div><div class="fl"><label>목표 학과</label><input type="text" id="m-dept" placeholder="간호학과"></div></div>
+    <div class="fl"><label>담당 컨설턴트</label><select id="m-cons"><option value="">미배정</option></select></div>
+    <div class="fl"><label>메모 (내부용)</label><textarea id="m-memo" rows="2" placeholder="관리자 메모"></textarea></div>
+    <div id="m-err" style="color:var(--red);font-size:12px;margin-top:4px;min-height:16px"></div>
+  </div>
+  <div class="mfoot"><button class="btn btn-ghost" onclick="closeM('m-student')">취소</button><button class="btn btn-b" onclick="saveStudent()">저장</button></div>
+</div></div>
+
+<!-- Consultant Modal -->
+<div class="modal-ov" id="m-consultant"><div class="modal" style="max-width:460px">
+  <div class="mhead"><div class="mhead-t" id="m-ct-title">컨설턴트 추가</div><button class="mclose" onclick="closeM('m-consultant')">×</button></div>
+  <div class="mbody">
+    <input type="hidden" id="m-cid">
+    <div class="fr2"><div class="fl"><label>이름 *</label><input type="text" id="m-cnm" placeholder="이름"></div><div class="fl"><label>아이디 *</label><input type="text" id="m-cuid" placeholder="cons01"></div></div>
+    <div class="fr2"><div class="fl"><label>비밀번호 *</label><input type="password" id="m-cpw"></div><div class="fl"><label>이메일</label><input type="email" id="m-cemail" placeholder="email@example.com"></div></div>
+    <div class="fl"><label>전문 분야</label><input type="text" id="m-cspec" placeholder="예) 자연계, 의약계, 논술"></div>
+    <div id="m-cerr" style="color:var(--red);font-size:12px;margin-top:4px;min-height:16px"></div>
+  </div>
+  <div class="mfoot"><button class="btn btn-ghost" onclick="closeM('m-consultant')">취소</button><button class="btn btn-b" onclick="saveConsultant()">저장</button></div>
+</div></div>
+
+<!-- Performance Modal -->
+<div class="modal-ov" id="m-perf"><div class="modal" style="max-width:580px">
+  <div class="mhead"><div class="mhead-t">수행평가 항목 추가·수정</div><button class="mclose" onclick="closeM('m-perf')">×</button></div>
+  <div class="mbody">
+    <input type="hidden" id="m-pid"><input type="hidden" id="m-psid">
+    <div class="fr2"><div class="fl"><label>과목 *</label><input type="text" id="m-psubj" placeholder="생명과학Ⅰ"></div><div class="fl"><label>담당 교사</label><input type="text" id="m-pteacher" placeholder="박영수 선생님"></div></div>
+    <div class="fr2"><div class="fl"><label>평가 유형 *</label><select id="m-petype"><option value="구술">구술</option><option value="발표">발표</option><option value="토론">토론</option><option value="제출">제출</option></select></div><div class="fl"><label>시간</label><input type="text" id="m-ptime" placeholder="14:00"></div></div>
+    <div class="fl"><label>교사 특징 (내부용)</label><input type="text" id="m-ptnote" placeholder="실험보고서 형식 중시, 결론에 미래 적용 필수"></div>
+    <div class="fl"><label>수행평가 주제 *</label><input type="text" id="m-ptopic" placeholder="항상성과 건강 탐구 보고서"></div>
+    <div class="fr3"><div class="fl"><label>반영 비율 (%)</label><input type="text" id="m-pratio" placeholder="30"></div><div class="fl"><label>마감일</label><input type="date" id="m-pdue"></div><div class="fl"><label>상태</label><select id="m-pstatus"><option value="예정">예정</option><option value="진행중">진행중</option><option value="완료">완료</option></select></div></div>
+    <div class="fl"><label>평가 요소</label><textarea id="m-pelements" rows="2" placeholder="실험설계 30%, 결과분석 40%, 결론 30%"></textarea></div>
+    <div class="fl"><label>컨설턴트 노트</label><textarea id="m-pnote" rows="2" placeholder="항상성 탐구를 간호학 연계 결론으로 확장 권장"></textarea></div>
+    <div class="fl"><label>참고 자료·링크</label><textarea id="m-pmats" rows="2" placeholder="논문 링크, 교재 페이지 등"></textarea></div>
+    <div class="fl"><label>제출 완료</label><select id="m-psubmit"><option value="false">미제출</option><option value="true">제출완료</option></select></div>
+  </div>
+  <div class="mfoot"><button class="btn btn-ghost" onclick="closeM('m-perf')">취소</button><button class="btn btn-b" onclick="savePerf()">저장</button></div>
+</div></div>
+
+<!-- Feedback Modal -->
+<div class="modal-ov" id="m-fb"><div class="modal" style="max-width:500px">
+  <div class="mhead"><div class="mhead-t">피드백 요청</div><button class="mclose" onclick="closeM('m-fb')">×</button></div>
+  <div class="mbody">
+    <div class="fl"><label>유형</label><select id="m-fbtype"><option>수행평가 보고서</option><option>생기부 세특</option><option>논술 답안</option><option>면접 답변</option><option>기타</option></select></div>
+    <div class="fl"><label>제목 *</label><input type="text" id="m-fbtitle" placeholder="피드백 요청 제목"></div>
+    <div class="fl"><label>내용 *</label><textarea id="m-fbcontent" rows="5" placeholder="피드백 받고 싶은 내용을 자세히 작성해주세요..."></textarea></div>
+  </div>
+  <div class="mfoot"><button class="btn btn-ghost" onclick="closeM('m-fb')">취소</button><button class="btn btn-b" onclick="saveFb()">요청 보내기</button></div>
+</div></div>
+
+<!-- Confirm Modal -->
+<div class="modal-ov" id="m-confirm"><div class="modal" style="max-width:360px">
+  <div class="mhead"><div class="mhead-t" id="mc-t">확인</div><button class="mclose" onclick="closeM('m-confirm')">×</button></div>
+  <div class="mbody"><div id="mc-msg" style="font-size:13px;line-height:1.7"></div></div>
+  <div class="mfoot"><button class="btn btn-ghost" onclick="closeM('m-confirm')">취소</button><button class="btn btn-red" id="mc-ok">삭제</button></div>
+</div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+if(typeof pdfjsLib!=='undefined')pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+</script>
+<script>
+'use strict';
+// ═══════════════════════════════════════
+// NURSING SCHOOL DATA
+// ═══════════════════════════════════════
+const SCHOOLS = [
+  {name:'서울대학교',dept:'간호학과',수시학종:'1.28',수시교과:'—',정시:'96.8%',경쟁률:'12.5:1',cat:'reach',note:'수능 최저 있음'},
+  {name:'연세대학교',dept:'간호학과',수시학종:'1.52',수시교과:'—',정시:'93.4%',경쟁률:'15.2:1',cat:'reach',note:'면접 비중 높음'},
+  {name:'이화여자대학교',dept:'간호학과',수시학종:'1.78',수시교과:'—',정시:'91.0%',경쟁률:'14.1:1',cat:'reach',note:'여대 특성 고려'},
+  {name:'가톨릭대(성의)',dept:'간호학과',수시학종:'2.06',수시교과:'—',정시:'89.2%',경쟁률:'8.7:1',cat:'reach',note:'현재 지원 목표교'},
+  {name:'경희대학교',dept:'간호학과',수시학종:'2.21',수시교과:'—',정시:'87.5%',경쟁률:'9.3:1',cat:'reach',note:'한의대와 캠퍼스'},
+  {name:'한양대학교',dept:'간호학과',수시학종:'2.15',수시교과:'—',정시:'88.1%',경쟁률:'10.4:1',cat:'reach',note:'논술 전형 가능'},
+  {name:'중앙대학교',dept:'간호학과',수시학종:'2.38',수시교과:'—',정시:'85.6%',경쟁률:'9.8:1',cat:'reach',note:'논술 병행 추천'},
+  {name:'아주대학교',dept:'간호학과',수시학종:'2.85',수시교과:'2.71',정시:'81.2%',경쟁률:'7.2:1',cat:'match',note:'소신권 적합'},
+  {name:'가천대학교',dept:'간호학과',수시학종:'2.95',수시교과:'2.82',정시:'78.3%',경쟁률:'8.4:1',cat:'match',note:'생기부 개선 시 가능'},
+  {name:'을지대학교',dept:'간호학과',수시학종:'3.12',수시교과:'2.98',정시:'74.5%',경쟁률:'6.1:1',cat:'match',note:'적정 목표'},
+  {name:'건양대학교',dept:'간호학과',수시학종:'—',수시교과:'3.54',정시:'65.8%',경쟁률:'4.8:1',cat:'safe',note:'안정권 추천'},
+  {name:'대전대학교',dept:'간호학과',수시학종:'—',수시교과:'4.12',정시:'58.4%',경쟁률:'3.9:1',cat:'safe',note:'안정'},
+  {name:'나사렛대학교',dept:'간호학과',수시학종:'—',수시교과:'4.65',정시:'52.1%',경쟁률:'3.2:1',cat:'safe',note:'안정'},
+];
+
+// ═══════════════════════════════════════
+// DB
+// ═══════════════════════════════════════
+const DB={
+  P:'bl_',
+  get(k){try{return JSON.parse(localStorage.getItem(this.P+k))}catch{return null}},
+  set(k,v){localStorage.setItem(this.P+k,JSON.stringify(v))},
+  del(k){localStorage.removeItem(this.P+k)},
+  gs(k){return localStorage.getItem(this.P+k)||''},
+  ss(k,v){localStorage.setItem(this.P+k,v)},
+  getStudents(){return this.get('students')||[]},
+  setStudents(v){this.set('students',v)},
+  getConsultants(){return this.get('consultants')||[]},
+  setConsultants(v){this.set('consultants',v)},
+  getAdmins(){return this.get('admins')||[]},
+  setAdmins(v){this.set('admins',v)},
+  getApiKey(){return this.gs('api_key')},
+  setApiKey(v){this.ss('api_key',v)},
+  getModel(){return this.gs('model')||'claude-sonnet-4-6'},
+  setModel(v){this.ss('model',v)},
+  getGb(sid){return this.gs('gb_'+sid)},
+  setGb(sid,v){this.ss('gb_'+sid,v)},
+  getHistory(sid){return this.get('hist_'+sid)||[]},
+  addHistory(sid,item){const h=this.getHistory(sid);h.unshift({...item,ts:Date.now()});if(h.length>100)h.pop();this.set('hist_'+sid,h)},
+  getExams(sid){return this.get('exams_'+sid)||[]},
+  setExams(sid,v){this.set('exams_'+sid,v)},
+  getFeedbacks(sid){return this.get('fbs_'+sid)||[]},
+  setFeedbacks(sid,v){this.set('fbs_'+sid,v)},
+};
+
+function today(){return new Date().toLocaleDateString('ko-KR')}
+function now(){return new Date().toLocaleString('ko-KR')}
+
+// ═══════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════
+function initDB(){
+  if(!DB.getAdmins().length){
+    DB.setAdmins([{id:'adm_1',username:'admin',password:'admin1234',role:'admin',name:'관리자',createdAt:today()}]);
+  }
+  if(!DB.getConsultants().length){
+    DB.setConsultants([{id:'cons_1',username:'cons01',password:'1234',role:'consultant',name:'김컨설턴트',email:'cons@biglinker.kr',specialties:'자연계·의약계',createdAt:today(),assignedStudents:[]}]);
+  }
+  if(!DB.getStudents().length){
+    const sid='st_'+Date.now();
+    DB.setStudents([{id:sid,username:'kim2024',password:'1234',role:'student',name:'김동형',school:'숭실고등학교',grade:'2',targetUniv:'가톨릭대학교',targetDept:'간호학과',consultantId:'cons_1',memo:'샘플 학생',createdAt:today(),analysisCount:0}]);
+    DB.setExams(sid,SAMPLE_EXAMS);
+    DB.setFeedbacks(sid,SAMPLE_FBS);
+  }
+}
+
+// ═══════════════════════════════════════
+// SESSION & AUTH
+// ═══════════════════════════════════════
+let S={user:null,student:null,consultant:null};
+let loginRole='admin';
+
+function setRole(r){
+  loginRole=r;
+  ['admin','consultant','student'].forEach(x=>q('rb-'+x).classList.toggle('on',x===r));
+}
+
+function doLogin(){
+  const id=v('lid'),pw=v('lpw');
+  q('lerr').textContent='';
+  if(!id||!pw){q('lerr').textContent='아이디와 비밀번호를 입력해주세요.';return;}
+  if(loginRole==='admin'){
+    const u=DB.getAdmins().find(a=>a.username===id&&a.password===pw);
+    if(!u){q('lerr').textContent='계정 정보가 올바르지 않습니다.';return;}
+    S.user=u; showAdmin();
+  } else if(loginRole==='consultant'){
+    const u=DB.getConsultants().find(c=>c.username===id&&c.password===pw);
+    if(!u){q('lerr').textContent='계정 정보가 올바르지 않습니다.';return;}
+    S.user=u;S.consultant=u; showConsultant();
+  } else {
+    const u=DB.getStudents().find(s=>s.username===id&&s.password===pw);
+    if(!u){q('lerr').textContent='계정 정보가 올바르지 않습니다.';return;}
+    S.user=u;S.student=u; showStudent();
+  }
+}
+
+function logout(){S={user:null,student:null,consultant:null};q('lid').value='';q('lpw').value='';q('lerr').textContent='';show('scr-login');}
+function show(id){document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));q(id).classList.add('on')}
+
+// ═══════════════════════════════════════
+// ADMIN
+// ═══════════════════════════════════════
+function showAdmin(){
+  show('scr-admin');
+  q('a-dash-dt').textContent=today()+' 기준';
+  q('a-cnt').textContent=DB.getStudents().length;
+  q('c-cnt').textContent=DB.getConsultants().length;
+  renderAdminDash();
+  const k=DB.getApiKey();if(k)q('api-key-in').value=k;
+  q('model-sel').value=DB.getModel();
+}
+
+function aNav(btn,id){document.querySelectorAll('#scr-admin .tn').forEach(t=>t.classList.remove('on'));btn.classList.add('on');aSide(null,id);}
+function aSide(el,id){
+  if(el){document.querySelectorAll('#scr-admin .si').forEach(s=>s.classList.remove('on'));el.classList.add('on');}
+  document.querySelectorAll('#scr-admin .page').forEach(p=>p.classList.remove('on'));q(id)?.classList.add('on');
+  if(id==='a-students')renderStudentList();
+  if(id==='a-dash')renderAdminDash();
+  if(id==='a-consultants')renderConsList();
+}
+
+function renderAdminDash(){
+  const sts=DB.getStudents(),cons=DB.getConsultants();
+  const totalAI=sts.reduce((a,s)=>a+(s.analysisCount||0),0);
+  const apiKey=DB.getApiKey();
+  q('a-stats').innerHTML=`
+    <div class="card"><div class="card-lbl">총 학생</div><div class="sn c-b">${sts.length}</div><div class="ss">등록 학생 수</div></div>
+    <div class="card"><div class="card-lbl">컨설턴트</div><div class="sn c-p">${cons.length}</div><div class="ss">활성 컨설턴트</div></div>
+    <div class="card"><div class="card-lbl">누적 AI 분석</div><div class="sn c-g">${totalAI}</div><div class="ss">총 분석 횟수</div></div>
+    <div class="card"><div class="card-lbl">API 상태</div><div class="sn ${apiKey?'c-g':'c-r'}" style="font-size:16px;margin-top:4px">${apiKey?'연결됨':'미설정'}</div><div class="ss">${apiKey?'정상':'설정 필요'}</div></div>`;
+  q('a-recent').innerHTML=sts.slice(-4).reverse().map(s=>`
+    <div class="st-row" onclick="viewStudent('${s.id}')">
+      <div class="st-av" style="color:var(--blue)">${s.name[0]}</div>
+      <div class="st-info"><div class="st-nm">${s.name}</div><div class="st-mt">${s.school} ${s.grade}학년 · @${s.username}</div></div>
+      <div class="st-sc"><div class="sv c-b">${s.analysisCount||0}</div><div class="sl">분석</div></div>
+    </div>`).join('')||'<div class="empty"><div class="empty-ic">◉</div><div class="empty-t">학생 없음</div></div>';
+  q('a-cons-stat').innerHTML=cons.map(c=>{
+    const assigned=sts.filter(s=>s.consultantId===c.id).length;
+    return `<div class="cons-card"><div class="cons-av">👨‍💼</div><div class="cons-info"><div class="cons-nm">${c.name}</div><div class="cons-mt">@${c.username} · 담당 ${assigned}명 · ${c.specialties||'—'}</div></div><span class="bdg bdg-p">${assigned}명</span></div>`;
+  }).join('')||'<div class="empty"><div class="empty-ic">◆</div><div class="empty-t">컨설턴트 없음</div></div>';
+}
+
+function renderStudentList(){
+  const srch=v('st-search').toLowerCase();
+  let sts=DB.getStudents();
+  if(srch)sts=sts.filter(s=>(s.name+s.school+s.username).toLowerCase().includes(srch));
+  const cons=DB.getConsultants();
+  const el=q('student-list');
+  if(!sts.length){el.innerHTML='<div class="empty"><div class="empty-ic">◉</div><div class="empty-t">학생 없음</div></div>';return;}
+  el.innerHTML=sts.map(s=>{
+    const c=cons.find(x=>x.id===s.consultantId);
+    return `<div class="st-row" onclick="viewStudent('${s.id}')">
+      <div class="st-av" style="color:var(--blue)">${s.name[0]}</div>
+      <div class="st-info"><div class="st-nm">${s.name} <span class="bdg bdg-b">${s.grade}학년</span>${c?`<span class="bdg bdg-p" style="margin-left:4px">${c.name}</span>`:''}</div>
+        <div class="st-mt">${s.school} · @${s.username} · ${s.targetUniv} ${s.targetDept}</div></div>
+      <div class="st-sc"><div class="sv c-g">${s.analysisCount||0}</div><div class="sl">분석</div></div>
+      <div style="display:flex;gap:5px;flex-shrink:0">
+        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openStModal('${s.id}')">수정</button>
+        <button class="btn btn-red btn-sm" onclick="event.stopPropagation();confirmDel('${s.id}','${s.name}')">삭제</button>
+      </div>
+    </div>`;}).join('');
+}
+
+function viewStudent(sid,screen='admin'){
+  const sts=DB.getStudents(),s=sts.find(x=>x.id===sid);
+  if(!s)return;
+  const cons=DB.getConsultants();
+  const mycons=cons.find(c=>c.id===s.consultantId);
+  const exams=DB.getExams(sid);
+  const hist=DB.getHistory(sid);
+  const targetEl=screen==='admin'?q('a-detail-ct'):q('c-detail-ct');
+  screen==='admin'?aSide(null,'a-student-detail'):cSide(null,'c-student-detail');
+  targetEl.innerHTML=`
+    <div class="ph"><div class="ph-tag">학생 상세</div><div class="ph-title">${s.name} <em>${screen==='admin'?'학생 정보':'담당 학생'}</em></div>
+      <div class="ph-sub">${s.school} ${s.grade}학년 · @${s.username} · ${s.targetUniv} ${s.targetDept}${mycons?` · 담당: ${mycons.name}`:''}</div>
+      <div class="ph-acts">
+        <button class="btn btn-b" onclick="adminRunAI('${sid}')">🤖 AI 분석 실행</button>
+        ${screen==='admin'?`<button class="btn btn-s2" onclick="openStModal('${sid}')">정보 수정</button>`:''}
+        <button class="btn btn-s2" onclick="openPerfModal('${sid}')">+ 수행평가 추가</button>
+        <button class="btn btn-ghost" onclick="${screen==='admin'?'aSide(null,\'a-students\')':'cSide(null,\'c-students\')'}">← 목록</button>
+      </div>
+    </div>
+    <div class="g2" style="margin-bottom:14px">
+      <div class="card"><div class="card-lbl" style="margin-bottom:10px">기본 정보</div>
+        <table class="tbl">
+          <tr><td style="color:var(--muted)">이름</td><td><b>${s.name}</b></td></tr>
+          <tr><td style="color:var(--muted)">학교·학년</td><td>${s.school} ${s.grade}학년</td></tr>
+          <tr><td style="color:var(--muted)">목표</td><td>${s.targetUniv} ${s.targetDept}</td></tr>
+          <tr><td style="color:var(--muted)">담당 컨설턴트</td><td>${mycons?`<span class="bdg bdg-p">${mycons.name}</span>`:'<span style="color:var(--muted)">미배정</span>'}</td></tr>
+          <tr><td style="color:var(--muted)">AI 분석 수</td><td><b class="c-b">${s.analysisCount||0}회</b></td></tr>
+          ${s.memo?`<tr><td style="color:var(--muted)">메모</td><td>${s.memo}</td></tr>`:''}
+        </table>
+      </div>
+      <div class="card"><div class="card-lbl" style="margin-bottom:8px">수행평가 현황 (${exams.length}건)</div>
+        ${exams.length?`<div style="overflow-x:auto"><table class="tbl"><tr><th>과목</th><th>주제</th><th>비율</th><th>상태</th><th>제출</th></tr>${exams.map(e=>`<tr><td>${e.subject}</td><td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.topic}</td><td class="num">${e.ratio}%</td><td><span class="status-chip ${e.status==='완료'?'st-done':e.status==='진행중'?'st-progress':'st-planned'}">${e.status}</span></td><td>${e.submitted?'✓':'—'}</td></tr>`).join('')}</table></div>`:'<div style="color:var(--muted);font-size:12px">등록된 수행평가 없음</div>'}
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:14px"><div class="card-lbl" style="margin-bottom:8px">분석 히스토리 (${hist.length}건)</div>
+      ${hist.length?hist.slice(0,3).map(h=>`<div style="padding:8px 10px;background:var(--s2);border-radius:var(--r8);margin-bottom:6px;font-size:12px"><div style="color:var(--muted);font-size:10px;margin-bottom:3px">${new Date(h.ts).toLocaleString('ko-KR')} · ${h.type}</div><div style="color:var(--text)">${h.content}</div></div>`).join(''):'<div style="color:var(--muted);font-size:12px">분석 기록 없음</div>'}
+    </div>
+    <div id="${screen}-analysis-r"></div>`;
+}
+
+async function adminRunAI(sid){
+  const sts=DB.getStudents(),s=sts.find(x=>x.id===sid);if(!s)return;
+  const gb=DB.getGb(sid)||'';
+  const el=q('admin-analysis-r')||q('consultant-analysis-r');
+  if(!el)return;
+  await callAI('당신은 대입 전문 컨설턴트입니다. 학생 생기부를 분석하여 역량 진단, 강점, 즉시 보완 사항을 한국어로 구체적으로 제시하세요.',
+    `학생: ${s.name}, ${s.school} ${s.grade}학년, 목표: ${s.targetUniv} ${s.targetDept}\n\n생기부:\n${gb}`,el,'biglinker AI — 학생 분석',s.id);
+}
+
+function renderConsList(){
+  const cons=DB.getConsultants(),sts=DB.getStudents();
+  const el=q('cons-list');
+  el.innerHTML=cons.map(c=>{
+    const cnt=sts.filter(s=>s.consultantId===c.id).length;
+    return `<div class="cons-card" style="cursor:default">
+      <div class="cons-av">👨‍💼</div>
+      <div class="cons-info"><div class="cons-nm">${c.name} <span class="bdg bdg-p">${c.specialties||'—'}</span></div>
+        <div class="cons-mt">@${c.username} · ${c.email||'이메일 없음'} · 담당 ${cnt}명</div></div>
+      <div style="display:flex;gap:5px">
+        <button class="btn btn-ghost btn-sm" onclick="openConsModal('${c.id}')">수정</button>
+        <button class="btn btn-red btn-sm" onclick="confirmDelCons('${c.id}','${c.name}')">삭제</button>
+      </div>
+    </div>`;}).join('')||'<div class="empty"><div class="empty-ic">◆</div><div class="empty-t">컨설턴트 없음</div></div>';
+}
+
+// ═══════════════════════════════════════
+// CONSULTANT
+// ═══════════════════════════════════════
+function showConsultant(){
+  show('scr-consultant');
+  const c=S.consultant;
+  q('c-badge-nm').textContent=c.name+' 컨설턴트';
+  const myStudents=DB.getStudents().filter(s=>s.consultantId===c.id);
+  q('c-my-cnt').textContent=myStudents.length;
+  const pendingFbs=myStudents.flatMap(s=>DB.getFeedbacks(s.id).filter(f=>!f.consultantContent));
+  q('c-fb-cnt').textContent=pendingFbs.length;
+  q('c-dash-sub').textContent=`담당 학생 ${myStudents.length}명 · 미처리 피드백 ${pendingFbs.length}건 · ${today()}`;
+  renderConsDash();
+}
+
+function cNav(btn,id){document.querySelectorAll('#scr-consultant .tn').forEach(t=>t.classList.remove('on'));btn.classList.add('on');cSide(null,id);}
+function cSide(el,id){
+  if(el){document.querySelectorAll('#scr-consultant .si').forEach(s=>s.classList.remove('on'));el.classList.add('on');}
+  document.querySelectorAll('#scr-consultant .page').forEach(p=>p.classList.remove('on'));q(id)?.classList.add('on');
+  if(id==='c-students')renderConsStudentList();
+  if(id==='c-feedback')renderConsFeedbacks();
+  if(id==='c-performance')renderConsPerf();
+  if(id==='c-cal'){
+    const c=S.consultant;
+    const myStudents=DB.getStudents().filter(s=>s.consultantId===c.id);
+    const allExams=myStudents.flatMap(s=>DB.getExams(s.id).map(e=>({...e,_studentName:s.name,_studentId:s.id})));
+    CAL.init('c',allExams,'consultant');CAL.render('c');
+  }
+}
+
+function renderConsDash(){
+  const c=S.consultant;
+  const myStudents=DB.getStudents().filter(s=>s.consultantId===c.id);
+  const pendingFbs=myStudents.flatMap(s=>DB.getFeedbacks(s.id).filter(f=>!f.consultantContent));
+  q('c-stats').innerHTML=`
+    <div class="card"><div class="card-lbl">담당 학생</div><div class="sn c-p">${myStudents.length}</div><div class="ss">담당 학생 수</div></div>
+    <div class="card"><div class="card-lbl">미처리 피드백</div><div class="sn c-o">${pendingFbs.length}</div><div class="ss">답변 대기</div></div>
+    <div class="card"><div class="card-lbl">총 수행평가</div><div class="sn c-b">${myStudents.reduce((a,s)=>a+DB.getExams(s.id).length,0)}</div><div class="ss">관리 항목</div></div>`;
+  q('c-my-students').innerHTML=myStudents.map(s=>`
+    <div class="st-row" onclick="viewStudent('${s.id}','consultant')">
+      <div class="st-av" style="color:var(--purple)">${s.name[0]}</div>
+      <div class="st-info"><div class="st-nm">${s.name}</div><div class="st-mt">${s.school} ${s.grade}학년 · ${s.targetUniv} ${s.targetDept}</div></div>
+      <div class="st-sc"><div class="sv c-p">${DB.getFeedbacks(s.id).filter(f=>!f.consultantContent).length}</div><div class="sl">미처리</div></div>
+    </div>`).join('')||'<div class="empty"><div class="empty-ic">◉</div><div class="empty-t">담당 학생 없음</div></div>';
+  // 컨설턴트 대시보드 캘린더 미리보기
+  renderDashCalPreview('c');
+}
+
+function renderConsStudentList(){
+  const c=S.consultant;
+  const sts=DB.getStudents().filter(s=>s.consultantId===c.id);
+  q('c-student-list').innerHTML=sts.map(s=>`
+    <div class="st-row" onclick="viewStudent('${s.id}','consultant')">
+      <div class="st-av" style="color:var(--purple)">${s.name[0]}</div>
+      <div class="st-info"><div class="st-nm">${s.name}</div><div class="st-mt">${s.school} ${s.grade}학년 · ${s.targetUniv} ${s.targetDept}</div></div>
+    </div>`).join('')||'<div class="empty"><div class="empty-ic">◉</div><div class="empty-t">담당 학생 없음</div></div>';
+}
+
+function renderConsFeedbacks(){
+  const c=S.consultant;
+  const sts=DB.getStudents().filter(s=>s.consultantId===c.id);
+  let html='';
+  sts.forEach(s=>{
+    const fbs=DB.getFeedbacks(s.id);
+    fbs.forEach(fb=>{
+      html+=renderFbThread(fb,s,'consultant');
+    });
+  });
+  q('c-feedback-list').innerHTML=html||'<div class="empty"><div class="empty-ic">✉</div><div class="empty-t">피드백 요청 없음</div></div>';
+}
+
+function renderConsPerf(){
+  const c=S.consultant;
+  const sts=DB.getStudents().filter(s=>s.consultantId===c.id);
+  let html='';
+  sts.forEach(s=>{
+    const exams=DB.getExams(s.id);
+    if(!exams.length)return;
+    html+=`<div style="font-size:12px;font-weight:700;color:var(--muted);margin:12px 0 6px">${s.name} (${s.school})</div>`;
+    html+=renderPerfTable(exams,s.id,'consultant');
+  });
+  q('c-perf-list').innerHTML=html||'<div class="empty"><div class="empty-ic">✓</div><div class="empty-t">수행평가 항목 없음</div></div>';
+}
+
+// ═══════════════════════════════════════
+// STUDENT
+// ═══════════════════════════════════════
+function showStudent(){
+  show('scr-student');
+  const s=S.student;
+  q('s-badge').textContent=`${s.name} · ${s.school} ${s.grade}학년`;
+  renderStudentDash();
+  loadProfile();
+  renderCutoffTables();
+  renderPerfPage();
+  renderFbPage();
+  renderHistPage();
+  q('s-perf-cnt').textContent=DB.getExams(s.id).length;
+  q('s-fb-cnt').textContent=DB.getFeedbacks(s.id).filter(f=>!f.consultantContent).length;
+}
+
+function sNav(btn,id){document.querySelectorAll('#scr-student .tn').forEach(t=>t.classList.remove('on'));btn.classList.add('on');sSide(null,id);}
+function sSide(el,id){
+  if(el){document.querySelectorAll('#scr-student .si').forEach(s=>s.classList.remove('on'));el.classList.add('on');}
+  document.querySelectorAll('#scr-student .page').forEach(p=>p.classList.remove('on'));q(id)?.classList.add('on');
+  if(id==='s-history')renderHistPage();
+  if(id==='s-perf')renderPerfPage();
+  if(id==='s-feedback')renderFbPage();
+  if(id==='s-cutoff'||id==='s-admission')renderCutoffTables();
+  if(id==='s-cal'){CAL.init('s',S.student?.id?DB.getExams(S.student.id):[],'student');CAL.render('s');}
+}
+
+function renderStudentDash(){
+  const s=S.student;
+  const cons=DB.getConsultants().find(c=>c.id===s.consultantId);
+  const fbs=DB.getFeedbacks(s.id);
+  const pendingFbs=fbs.filter(f=>f.consultantContent&&!f.studentRead);
+  const gb=DB.getGb(s.id)||'';
+  const hasGb=gb.length>50; // 실제 생기부가 입력된 경우
+  const hist=DB.getHistory(s.id);
+  const lastAI=hist.length>0?hist[0]:null;
+
+  q('s-dash-t').innerHTML=`${s.name} 학생의 <em>종합 현황</em>`;
+  q('s-dash-s').textContent=`${s.targetUniv||'대학 미입력'} ${s.targetDept||'학과 미입력'} · ${s.school||'학교 미입력'} ${s.grade||''}학년${cons?` · 담당: ${cons.name}`:''} · ${today()}`;
+
+  // 생기부 미업로드 시 안내
+  if(!hasGb){
+    q('s-dash-notice').innerHTML=`
+      <div class="ntc" style="background:rgba(79,125,255,.08);border:1px solid rgba(79,125,255,.2);color:var(--blue)">
+        <span>📄</span>
+        <div><b>생기부를 먼저 업로드하면 모든 AI 분석이 개인 맞춤으로 제공됩니다.</b><br>
+        <button class="btn btn-b btn-sm" style="margin-top:8px" onclick="sSide(null,'s-upload')">생기부 업로드하기 →</button></div>
+      </div>`;
+  } else {
+    q('s-dash-notice').innerHTML=`
+      <div class="ntc ntc-g">
+        <span>✓</span>
+        <div>생기부 등록 완료 (${Math.round(gb.length/100)/10}KB) — 모든 AI 분석이 <b>개인 맞춤</b>으로 제공됩니다.${pendingFbs.length?` &nbsp;<b style="color:var(--orange)">[새 피드백 ${pendingFbs.length}건]</b>`:''}</div>
+      </div>`;
+  }
+
+  // 스탯 카드: 개인 프로필 기반
+  q('s-stat-cards').innerHTML=`
+    <div class="card"><div class="card-lbl">생기부 상태</div>
+      <div class="sn ${hasGb?'c-g':'c-r'}" style="font-size:16px;margin-top:4px">${hasGb?'입력완료':'미입력'}</div>
+      <div class="ss">${hasGb?gb.length+'자 입력됨':'생기부 분석 탭에서 업로드'}</div></div>
+    <div class="card"><div class="card-lbl">목표 대학</div>
+      <div style="font-size:14px;font-weight:700;color:var(--blue);margin-top:4px;line-height:1.3">${s.targetUniv||'—'}</div>
+      <div class="ss">${s.targetDept||'학과 미입력'}</div></div>
+    <div class="card"><div class="card-lbl">AI 분석 횟수</div>
+      <div class="sn c-p">${hist.length}</div>
+      <div class="ss">${lastAI?'최근: '+new Date(lastAI.ts).toLocaleDateString('ko-KR'):'분석 기록 없음'}</div></div>
+    <div class="card"><div class="card-lbl">수행평가</div>
+      <div class="sn c-g">${DB.getExams(s.id).length}</div>
+      <div class="ss">등록 항목 수</div></div>`;
+
+  // 중간 영역: GB 여부에 따라 분기
+  if(hasGb){
+    q('s-dash-mid').innerHTML=`
+      <div class="card">
+        <div class="card-lbl" style="margin-bottom:10px">📊 AI 역량 분석</div>
+        <div class="ntc ntc-b" style="margin-bottom:10px"><span>ℹ</span>
+          <div>업로드된 생기부를 기반으로 AI가 역량을 분석합니다.<br>
+          <button class="btn btn-b btn-sm" style="margin-top:6px" onclick="runAI('dashboard',this,q('s-dash-ai'))">🤖 지금 AI 분석 실행</button></div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.7">
+          • 생기부 분석 → AI가 3대 역량 진단 및 강점·약점 파악<br>
+          • 역량 점수 탭 → 학업·진로·공동체 세부 분석<br>
+          • 활동 로드맵 → 남은 기간 맞춤 전략 수립
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-lbl" style="margin-bottom:10px">🎯 목표 전형 정보</div>
+        <div class="iss iss-b"><div>
+          <div class="i-t">${s.targetUniv||'대학 미입력'} · ${s.targetDept||'학과 미입력'}</div>
+          <div class="i-d">${s.school||''} ${s.grade||''}학년 · 학생부종합·교과 전형 분석 대상</div>
+        </div></div>
+        <div class="btn-row" style="margin-top:8px">
+          <button class="btn btn-ghost btn-sm" onclick="sSide(null,'s-admission')">전형 전략 →</button>
+          <button class="btn btn-ghost btn-sm" onclick="sSide(null,'s-cutoff')">합격 컷 →</button>
+        </div>
+      </div>`;
+  } else {
+    q('s-dash-mid').innerHTML=`
+      <div class="card" style="grid-column:1/-1">
+        <div class="card-lbl" style="margin-bottom:14px">🚀 시작하기 — 3단계</div>
+        <div class="g3">
+          <div style="text-align:center;padding:16px;background:var(--s2);border-radius:var(--r8);border:1px solid var(--border)">
+            <div style="font-size:28px;margin-bottom:8px">📄</div>
+            <div style="font-size:13px;font-weight:700;margin-bottom:4px">1. 생기부 업로드</div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:10px">PDF 또는 텍스트로 업로드</div>
+            <button class="btn btn-b btn-sm" onclick="sSide(null,'s-upload')">업로드하기</button>
+          </div>
+          <div style="text-align:center;padding:16px;background:var(--s2);border-radius:var(--r8);border:1px solid var(--border);opacity:.5">
+            <div style="font-size:28px;margin-bottom:8px">🤖</div>
+            <div style="font-size:13px;font-weight:700;margin-bottom:4px">2. AI 분석 실행</div>
+            <div style="font-size:11px;color:var(--muted)">생기부 업로드 후 활성화</div>
+          </div>
+          <div style="text-align:center;padding:16px;background:var(--s2);border-radius:var(--r8);border:1px solid var(--border);opacity:.5">
+            <div style="font-size:28px;margin-bottom:8px">📊</div>
+            <div style="font-size:13px;font-weight:700;margin-bottom:4px">3. 맞춤 전략 확인</div>
+            <div style="font-size:11px;color:var(--muted)">역량 진단·로드맵·면접 준비</div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  // 면접 요약 - 생기부 있을 때만 의미 있는 버튼 표시
+  q('s-interview-summary').innerHTML=hasGb?`
+    <div class="card"><div class="card-lbl" style="margin-bottom:10px">AI 도구 바로가기</div>
+      <div class="g3">
+        <div class="cal-up-item" onclick="sSide(null,'s-interview')" style="cursor:pointer;text-align:center;padding:12px">
+          <div style="font-size:20px;margin-bottom:5px">💬</div>
+          <div style="font-size:12px;font-weight:700">면접 질문 생성</div>
+          <div style="font-size:10px;color:var(--muted)">생기부 기반 예상 질문</div>
+        </div>
+        <div class="cal-up-item" onclick="sSide(null,'s-essay')" style="cursor:pointer;text-align:center;padding:12px">
+          <div style="font-size:20px;margin-bottom:5px">✦</div>
+          <div style="font-size:12px;font-weight:700">논술 기출 분석</div>
+          <div style="font-size:10px;color:var(--muted)">모범답안 AI 생성</div>
+        </div>
+        <div class="cal-up-item" onclick="sSide(null,'s-mock')" style="cursor:pointer;text-align:center;padding:12px">
+          <div style="font-size:20px;margin-bottom:5px">▷</div>
+          <div style="font-size:12px;font-weight:700">AI 모의면접</div>
+          <div style="font-size:10px;color:var(--muted)">실전 면접 시뮬레이션</div>
+        </div>
+      </div>
+    </div>`:'';
+
+  q('s-dash-acts').innerHTML=`
+    <button class="btn btn-b" onclick="runAI('dashboard',this,q('s-dash-ai'))" ${!hasGb?'title="생기부를 먼저 업로드하세요"':''}>🤖 AI 분석</button>
+    <button class="btn btn-o" onclick="sSide(null,'s-cutoff')">합격 컷</button>
+    <button class="btn btn-s2" onclick="sSide(null,'s-cal')">◫ 수행평가</button>
+    <button class="btn btn-ghost" onclick="sSide(null,'s-upload')">📄 생기부 ${hasGb?'수정':'업로드'}</button>`;
+
+  renderDashCalPreview('s');
+}
+
+// ═══════════════════════════════════════
+// CUTOFF TABLES
+// ═══════════════════════════════════════
+function renderCutoffTables(){
+  // 페이지 헤더를 현재 학생 정보로 동적 업데이트
+  const s=S.student||{};
+  const gb=DB.getGb(s.id)||'';
+  const hasGb=gb.length>50;
+  const titleEl=document.querySelector('#s-cutoff .ph-title');
+  const subEl=document.querySelector('#s-cutoff .ph-sub');
+  if(titleEl) titleEl.innerHTML=`${s.targetDept||'목표 학과'} <em>합격선 분석</em>`;
+  if(subEl) subEl.textContent=`2025학년도 기준 · ${s.name||''}학생 목표: ${s.targetUniv||'미입력'} ${s.targetDept||''} · ${hasGb?'생기부 등록됨 — AI 맞춤 분석 가능':'생기부 미등록 — 업로드 후 AI 분석 가능'} · 참고용 데이터`;
+
+  const cols=`<tr><th>대학교</th><th>학과</th><th>수시(학종) 내신</th><th>수시(교과) 내신</th><th>정시 백분위</th><th>경쟁률</th><th>분류</th><th>비고</th></tr>`;
+  const row=s=>{
+    const catLabel={reach:'상향 도전',match:'적정',safe:'하향 안정'}[s.cat];
+    const catClass={reach:'cat-reach',match:'cat-match',safe:'cat-safe'}[s.cat];
+    const targetUniv=S.student?.targetUniv||'';
+    const highlight=targetUniv&&s.name.includes(targetUniv.slice(0,4))?'background:rgba(79,125,255,.06);outline:1px solid rgba(79,125,255,.2)':'';
+    return `<tr style="${highlight}"><td><b>${s.name}</b></td><td>${s.dept}</td><td class="num">${s.수시학종}</td><td class="num">${s.수시교과}</td><td class="num">${s.정시}</td><td class="num">${s.경쟁률}</td><td class="${catClass}"><b>${catLabel}</b></td><td style="color:var(--muted)">${s.note}</td></tr>`;
+  };
+  const makeTable=(schools)=>`<div style="overflow-x:auto"><table class="tbl">${cols}${schools.map(row).join('')}</table></div>`;
+  q('cutoff-table-all').innerHTML=makeTable(SCHOOLS);
+  q('cutoff-table-reach').innerHTML=makeTable(SCHOOLS.filter(s=>s.cat==='reach'));
+  q('cutoff-table-match').innerHTML=makeTable(SCHOOLS.filter(s=>s.cat==='match'));
+  q('cutoff-table-safe').innerHTML=makeTable(SCHOOLS.filter(s=>s.cat==='safe'));
+}
+
+// ═══════════════════════════════════════
+// 수행평가 MANAGEMENT
+// ═══════════════════════════════════════
+function renderPerfPage(){
+  const sid=S.student?.id;if(!sid)return;
+  const gb=DB.getGb(sid)||'';
+  const noticeEl=q('perf-ai-notice');
+  if(noticeEl){
+    noticeEl.innerHTML=gb.length>50
+      ?'<div class="ntc ntc-g" style="margin-bottom:8px"><span>✓</span>생기부 등록됨 — 생기부 기반 수행평가 전략을 생성할 수 있습니다.</div>'
+      :'<div class="ntc ntc-o" style="margin-bottom:8px"><span>⚠</span><div>생기부를 먼저 업로드하면 각 수행평가별 맞춤 전략이 생성됩니다. <button class="btn btn-b btn-sm" onclick="sSide(null,\'s-upload\')">생기부 업로드 →</button></div></div>';
+  }
+  const exams=DB.getExams(sid);
+  const done=exams.filter(e=>e.status==='완료').length;
+  const prog=exams.filter(e=>e.status==='진행중').length;
+  const plan=exams.filter(e=>e.status==='예정').length;
+  q('perf-stats').innerHTML=`
+    <div class="card"><div class="card-lbl">전체</div><div class="sn c-b">${exams.length}</div><div class="ss">등록 항목</div></div>
+    <div class="card"><div class="card-lbl">진행중</div><div class="sn c-y">${prog}</div><div class="ss">현재 진행</div></div>
+    <div class="card"><div class="card-lbl">완료·제출</div><div class="sn c-g">${done}</div><div class="ss">처리 완료</div></div>`;
+  q('perf-table-wrap').innerHTML=exams.length?renderPerfTable(exams,sid,'student'):'<div class="empty"><div class="empty-ic">✓</div><div class="empty-t">등록된 수행평가 없음</div><div style="font-size:12px;color:var(--muted)">컨설턴트에게 문의하세요</div></div>';
+}
+
+function renderPerfTable(exams,sid,role){
+  const editBtn=(e)=>role==='consultant'||role==='admin'?`<button class="btn btn-ghost btn-sm" onclick="openPerfModal('${sid}','${e.id}')">수정</button>`:'';
+  return `<table class="perf-table"><tr><th>과목</th><th>담당교사</th><th>수행평가 주제</th><th>반영%</th><th>평가요소</th><th>상태</th><th>제출</th><th>마감일</th>${role!=='student'?'<th>교사특징</th>':''}<th>컨설턴트 노트</th><th>참고자료</th>${role!=='student'?'<th></th>':''}</tr>
+    ${exams.map(e=>`<tr>
+      <td><b>${e.subject}</b></td>
+      <td>${e.teacher||'—'}</td>
+      <td>${e.topic}</td>
+      <td class="num">${e.ratio}%</td>
+      <td style="max-width:150px;font-size:11px">${e.elements||'—'}</td>
+      <td><span class="status-chip ${e.status==='완료'?'st-done':e.status==='진행중'?'st-progress':'st-planned'}">${e.status}</span></td>
+      <td>${e.submitted?'<span class="bdg bdg-g">제출완료</span>':'<span style="color:var(--muted)">미제출</span>'}</td>
+      <td style="font-size:11px">${e.dueDate||'—'}</td>
+      ${role!=='student'?`<td style="font-size:11px;color:var(--muted);max-width:120px">${e.teacherNote||'—'}</td>`:''}
+      <td style="font-size:11px;color:${e.consultantNote?'var(--blue)':'var(--muted)'};max-width:150px">${e.consultantNote||'—'}</td>
+      <td style="font-size:11px;max-width:120px">${e.materials||'—'}</td>
+      ${role!=='student'?`<td>${editBtn(e)}</td>`:''}
+    </tr>`).join('')}</table>`;
+}
+
+// ═══════════════════════════════════════
+// FEEDBACK
+// ═══════════════════════════════════════
+function renderFbPage(){
+  const sid=S.student?.id;if(!sid)return;
+  const fbs=DB.getFeedbacks(sid);
+  q('fb-list').innerHTML=fbs.length?fbs.map(fb=>renderFbThread(fb,S.student,'student')).join('')
+    :'<div class="empty"><div class="empty-ic">✉</div><div class="empty-t">피드백 요청 없음</div><div style="font-size:12px;color:var(--muted)">컨설턴트에게 보고서 피드백을 요청해보세요</div></div>';
+}
+
+function renderFbThread(fb,student,role){
+  const statusColor={요청중:'var(--yellow)',검토중:'var(--blue)',피드백완료:'var(--green)',완료:'var(--muted)'}[fb.status]||'var(--muted)';
+  return `<div class="fb-thread" id="fbt-${fb.id}">
+    <div class="fb-head" onclick="this.parentElement.classList.toggle('open')">
+      <div>
+        <div class="fb-title">${fb.type} · ${fb.title}${role==='consultant'?` <span style="font-size:11px;color:var(--muted)">(${student.name})</span>`:''}</div>
+        <div class="fb-meta">${new Date(fb.createdAt).toLocaleString('ko-KR')} · <span style="color:${statusColor};font-weight:600">${fb.status}</span></div>
+      </div>
+      <span style="color:var(--muted);font-size:18px">›</span>
+    </div>
+    <div class="fb-body">
+      <div class="msg-bubble msg-student"><div class="msg-lbl">학생 요청</div>${fb.studentContent}<div class="msg-time">${new Date(fb.createdAt).toLocaleString('ko-KR')}</div></div>
+      ${fb.consultantContent?`<div class="msg-bubble msg-consultant"><div class="msg-lbl">컨설턴트 답변</div>${fb.consultantContent}<div class="msg-time">${new Date(fb.updatedAt).toLocaleString('ko-KR')}</div></div>`:'<div style="font-size:12px;color:var(--muted);padding:6px 0">컨설턴트 답변 대기 중...</div>'}
+      ${role==='consultant'&&!fb.consultantContent?`
+        <div style="margin-top:10px"><textarea id="fb-reply-${fb.id}" rows="3" placeholder="피드백 작성..."></textarea>
+          <div class="btn-row"><button class="btn btn-b btn-sm" onclick="submitFbReply('${fb.id}','${student.id}')">피드백 전송</button></div></div>`:''}
+    </div>
+  </div>`;
+}
+
+function submitFbReply(fbId,sid){
+  const content=v('fb-reply-'+fbId);
+  if(!content)return;
+  const fbs=DB.getFeedbacks(sid);
+  const idx=fbs.findIndex(f=>f.id===fbId);
+  if(idx<0)return;
+  fbs[idx].consultantContent=content;
+  fbs[idx].status='피드백완료';
+  fbs[idx].updatedAt=Date.now();
+  DB.setFeedbacks(sid,fbs);
+  renderConsFeedbacks();
+}
+
+// ═══════════════════════════════════════
+// MODALS
+// ═══════════════════════════════════════
+function openM(id){q(id).classList.add('on')}
+function closeM(id){q(id).classList.remove('on')}
+
+function openStModal(sid){
+  q('m-err').textContent='';
+  const consOpts=DB.getConsultants().map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  q('m-cons').innerHTML='<option value="">미배정</option>'+consOpts;
+  if(sid){
+    const s=DB.getStudents().find(x=>x.id===sid);if(!s)return;
+    q('m-st-title').textContent='학생 정보 수정';q('m-sid').value=sid;
+    q('m-nm').value=s.name;q('m-uid').value=s.username;q('m-pw').value='';
+    q('m-sch').value=s.school||'';q('m-gr').value=s.grade||'2';
+    q('m-univ').value=s.targetUniv||'';q('m-dept').value=s.targetDept||'';
+    q('m-cons').value=s.consultantId||'';q('m-memo').value=s.memo||'';
+  } else {
+    q('m-st-title').textContent='학생 추가';q('m-sid').value='';
+    ['m-nm','m-uid','m-pw','m-sch','m-univ','m-dept','m-memo'].forEach(id=>q(id).value='');
+    q('m-gr').value='2';q('m-cons').value='';
+  }
+  openM('m-student');
+}
+
+function saveStudent(){
+  const sid=v('m-sid'),nm=v('m-nm'),uid=v('m-uid'),pw=v('m-pw');
+  if(!nm||!uid){q('m-err').textContent='이름과 아이디는 필수입니다.';return;}
+  const sts=DB.getStudents();
+  const consId=q('m-cons').value;
+  if(sid){
+    const idx=sts.findIndex(s=>s.id===sid);if(idx<0)return;
+    if(sts.find(s=>s.username===uid&&s.id!==sid)){q('m-err').textContent='이미 사용 중인 아이디';return;}
+    sts[idx]={...sts[idx],name:nm,username:uid,school:v('m-sch'),grade:v('m-gr'),targetUniv:v('m-univ'),targetDept:v('m-dept'),consultantId:consId,memo:v('m-memo')};
+    if(pw)sts[idx].password=pw;
+  } else {
+    if(!pw){q('m-err').textContent='비밀번호를 입력해주세요.';return;}
+    if(sts.find(s=>s.username===uid)){q('m-err').textContent='이미 사용 중인 아이디';return;}
+    sts.push({id:'st_'+Date.now(),username:uid,password:pw,role:'student',name:nm,school:v('m-sch'),grade:v('m-gr'),targetUniv:v('m-univ'),targetDept:v('m-dept'),consultantId:consId,memo:v('m-memo'),createdAt:today(),analysisCount:0});
+  }
+  DB.setStudents(sts);
+  q('a-cnt').textContent=sts.length;
+  closeM('m-student');renderStudentList();renderAdminDash();
+}
+
+function openConsModal(cid){
+  q('m-cerr').textContent='';
+  if(cid){
+    const c=DB.getConsultants().find(x=>x.id===cid);if(!c)return;
+    q('m-ct-title').textContent='컨설턴트 수정';q('m-cid').value=cid;
+    q('m-cnm').value=c.name;q('m-cuid').value=c.username;q('m-cpw').value='';
+    q('m-cemail').value=c.email||'';q('m-cspec').value=c.specialties||'';
+  } else {
+    q('m-ct-title').textContent='컨설턴트 추가';q('m-cid').value='';
+    ['m-cnm','m-cuid','m-cpw','m-cemail','m-cspec'].forEach(id=>q(id).value='');
+  }
+  openM('m-consultant');
+}
+
+function saveConsultant(){
+  const cid=v('m-cid'),nm=v('m-cnm'),uid=v('m-cuid'),pw=v('m-cpw');
+  if(!nm||!uid){q('m-cerr').textContent='이름과 아이디는 필수';return;}
+  const cons=DB.getConsultants();
+  if(cid){
+    const idx=cons.findIndex(c=>c.id===cid);if(idx<0)return;
+    if(cons.find(c=>c.username===uid&&c.id!==cid)){q('m-cerr').textContent='이미 사용 중인 아이디';return;}
+    cons[idx]={...cons[idx],name:nm,username:uid,email:v('m-cemail'),specialties:v('m-cspec')};
+    if(pw)cons[idx].password=pw;
+  } else {
+    if(!pw){q('m-cerr').textContent='비밀번호를 입력해주세요.';return;}
+    if(cons.find(c=>c.username===uid)){q('m-cerr').textContent='이미 사용 중인 아이디';return;}
+    cons.push({id:'cons_'+Date.now(),username:uid,password:pw,role:'consultant',name:nm,email:v('m-cemail'),specialties:v('m-cspec'),createdAt:today()});
+  }
+  DB.setConsultants(cons);q('c-cnt').textContent=cons.length;
+  closeM('m-consultant');renderConsList();renderAdminDash();
+}
+
+function openPerfModal(sid,pid){
+  q('m-psid').value=sid;q('m-pid').value=pid||'';
+  if(pid){
+    const e=DB.getExams(sid).find(x=>x.id===pid);if(!e)return;
+    q('m-psubj').value=e.subject;q('m-pteacher').value=e.teacher||'';q('m-ptnote').value=e.teacherNote||'';
+    q('m-ptopic').value=e.topic;q('m-pratio').value=e.ratio;q('m-pdue').value=e.dueDate||'';
+    q('m-pstatus').value=e.status;q('m-pelements').value=e.elements||'';q('m-pnote').value=e.consultantNote||'';
+    q('m-pmats').value=e.materials||'';q('m-psubmit').value=String(e.submitted);
+    q('m-petype').value=e.evalType||'제출';q('m-ptime').value=e.time||'';
+  } else {
+    ['m-psubj','m-pteacher','m-ptnote','m-ptopic','m-pratio','m-pelements','m-pnote','m-pmats','m-ptime'].forEach(id=>q(id).value='');
+    q('m-pstatus').value='예정';q('m-psubmit').value='false';q('m-pdue').value='';q('m-petype').value='제출';
+  }
+  openM('m-perf');
+}
+
+function savePerf(){
+  const sid=v('m-psid'),pid=v('m-pid');
+  if(!v('m-psubj')||!v('m-ptopic')){alert('과목과 주제는 필수입니다.');return;}
+  const exams=DB.getExams(sid);
+  const item={id:pid||'ex_'+Date.now(),subject:v('m-psubj'),teacher:v('m-pteacher'),evalType:q('m-petype').value||'제출',time:v('m-ptime'),teacherNote:v('m-ptnote'),topic:v('m-ptopic'),ratio:parseInt(v('m-pratio'))||0,dueDate:v('m-pdue'),status:q('m-pstatus').value,elements:v('m-pelements'),consultantNote:v('m-pnote'),materials:v('m-pmats'),submitted:q('m-psubmit').value==='true',calFeedbacks:pid?(DB.getExams(sid).find(e=>e.id===pid)?.calFeedbacks||[]):[]};
+  if(pid){const idx=exams.findIndex(e=>e.id===pid);if(idx>=0)exams[idx]=item;} else exams.push(item);
+  DB.setExams(sid,exams);closeM('m-perf');
+  if(S.student?.id===sid)renderPerfPage();
+  if(S.consultant)renderConsPerf();
+}
+
+function openFbModal(){openM('m-fb');['m-fbtitle','m-fbcontent'].forEach(id=>q(id).value='');}
+function saveFb(){
+  const title=v('m-fbtitle'),content=v('m-fbcontent');
+  if(!title||!content){alert('제목과 내용을 입력해주세요.');return;}
+  const sid=S.student?.id;if(!sid)return;
+  const fbs=DB.getFeedbacks(sid);
+  fbs.unshift({id:'fb_'+Date.now(),type:q('m-fbtype').value,title,studentContent:content,consultantContent:'',status:'요청중',createdAt:Date.now(),updatedAt:Date.now(),studentRead:true});
+  DB.setFeedbacks(sid,fbs);
+  closeM('m-fb');renderFbPage();
+  q('s-fb-cnt').textContent=fbs.filter(f=>!f.consultantContent).length;
+}
+
+function confirmDel(sid,name){
+  q('mc-t').textContent='학생 삭제';q('mc-msg').textContent=`"${name}" 학생의 모든 데이터를 삭제합니다. 되돌릴 수 없습니다.`;
+  q('mc-ok').onclick=()=>{
+    DB.setStudents(DB.getStudents().filter(s=>s.id!==sid));
+    DB.del('gb_'+sid);DB.del('hist_'+sid);DB.del('exams_'+sid);DB.del('fbs_'+sid);
+    q('a-cnt').textContent=DB.getStudents().length;
+    closeM('m-confirm');renderStudentList();renderAdminDash();
+  };openM('m-confirm');
+}
+function confirmDelCons(cid,name){
+  q('mc-t').textContent='컨설턴트 삭제';q('mc-msg').textContent=`"${name}" 컨설턴트를 삭제합니다. 담당 학생 배정이 해제됩니다.`;
+  q('mc-ok').onclick=()=>{
+    const sts=DB.getStudents().map(s=>s.consultantId===cid?{...s,consultantId:''}:s);DB.setStudents(sts);
+    DB.setConsultants(DB.getConsultants().filter(c=>c.id!==cid));
+    closeM('m-confirm');renderConsList();renderAdminDash();
+  };openM('m-confirm');
+}
+
+// ═══════════════════════════════════════
+// API
+// ═══════════════════════════════════════
+async function callAI(sys,msg,el,label='biglinker AI',sid=null){
+  if(!el)return;
+  el.innerHTML=`<div class="ai-box"><div class="ai-head"><div class="ai-dot"></div>${label}</div><div class="ld-wrap"><div class="ld-tr"><div class="ld-fl"></div></div><div class="ld-tx">AI 분석 중...</div></div></div>`;
+  const k=DB.getApiKey();
+  if(!k){el.innerHTML=`<div class="ai-box"><div class="ai-head"><div class="ai-dot"></div>${label}</div><div class="ai-body"><b style="color:var(--red)">API 키가 설정되지 않았습니다.</b>\n관리자 설정에서 Anthropic API 키를 입력해주세요.</div></div>`;return;}
+  const bodyEl=document.createElement('div');bodyEl.className='ai-body';
+  const cur=document.createElement('span');cur.className='cblink';
+  let full='';
+  el.innerHTML='';
+  const box=document.createElement('div');box.className='ai-box';
+  const head=document.createElement('div');head.className='ai-head';
+  head.innerHTML=`<div class="ai-dot"></div>${label} · 생성 중`;
+  box.appendChild(head);box.appendChild(bodyEl);bodyEl.appendChild(cur);el.appendChild(box);
+  try{
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':k,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:DB.getModel(),max_tokens:1500,stream:true,system:sys,messages:[{role:'user',content:msg}]})});
+    if(!r.ok){const e=await r.json();throw new Error(e.error?.message||`HTTP ${r.status}`);}
+    const reader=r.body.getReader();const dec=new TextDecoder();let buf='';
+    while(true){
+      const{done,value}=await reader.read();if(done)break;
+      buf+=dec.decode(value,{stream:true});
+      const lines=buf.split('\n');buf=lines.pop();
+      for(const ln of lines){
+        if(!ln.startsWith('data:'))continue;
+        try{const d=JSON.parse(ln.slice(5));if(d.delta?.text){full+=d.delta.text;bodyEl.textContent=full;bodyEl.appendChild(cur);el.scrollIntoView({behavior:'smooth',block:'end'});}}catch{}
+      }
+    }
+    cur.remove();head.innerHTML=`<div class="ai-dot"></div>${label} · 완료`;
+    const fmt=full.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/\*\*(.*?)\*\*/g,'<b>$1</b>')
+      .replace(/^### (.+)$/gm,'<h3>$1</h3>')
+      .replace(/^- (.+)$/gm,'<div style="padding:2px 0 2px 13px;border-left:2px solid var(--border2);margin:2px 0;color:var(--muted);font-size:12px">$1</div>');
+    bodyEl.innerHTML=fmt;
+    const sid2=sid||S.student?.id;
+    if(sid2){
+      DB.addHistory(sid2,{type:label,content:full.slice(0,300)});
+      const sts=DB.getStudents();const idx=sts.findIndex(s=>s.id===sid2);
+      if(idx>=0){sts[idx].analysisCount=(sts[idx].analysisCount||0)+1;DB.setStudents(sts);if(S.student?.id===sid2)S.student=sts[idx];}
+      // 분석 완료 후 대시보드·히스토리 즉시 갱신
+      if(S.student?.id===sid2){renderStudentDash();renderHistPage();}
+    }
+  }catch(e){cur.remove();head.innerHTML=`<div class="ai-dot"></div>${label} · 오류`;bodyEl.innerHTML=`<b style="color:var(--red)">오류: ${e.message}</b>\nAPI 키를 확인하거나 관리자에게 문의하세요.`;}
+}
+
+const ST=()=>{
+  const s=S.student||{};
+  const gb=DB.getGb(s.id)||'';
+  const gbSection=gb
+    ? `[학생 생기부 (업로드 완료 — ${gb.length}자)]\n${gb.slice(0,3000)}`
+    : '[생기부 미업로드 — 학생이 생기부 분석 페이지에서 업로드해야 개인 맞춤 분석이 가능합니다]';
+  return `[학생 정보]\n이름: ${s.name||'미입력'}\n학교: ${s.school||'미입력'} ${s.grade||''}학년\n목표 대학: ${s.targetUniv||'미입력'}\n목표 학과: ${s.targetDept||'미입력'}\n\n${gbSection}`;
+};
+
+const PROMPTS={
+  dashboard:`당신은 대입 전문 컨설턴트입니다. 학생의 생기부를 읽고 (1)3대 역량 진단(학업·진로·공동체) (2)핵심 강점 3가지 (3)즉시 보완 필요 사항 (4)목표 대학 합격을 위한 단계별 전략을 구체적으로 제시하세요. **굵게**, ### 소제목, - 리스트 활용.`,
+  academic:`당신은 대입 세특 전문가입니다. 학생의 생기부를 분석하여 학업역량을 진단하고, 각 과목 세특 심화 탐구 방향과 구체적인 키워드를 제시하세요. 학생의 목표 학과와 연계된 탐구 주제를 중심으로 작성하세요.`,
+  career:`당신은 대입 진로역량 전문가입니다. 학생의 생기부를 분석하여 진로역량 강·약점을 진단하고, 목표 학과 연계 과목 이수 전략과 활동 계획을 구체적으로 제시하세요.`,
+  roadmap:`당신은 대입 컨설턴트입니다. 학생의 학년과 생기부 수준을 바탕으로 남은 고교 기간의 학기별 활동 로드맵을 제시하세요. 목표 대학 합격을 위한 우선순위 중심으로 작성하세요.`,
+  subjects:`당신은 고교학점제 전문가입니다. 학생의 생기부와 목표 학과를 분석하여 최적 과목 선택 전략과 각 과목 세특 연계 방법을 제시하세요.`,
+  essay1:`당신은 대입 논술 전문 교사입니다. 제시된 논술 문제에 대한 모범답안 개요와 핵심 키워드를 작성하세요. 학생 생기부의 탐구 경험을 최대한 활용하여 차별화된 답안을 제시하세요.`,
+  essay2:`당신은 수리논술 전문 교사입니다. 수리 논술 풀이 과정과 모범답안을 단계별로 제시하세요. 학생 생기부의 수학 탐구 경험과 연계하세요.`,
+  'essay-fb':`당신은 논술 첨삭 전문 교사입니다. 학생의 논술 답안을 (1)논리 구조 (2)전공 지식 정확성 (3)표현력 (4)차별화 전략 순서로 구체적으로 첨삭하세요.`,
+  'more-q':`당신은 대학 면접 전문가입니다. 학생의 생기부를 분석하여 목표 대학 학종 면접에서 출제될 가능성이 높은 예상 질문 5개를 생성하고 각 답변 힌트를 제공하세요.`,
+  admission:`당신은 대입 지원 전략 전문가입니다. 학생의 생기부와 목표 대학을 분석하여 수시 6장 최적 배분, 전형별 전략, 3학년까지 개선 방향을 상세히 분석하세요.`,
+  'cutoff-ai':`당신은 대입 입시 분석 전문가입니다. 학생 정보(이름, 학교, 목표 대학·학과)를 바탕으로 현실적인 지원 전략과 상향·적정·하향 대학 추천, 각 전형별 준비 방향을 제시하세요.`,
+  'perf-ai':`당신은 대입 수행평가 전문 컨설턴트입니다. 학생의 생기부와 수행평가 목록을 분석하여 (1)각 수행평가별 생기부 세특 연계 전략 (2)탐구 주제·키워드 심화 방향 (3)목표 학과 어필 포인트 (4)마감 우선순위 순서로 구체적으로 제시하세요. **굵게**, ### 소제목, - 리스트 활용.`,
+};
+
+async function runAI(type,btn,el){
+  const orig=btn?.innerHTML;
+  if(btn){btn.disabled=true;btn.innerHTML='<div class="spin spin-w"></div> 분석 중...';}
+  setTimeout(()=>{if(btn){btn.disabled=false;btn.innerHTML=orig;}},30000);
+  const sys=PROMPTS[type]||PROMPTS.dashboard;
+  let msg=ST();
+  if(type==='essay-fb'){const inp=v('essay-in');if(!inp){if(el)el.innerHTML='<div class="ntc ntc-o" style="margin-top:10px"><span>⚠</span>답안을 입력해주세요.</div>';if(btn){btn.disabled=false;btn.innerHTML=orig;}return;}msg=`학생: ${S.student?.name}\n\n답안:\n${inp}`;}
+  if(type==='cutoff-ai'){const s=S.student||{};msg=`${ST()}\n\n[분석 요청] 위 학생의 목표 학과(${s.targetDept||'목표 학과'}) 합격선 기준으로 상향·적정·하향 대학 추천과 전략을 구체적으로 제시하세요.`;}
+  if(type==='more-q'){const s=S.student||{};msg=`${ST()}\n\n[분석 요청] 위 학생의 목표 대학(${s.targetUniv||'목표 대학'}) ${s.targetDept||'목표 학과'} 학종 면접에서 출제될 예상 질문 5개와 힌트를 생성하세요.`;}
+  const labels={dashboard:'종합 분석',academic:'학업역량',career:'진로역량',roadmap:'활동 로드맵',subjects:'과목 전략',essay1:'논술 풀이',essay2:'수학 논술','essay-fb':'첨삭 결과','more-q':'추가 질문',admission:'지원 전략','cutoff-ai':'맞춤 지원 전략'};
+  await callAI(sys,msg,el,`biglinker AI — ${labels[type]||type}`);
+  if(btn){btn.disabled=false;btn.innerHTML=orig;}
+}
+
+async function runPerfAI(btn){
+  const sid=S.student?.id;
+  const gb=DB.getGb(sid)||'';
+  const el=q('res-perf-ai');
+  const notice=q('perf-ai-notice');
+  if(!gb||gb.length<50){
+    notice.innerHTML='<div class="ntc ntc-o" style="margin-bottom:8px"><span>⚠</span><div>생기부를 먼저 업로드해야 수행평가 맞춤 전략을 생성할 수 있습니다. <button class="btn btn-b btn-sm" onclick="sSide(null,\'s-upload\')">생기부 업로드 →</button></div></div>';
+    return;
+  }
+  notice.innerHTML='';
+  const exams=DB.getExams(sid)||[];
+  const examList=exams.length
+    ? exams.map(e=>`- [${e.status}] ${e.subject}: ${e.topic} (${e.evalType||'제출'}, 마감: ${e.dueDate||'미정'}, 반영: ${e.ratio||0}%)`).join('\n')
+    : '(등록된 수행평가 없음)';
+  const orig=btn.innerHTML;
+  btn.disabled=true;btn.innerHTML='<div class="spin spin-w"></div> 분석 중...';
+  await callAI(
+    PROMPTS['perf-ai'],
+    `${ST()}\n\n[수행평가 목록]\n${examList}`,
+    el,'biglinker AI — 수행평가 전략',sid
+  );
+  btn.disabled=false;btn.innerHTML=orig;
+}
+
+async function runAnswerFb(btn){
+  const card=btn.closest('.qcard');
+  const ans=card.querySelector('textarea').value.trim();
+  const qq=card.querySelector('.qq').textContent;
+  const el=card.querySelector('.q-fb-r');
+  if(!ans){el.innerHTML='<div style="color:var(--orange);font-size:11px;margin-top:6px">답변을 입력해주세요.</div>';return;}
+  btn.disabled=true;btn.innerHTML='<div class="spin spin-w"></div>';
+  await callAI('당신은 대학 면접 코치입니다. (1) 잘된 점 (2) 보완할 점 (3) 개선 방향을 간결하게 제시하세요.',
+    `질문: ${qq}\n답변: ${ans}\n학생: ${ST().slice(0,400)}`,el,'biglinker AI — 답변 피드백');
+  btn.disabled=false;btn.innerHTML='🤖 AI 피드백';
+}
+
+// API Settings
+function saveApiKey(){const k=v('api-key-in');if(!k)return;DB.setApiKey(k);DB.setModel(q('model-sel').value);q('api-st').innerHTML='<div class="ntc ntc-g" style="margin-top:8px"><span>✓</span>저장되었습니다.</div>';renderAdminDash();}
+async function testApi(){
+  const el=q('api-test-r');const k=DB.getApiKey();
+  if(!k){el.innerHTML='<div class="ntc ntc-r" style="margin-top:8px"><span>✗</span>API 키를 먼저 저장해주세요.</div>';return;}
+  el.innerHTML='<div class="ntc ntc-b" style="margin-top:8px"><span>·</span>테스트 중...</div>';
+  try{
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':k,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:DB.getModel(),max_tokens:20,messages:[{role:'user',content:'안녕'}]})});
+    const d=await r.json();
+    if(d.content)el.innerHTML='<div class="ntc ntc-g" style="margin-top:8px"><span>✓</span>API 연결 성공!</div>';
+    else el.innerHTML=`<div class="ntc ntc-r" style="margin-top:8px"><span>✗</span>${d.error?.message||'오류'}</div>`;
+  }catch(e){el.innerHTML=`<div class="ntc ntc-o" style="margin-top:8px"><span>⚠</span>${e.message}</div>`;}
+}
+
+function changeAdmPw(){
+  const el=q('adm-pw-r');const admins=DB.getAdmins();const me=admins.find(a=>a.id===S.user?.id);
+  if(!me||me.password!==v('adm-cur')){el.innerHTML='<span style="color:var(--red)">현재 비밀번호 오류</span>';return;}
+  if(v('adm-new').length<4){el.innerHTML='<span style="color:var(--red)">4자 이상 입력</span>';return;}
+  if(v('adm-new')!==v('adm-new2')){el.innerHTML='<span style="color:var(--red)">비밀번호 불일치</span>';return;}
+  me.password=v('adm-new');DB.setAdmins(admins);
+  el.innerHTML='<span style="color:var(--green)">변경 완료</span>';
+}
+
+function exportData(){
+  const data={students:DB.getStudents(),consultants:DB.getConsultants(),admins:DB.getAdmins(),model:DB.getModel(),ts:new Date().toISOString()};
+  const a=document.createElement('a');a.href='data:application/json,'+encodeURIComponent(JSON.stringify(data,null,2));a.download='biglinker_backup_'+Date.now()+'.json';a.click();
+}
+function importData(inp){
+  const f=inp.files[0];if(!f)return;
+  const r=new FileReader();r.onload=e=>{try{const d=JSON.parse(e.target.result);if(d.students)DB.setStudents(d.students);if(d.consultants)DB.setConsultants(d.consultants);if(d.admins)DB.setAdmins(d.admins);alert('가져오기 완료');renderAdminDash();}catch{alert('파일 오류');}};
+  r.readAsText(f);inp.value='';
+}
+
+// Profile & History
+function loadProfile(){
+  const s=S.student;if(!s)return;
+  q('p-nm').value=s.name||'';q('p-sch').value=s.school||'';q('p-gr').value=s.grade||'2';q('p-univ').value=s.targetUniv||'';q('p-dept').value=s.targetDept||'';
+}
+function saveProfile(){
+  const sts=DB.getStudents();const idx=sts.findIndex(s=>s.id===S.student?.id);if(idx<0)return;
+  sts[idx]={...sts[idx],name:v('p-nm'),school:v('p-sch'),grade:v('p-gr'),targetUniv:v('p-univ'),targetDept:v('p-dept')};
+  DB.setStudents(sts);S.student=sts[idx];q('s-badge').textContent=`${sts[idx].name} · ${sts[idx].school} ${sts[idx].grade}학년`;
+  q('p-r').innerHTML='<span style="color:var(--green)">저장 완료</span>';setTimeout(()=>q('p-r').innerHTML='',2000);
+}
+function changeStPw(){
+  const el=q('st-pw-r');const sts=DB.getStudents();const idx=sts.findIndex(s=>s.id===S.student?.id);
+  if(idx<0)return;if(sts[idx].password!==v('st-cur')){el.innerHTML='<span style="color:var(--red)">현재 비밀번호 오류</span>';return;}
+  if(v('st-new').length<4){el.innerHTML='<span style="color:var(--red)">4자 이상</span>';return;}
+  if(v('st-new')!==v('st-new2')){el.innerHTML='<span style="color:var(--red)">불일치</span>';return;}
+  sts[idx].password=v('st-new');DB.setStudents(sts);el.innerHTML='<span style="color:var(--green)">변경 완료</span>';
+}
+function renderHistPage(){
+  const h=DB.getHistory(S.student?.id)||[];
+  q('hist-list').innerHTML=h.length?h.map(x=>`<div style="padding:10px 13px;background:var(--s2);border-radius:var(--r8);margin-bottom:7px;border:1px solid var(--border)"><div style="font-size:10px;color:var(--muted);margin-bottom:4px;font-family:'JetBrains Mono',monospace">${new Date(x.ts).toLocaleString('ko-KR')} · ${x.type}</div><div style="font-size:12px">${x.content}</div></div>`).join('')
+    :'<div class="empty"><div class="empty-ic">⊞</div><div class="empty-t">분석 기록 없음</div></div>';
+}
+
+// Upload
+async function handleGbFile(inp){
+  const f=inp.files[0];if(!f)return;
+  const notice=q('upload-r');
+  if(f.name.toLowerCase().endsWith('.pdf')){
+    notice.innerHTML='<div class="ntc ntc-b" style="margin-top:8px"><span>·</span>PDF 텍스트 추출 중...</div>';
+    try{
+      const buf=await f.arrayBuffer();
+      const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+      let text='';
+      for(let i=1;i<=pdf.numPages;i++){
+        const page=await pdf.getPage(i);
+        const content=await page.getTextContent();
+        text+=content.items.map(it=>it.str).join(' ')+'\n';
+      }
+      q('gb-in').value=text.trim();
+      notice.innerHTML=`<div class="ntc ntc-g" style="margin-top:8px"><span>✓</span>PDF 추출 완료 — ${pdf.numPages}페이지 / ${text.length.toLocaleString()}자. 내용을 확인 후 AI 분석을 시작하세요.</div>`;
+    }catch(e){
+      notice.innerHTML=`<div class="ntc ntc-r" style="margin-top:8px"><span>✗</span>PDF 추출 실패: ${e.message}. 내용을 직접 복사하여 붙여넣어 주세요.</div>`;
+    }
+  }else{
+    const r=new FileReader();
+    r.onload=e=>{q('gb-in').value=e.target.result;notice.innerHTML='<div class="ntc ntc-g" style="margin-top:8px"><span>✓</span>파일 로드 완료. AI 분석 시작 버튼을 눌러주세요.</div>';};
+    r.readAsText(f);
+  }
+}
+function loadSample(){q('gb-in').value=SAMPLE_GB;}
+function loadSavedGb(){const gb=DB.getGb(S.student?.id);if(gb)q('gb-in').value=gb;else alert('저장된 생기부 없음');}
+async function runUpload(){
+  const text=v('gb-in');if(!text){alert('내용을 입력하세요.');return;}
+  if(S.student?.id)DB.setGb(S.student.id,text);
+  const el=q('upload-r');
+  // 업로드 후 대시보드 갱신
+  setTimeout(()=>renderStudentDash(),500);
+  await callAI('당신은 대입 전문 컨설턴트입니다. 학생의 생기부를 정밀 분석하여 (1)3대 역량(학업·진로·공동체) 점수 추정 및 진단 (2)핵심 강점 키워드 (3)즉시 보완 필요 항목 (4)목표 대학 합격 맞춤 전략을 구체적으로 제시하세요. **굵게**, ### 소제목 활용.',
+    `학생: ${S.student?.name}, ${S.student?.school} ${S.student?.grade}학년\n목표: ${S.student?.targetUniv} ${S.student?.targetDept}\n\n생기부:\n${text}`,
+    el,'biglinker AI — 생기부 분석',S.student?.id);
+}
+
+// Mock Interview
+let mHist=[],mQN=0,mMax=5;
+function startMock(){
+  // 목표 대학 동적 설정
+  const sel=q('mock-univ');const _s=S.student||{};
+  const defaultOpt=_s.targetUniv&&_s.targetDept?`${_s.targetUniv} ${_s.targetDept} — 학생부종합`:'목표 대학 미설정';
+  sel.innerHTML=[defaultOpt,'연세대학교 간호학과 — 학생부종합','서울대학교 — 지역균형','고려대학교 — 학교추천'].map(o=>`<option>${o}</option>`).join('');
+  mMax=parseInt(q('mock-cnt').value)||5;mHist=[];mQN=0;
+  q('mock-setup').style.display='none';q('mock-run').style.display='block';
+  q('mock-chat').innerHTML='';q('mock-result').innerHTML='';
+  q('mock-prog').textContent=`질문 1/${mMax}`;
+  const u=q('mock-univ').value;
+  const first=`안녕하세요. ${u} 면접을 시작하겠습니다.\n\n간단한 자기소개와 간호학과 지원 결정적 계기를 말씀해주세요.`;
+  addMsg('ai',first);mHist.push({role:'assistant',content:first});
+}
+async function submitMock(){
+  const ans=v('mock-ans');if(!ans)return;q('mock-ans').value='';
+  addMsg('student',ans);mHist.push({role:'user',content:ans});mQN++;
+  q('mock-prog').textContent=`질문 ${mQN+1}/${mMax}`;
+  if(mQN>=mMax){endMock();return;}
+  const btn=q('mock-btn');btn.disabled=true;btn.innerHTML='<div class="spin spin-w"></div>';
+  const chat=q('mock-chat');
+  const div=document.createElement('div');div.className='cmsg cmsg-ai';
+  div.innerHTML=`<div class="cmsg-lbl">면접관</div><span id="ms"></span><span class="cblink"></span>`;
+  chat.appendChild(div);chat.scrollTop=chat.scrollHeight;
+  const se=document.getElementById('ms');let full='';
+  const k=DB.getApiKey();
+  if(!k){se.textContent='API 키 없음';div.querySelector('.cblink')?.remove();btn.disabled=false;btn.innerHTML='답변 제출 →';return;}
+  const _gb=DB.getGb(S.student?.id)||'';
+  const _s=S.student||{};
+  const sys=`당신은 ${q('mock-univ').value} 입학사정관입니다. 학생: ${_s.name||''}(${_s.school||''} ${_s.grade||''}학년, 목표: ${_s.targetUniv||''} ${_s.targetDept||''}).${_gb?' 생기부: '+_gb.slice(0,800):''} 규칙: 학생 답변에 한 줄 코멘트 후 다음 질문. 2~3문장.`;
+  try{
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':k,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:DB.getModel(),max_tokens:350,stream:true,system:sys,messages:mHist})});
+    const reader=r.body.getReader();const dec=new TextDecoder();let buf='';
+    while(true){const{done,value}=await reader.read();if(done)break;buf+=dec.decode(value,{stream:true});const lines=buf.split('\n');buf=lines.pop();for(const ln of lines){if(!ln.startsWith('data:'))continue;try{const d=JSON.parse(ln.slice(5));if(d.delta?.text){full+=d.delta.text;se.textContent=full;chat.scrollTop=chat.scrollHeight;}}catch{}}}
+  }catch(e){full='좋은 답변이었습니다.\n\n생기부에서 체온 조절 탐구를 하셨는데, 저체온증 환자 간호와 어떻게 연결되는지 설명해주세요.';}
+  div.querySelector('.cblink')?.remove();se.textContent=full;mHist.push({role:'assistant',content:full});
+  btn.disabled=false;btn.innerHTML='답변 제출 →';
+}
+function endMock(){
+  q('mock-btn').disabled=true;addMsg('ai',`면접 종료. ${mQN}개 답변 완료. 종합 피드백을 분석합니다...`);
+  callAI('당신은 면접 코치입니다. 다음 모의면접 대화를 분석하여 잘한 점, 부족한 점, 개선 방향을 제시하세요.',
+    mHist.map(m=>`[${m.role==='assistant'?'면접관':'학생'}]: ${m.content}`).join('\n\n'),
+    q('mock-result'),'biglinker AI — 종합 피드백',S.student?.id);
+}
+function addMsg(role,text){
+  const c=q('mock-chat');const d=document.createElement('div');
+  d.className=`cmsg cmsg-${role==='ai'?'ai':'st'}`;
+  d.innerHTML=`<div class="cmsg-lbl">${role==='ai'?'면접관':S.student?.name||'학생'}</div>${text.replace(/\n/g,'<br>')}`;
+  c.appendChild(d);c.scrollTop=c.scrollHeight;
+}
+document.addEventListener('keydown',e=>{if(e.target.id==='mock-ans'&&e.key==='Enter'&&!e.shiftKey){e.preventDefault();submitMock();}});
+
+// Tab helper
+function switchTab(el,id){
+  const pg=el.closest('.page');
+  pg.querySelectorAll('.tb').forEach(t=>t.classList.remove('on'));
+  pg.querySelectorAll('.tc').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on');q(id)?.classList.add('on');
+}
+
+// Utils
+function q(id){return document.getElementById(id)}
+function v(id){return(q(id)?.value||'').trim()}
+
+// ═══════════════════════════════════════
+// SAMPLE DATA
+// ═══════════════════════════════════════
+const SAMPLE_GB=`[학생 정보]
+이름: 김동형 | 학교: 숭실고등학교 | 학년: 2학년
+목표: 가톨릭대학교(성의교정) 간호학과 학교장추천전형
+내신: 전교과 4.70등급 | 생기부 총점: 153.65/300
+
+[세부능력 및 특기사항]
+수학: 코로나19 확산을 지수함수 N(t)=N₀eʳᵗ로 분석, R₀ 수식 설정. 기하 A등급.
+생명과학Ⅰ: 항상성 탐구 - 차가운 물 수영 시 시상하부→피부혈관수축→근육떨림 열 보존 메커니즘. 저체온증 예방 발표. 유전자 치료(오토페린) 윤리 분석.
+국어: 헌혈 감소 기사 비판적 분석, 통계 근거 제시. 모비딕 종교적 함의 분석.
+
+[창의적 체험활동]
+자율: 2학기 학급회장. 심전도 측정 후 AED 원리·위치 발표. 카페인 신체 영향 데이터 시각화.
+동아리: 공황장애 탐구, 심폐소생술 영상 제작(대본+편집), 재난응급의료 수업 적극 참여.
+진로: '미스터 나이팅게일' 독서(남성 간호사), 대학생 멘토 설명회, 진로 심화 스터디 팀 조직.
+
+[행동특성 및 종합의견]
+서번트 리더십, 출결 무결점, 배려·포용 태도, 소외 학생 자발적 배려. 간호 인재 자질 우수.`;
+
+const SAMPLE_EXAMS=[
+  {id:'ex1',subject:'생명과학Ⅰ',teacher:'박영수',evalType:'제출',time:'23:59',teacherNote:'실험 보고서 형식 중시, 결론에 미래 적용 필수 포함',topic:'항상성과 건강 탐구 보고서',ratio:30,elements:'실험설계 30%, 결과분석 40%, 결론 30%',status:'진행중',submitted:false,dueDate:'2026-05-20',consultantNote:'체온 조절 탐구 → 간호학 연계 결론 권장 (저체온증 환자 간호)',materials:'교재 p.124-156',calFeedbacks:[{id:'cf1',role:'consultant',author:'김컨설턴트',content:'결론에 저체온증 환자 간호와 항상성 회복 과정을 연결하면 좋겠습니다.',ts:Date.now()-86400000*2},{id:'cf2',role:'student',author:'김동형',content:'감사합니다! 간호학 파트를 추가해서 다시 보여드릴게요.',ts:Date.now()-86400000}]},
+  {id:'ex2',subject:'수학Ⅱ',teacher:'김철수',evalType:'발표',time:'15:30',teacherNote:'풀이 과정 상세히, 오류 분석 포함 시 가점',topic:'함수의 극한과 연속 응용 발표',ratio:20,elements:'발표 40%, 풀이과정 35%, 창의성 25%',status:'완료',submitted:true,dueDate:'2026-05-12',consultantNote:'지수함수 의료 모델링 연계 성공',materials:'',calFeedbacks:[{id:'cf3',role:'consultant',author:'김컨설턴트',content:'논리적 설명은 좋았으나 계산 과정을 더 명확히 보여줘야 합니다. B+ 획득.',ts:Date.now()-172800000}]},
+  {id:'ex3',subject:'국어',teacher:'이미영',evalType:'발표',time:'10:00',teacherNote:'비판적 독해 + 자신의 의견 명확히 강조',topic:'의학 비문학 비판적 읽기 논술',ratio:25,elements:'이해 30%, 분석 40%, 논술 표현 30%',status:'예정',submitted:false,dueDate:'2026-05-28',consultantNote:'헌혈 통계 분석 경험 활용 권장',materials:'헌혈 감소 관련 기사 모음',calFeedbacks:[]},
+  {id:'ex4',subject:'영어',teacher:'최지원',evalType:'구술',time:'14:00',teacherNote:'의사소통 내용 우선, 구문 정확성 차순',topic:'건강·의료 영어 프레젠테이션',ratio:25,elements:'유창성 20%, 내용 50%, PPT 30%',status:'예정',submitted:false,dueDate:'2026-06-10',consultantNote:'WHO 간호 정책 영문 자료 추천',materials:'WHO Nursing Report 2024',calFeedbacks:[]},
+  {id:'ex5',subject:'생명과학Ⅰ',teacher:'박영수',evalType:'구술',time:'14:00',teacherNote:'핵심 메커니즘 정확한 설명 요구, 생활 연계 가점',topic:'항상성 구술 평가',ratio:0,elements:'내용 50%, 표현 30%, 연계 20%',status:'예정',submitted:false,dueDate:'2026-05-22',consultantNote:'시상하부 체온 조절 메커니즘 집중 준비',materials:'',calFeedbacks:[]},
+  {id:'ex6',subject:'사회문제탐구',teacher:'최진우',evalType:'토론',time:'09:00',teacherNote:'논리 근거 중시, 상대 의견 반박 역량 평가',topic:'청년 출산율 정책 토론',ratio:0,elements:'논리성 40%, 표현 30%, 협력 30%',status:'예정',submitted:false,dueDate:'2026-05-26',consultantNote:'경제 자립과 출산율 관계 논리 준비',materials:'',calFeedbacks:[]},
+];
+
+const SAMPLE_FBS=[
+  {id:'fb1',type:'수행평가 보고서',title:'생명과학 항상성 보고서 초안 피드백 요청',studentContent:'항상성 탐구 보고서 초안을 작성했는데 결론 부분이 약한 것 같습니다. 피드백 부탁드립니다.',consultantContent:'결론에 간호학 연계를 강화하세요. 저체온증 환자의 항상성 회복 과정을 체온조절 메커니즘과 연결하면 훨씬 설득력이 높아집니다. 구체적으로: (1) 저체온증 환자 → 시상하부 기능 저하 → 간호사의 외부 가온 처치로 항상성 회복 지원 구조로 작성하세요.',status:'피드백완료',createdAt:Date.now()-86400000*2,updatedAt:Date.now()-86400000,studentRead:true},
+  {id:'fb2',type:'생기부 세특',title:'수학 세특 탐구 주제 심화 방향 문의',studentContent:'코로나 지수함수 모델링을 더 심화하고 싶은데, 어떤 방향이 좋을까요?',consultantContent:'',status:'요청중',createdAt:Date.now()-3600000,updatedAt:Date.now()-3600000,studentRead:true},
+];
+
+// ═══════════════════════════════════════
+// CALENDAR ENGINE
+// ═══════════════════════════════════════
+const TC_CAL={
+  구술:{color:'#a78bfa',bg:'rgba(167,139,250,.18)',border:'#a78bfa'},
+  발표:{color:'#4f7dff',bg:'rgba(79,125,255,.18)',border:'#4f7dff'},
+  토론:{color:'#22d3ee',bg:'rgba(34,211,238,.15)',border:'#22d3ee'},
+  제출:{color:'#2dd4a0',bg:'rgba(45,212,160,.15)',border:'#2dd4a0'},
+};
+const SC_CAL={
+  예정:{color:'var(--muted)',bg:'var(--s3)'},
+  진행중:{color:'var(--yellow)',bg:'var(--yellow2)'},
+  완료:{color:'var(--green)',bg:'var(--green2)'},
+};
+const KR_MON_CAL=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+
+const CAL={
+  _st:{},
+  init(pfx,exams,role){
+    const n=new Date();
+    if(!this._st[pfx])this._st[pfx]={year:n.getFullYear(),month:n.getMonth(),selDay:null,selEv:null,filters:new Set(['구술','발표','토론','제출']),role,exams:[]};
+    this._st[pfx].exams=exams;this._st[pfx].role=role;
+  },
+  g(pfx){return this._st[pfx]||{};},
+  ds(y,m,d){return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;},
+  todayStr(){const n=new Date();return this.ds(n.getFullYear(),n.getMonth(),n.getDate());},
+  fmt(ds){if(!ds)return '—';const p=ds.split('-');return `${parseInt(p[1])}월 ${parseInt(p[2])}일`;},
+  ago(ts){const d=(Date.now()-ts)/1000;if(d<60)return '방금';if(d<3600)return `${Math.floor(d/60)}분 전`;if(d<86400)return `${Math.floor(d/3600)}시간 전`;return `${Math.floor(d/86400)}일 전`;},
+  evForDay(pfx,y,m,d){const st=this.g(pfx);return st.exams.filter(e=>e.dueDate===this.ds(y,m,d)&&st.filters.has(e.evalType||'제출'));},
+  getUpcoming(pfx){const st=this.g(pfx);const t=this.todayStr();return(st.exams||[]).filter(e=>e.dueDate>=t&&st.filters.has(e.evalType||'제출')).sort((a,b)=>a.dueDate.localeCompare(b.dueDate)||(a.time||'').localeCompare(b.time||'')).slice(0,9);},
+
+  renderFilters(pfx){
+    const st=this.g(pfx);const el=q(`${pfx}-cal-filters`);if(!el)return;
+    el.innerHTML=['구술','발표','토론','제출'].map(t=>{const c=TC_CAL[t];const on=st.filters.has(t);return `<button class="cal-fc" style="border-color:${on?c.color:'var(--border2)'};color:${on?c.color:'var(--muted)'};background:${on?c.bg:'transparent'}" onclick="CAL.toggleFilter('${pfx}','${t}')">${t}</button>`;}).join('');
+  },
+  toggleFilter(pfx,t){const st=this.g(pfx);if(st.filters.has(t)){if(st.filters.size>1)st.filters.delete(t);}else st.filters.add(t);this.render(pfx);},
+
+  renderGrid(pfx){
+    const st=this.g(pfx);const{year:y,month:m}=st;
+    const lEl=q(`${pfx}-cal-label`);const gEl=q(`${pfx}-cal-grid`);if(!lEl||!gEl)return;
+    lEl.textContent=`${y}년 ${KR_MON_CAL[m]}`;
+    const first=new Date(y,m,1).getDay();const dim=new Date(y,m+1,0).getDate();const dip=new Date(y,m,0).getDate();
+    let total=first+dim;if(total%7!==0)total+=7-(total%7);if(total<35)total=35;
+    let html='';
+    for(let i=0;i<total;i++){
+      let day,mo=m,yr=y,other=false;
+      if(i<first){day=dip-first+i+1;mo=m-1<0?11:m-1;yr=m-1<0?y-1:y;other=true;}
+      else if(i>=first+dim){day=i-first-dim+1;mo=m+1>11?0:m+1;yr=m+1>11?y+1:y;other=true;}
+      else day=i-first+1;
+      const ds=this.ds(yr,mo,day);const evs=this.evForDay(pfx,yr,mo,day);
+      const pills=evs.slice(0,2).map(e=>{const c=TC_CAL[e.evalType||'제출'];const sn=e._studentName?` ${e._studentName}`:'';return `<span class="cal-ev" style="background:${c.bg};color:${c.color};border-color:${c.border}" onclick="CAL.selectEv('${pfx}','${e.id}',event)">${e.evalType||'제출'} ${e.subject}${sn}</span>`;}).join('');
+      const more=evs.length>2?`<span class="cal-more">+${evs.length-2}</span>`:'';
+      html+=`<div class="cal-day${other?' other':''}${ds===this.todayStr()?' today':''}${st.selDay===ds?' sel':''}" onclick="CAL.selectDay('${pfx}','${ds}')"><div class="cal-daynum">${day}</div>${pills}${more}</div>`;
+    }
+    gEl.innerHTML=html;
+  },
+
+  renderPanel(pfx){
+    const st=this.g(pfx);const el=q(`${pfx}-cal-side`);if(!el)return;
+    if(st.selEv){const ev=(st.exams||[]).find(e=>e.id===st.selEv);if(ev){el.innerHTML=this.renderDetail(pfx,ev);return;}}
+    if(st.selDay){const evs=(st.exams||[]).filter(e=>e.dueDate===st.selDay&&st.filters.has(e.evalType||'제출'));if(evs.length){el.innerHTML=this.renderDayPanel(pfx,evs);return;}}
+    el.innerHTML=this.renderUpcoming(pfx);
+  },
+
+  renderUpcoming(pfx){
+    const ups=this.getUpcoming(pfx);
+    if(!ups.length)return `<div class="cal-side-hd"><div class="cal-side-hd-t">다가오는 일정</div></div><div class="cal-empty"><div class="cal-empty-ic">◫</div><div class="cal-empty-t">예정 일정 없음</div><div class="cal-empty-s">수행평가를 추가해주세요</div></div>`;
+    return `<div class="cal-side-hd"><div class="cal-side-hd-t">다가오는 일정</div><div class="cal-side-hd-s">${ups.length}건 예정</div></div><div class="cal-side-scroll">${ups.map(e=>this.upItem(pfx,e)).join('')}</div>`;
+  },
+  renderDayPanel(pfx,evs){const ds=this.g(pfx).selDay;return `<div class="cal-side-hd"><div class="cal-side-hd-t">${this.fmt(ds)}</div><div class="cal-side-hd-s">${evs.length}건</div></div><div class="cal-side-scroll">${evs.map(e=>this.upItem(pfx,e)).join('')}</div>`;},
+
+  upItem(pfx,e){
+    const c=TC_CAL[e.evalType||'제출'];const sc=SC_CAL[e.status]||SC_CAL['예정'];
+    const fbN=(e.calFeedbacks||[]).length;const sn=e._studentName?`<div class="cal-up-sub">${e._studentName} 학생</div>`:'';
+    return `<div class="cal-up-item" onclick="CAL.selectEv('${pfx}','${e.id}',event)">
+      <div class="cal-up-meta"><span class="cal-tp" style="background:${c.bg};color:${c.color};border-color:${c.border}">${e.evalType||'제출'}</span><span class="cal-st" style="background:${sc.bg};color:${sc.color}">${e.status}</span>${fbN?`<span style="font-size:10px;color:var(--muted)">💬${fbN}</span>`:''}</div>
+      <div class="cal-up-t">${e.subject}</div>
+      <div class="cal-up-sub">${e.topic}</div>
+      ${sn}<div class="cal-up-sub">${e.teacher||''} 선생님</div>
+      <div class="cal-up-dt">📅 ${this.fmt(e.dueDate)}${e.time?' '+e.time:''}</div>
+    </div>`;
+  },
+
+  renderDetail(pfx,ev){
+    const st=this.g(pfx);const c=TC_CAL[ev.evalType||'제출'];const sc=SC_CAL[ev.status]||SC_CAL['예정'];const fbs=ev.calFeedbacks||[];
+    const stRow=st.role==='consultant'?`<div class="cal-st-row">${['예정','진행중','완료'].map(s=>`<button class="cal-stc" style="border-color:${SC_CAL[s].color};color:${SC_CAL[s].color};background:${ev.status===s?SC_CAL[s].bg:'transparent'}" onclick="CAL.changeStatus('${pfx}','${ev.id}','${s}')">${s}</button>`).join('')}</div>`:'';
+    const teacherRow=ev.teacherNote&&st.role==='consultant'?`<div class="cal-inf-row" style="align-items:flex-start"><span class="cal-inf-lbl">교사특징</span><span class="cal-inf-val" style="color:var(--muted)">${ev.teacherNote}</span></div>`:'';
+    return `<div class="cal-det">
+      <div class="cal-det-hd">
+        <button class="cal-back" onclick="CAL.clearEv('${pfx}')">← 목록으로</button>
+        <div class="cal-det-tp"><span class="cal-tp" style="background:${c.bg};color:${c.color};border-color:${c.border};padding:3px 9px;font-size:10px">${ev.evalType||'제출'}</span><span class="cal-st" style="background:${sc.bg};color:${sc.color};padding:3px 9px;font-size:10px">${ev.status}</span></div>
+        <div class="cal-det-title">${ev.subject} — ${ev.topic}</div>
+        ${ev._studentName?`<div style="font-size:11px;color:var(--muted);margin-top:3px">${ev._studentName} 학생</div>`:''}
+      </div>
+      <div class="cal-det-info">
+        <div class="cal-inf-row"><span class="cal-inf-lbl">교사</span><span class="cal-inf-val">${ev.teacher||'—'} 선생님</span></div>
+        <div class="cal-inf-row"><span class="cal-inf-lbl">일시</span><span class="cal-inf-val">${this.fmt(ev.dueDate)}${ev.time?' '+ev.time:''}</span></div>
+        ${ev.ratio?`<div class="cal-inf-row"><span class="cal-inf-lbl">반영비율</span><span class="cal-inf-val">${ev.ratio}%</span></div>`:''}
+        ${ev.consultantNote?`<div class="cal-inf-row" style="align-items:flex-start"><span class="cal-inf-lbl">코멘트</span><span class="cal-inf-val" style="color:var(--blue);line-height:1.5">${ev.consultantNote}</span></div>`:''}
+        ${teacherRow}${stRow}
+      </div>
+      <div class="cal-fb-wrap">
+        <div class="cal-fb-hd">💬 피드백 (${fbs.length})</div>
+        <div class="cal-fb-thread" id="cal-fb-${ev.id}">
+          ${fbs.length?fbs.map(f=>`<div class="cal-fb-msg ${f.role==='consultant'?'cons':'stud'}"><div class="cal-fb-lbl">${f.role==='consultant'?'컨설턴트':'학생'} · ${f.author}</div><div class="cal-fb-body">${f.content}</div><div class="cal-fb-time">${this.ago(f.ts)}</div></div>`).join(''):'<div style="text-align:center;padding:14px;color:var(--muted);font-size:11px">아직 피드백이 없습니다</div>'}
+        </div>
+        <div class="cal-fb-inp-area">
+          <textarea class="cal-fb-inp" id="cal-inp-${ev.id}" rows="2" placeholder="${st.role==='consultant'?'피드백을 작성하세요...':'질문·요청사항을 입력하세요...'}"></textarea>
+          <button class="cal-fb-send" onclick="CAL.sendFb('${pfx}','${ev.id}')">전송 →</button>
+        </div>
+      </div>
+    </div>`;
+  },
+
+  selectDay(pfx,ds){const st=this.g(pfx);st.selDay=ds;st.selEv=null;this.renderGrid(pfx);this.renderPanel(pfx);},
+  selectEv(pfx,id,e){if(e)e.stopPropagation();const st=this.g(pfx);st.selEv=id;const ev=(st.exams||[]).find(x=>x.id===id);if(ev)st.selDay=ev.dueDate;this.renderGrid(pfx);this.renderPanel(pfx);},
+  clearEv(pfx){this.g(pfx).selEv=null;this.renderPanel(pfx);},
+
+  changeStatus(pfx,id,ns){
+    const st=this.g(pfx);
+    DB.getStudents().forEach(s=>{const exams=DB.getExams(s.id);const idx=exams.findIndex(e=>e.id===id);if(idx>=0){exams[idx].status=ns;DB.setExams(s.id,exams);}});
+    const li=(st.exams||[]).findIndex(e=>e.id===id);if(li>=0)st.exams[li].status=ns;
+    this.renderPanel(pfx);
+  },
+
+  sendFb(pfx,id){
+    const st=this.g(pfx);const inp=q(`cal-inp-${id}`);if(!inp||!inp.value.trim())return;
+    const author=st.role==='consultant'?(S.consultant?.name||'컨설턴트'):(S.student?.name||'학생');
+    const fb={id:'cf_'+Date.now(),role:st.role,author,content:inp.value.trim(),ts:Date.now()};
+    DB.getStudents().forEach(s=>{const exams=DB.getExams(s.id);const idx=exams.findIndex(e=>e.id===id);if(idx>=0){if(!exams[idx].calFeedbacks)exams[idx].calFeedbacks=[];exams[idx].calFeedbacks.push(fb);DB.setExams(s.id,exams);}});
+    const li=(st.exams||[]).findIndex(e=>e.id===id);if(li>=0){if(!st.exams[li].calFeedbacks)st.exams[li].calFeedbacks=[];st.exams[li].calFeedbacks.push(fb);}
+    inp.value='';this.renderPanel(pfx);
+    setTimeout(()=>{const t=q(`cal-fb-${id}`);if(t)t.scrollTop=t.scrollHeight;},50);
+  },
+
+  render(pfx){this.renderFilters(pfx);this.renderGrid(pfx);this.renderPanel(pfx);}
+};
+
+function calPrev(pfx){const st=CAL.g(pfx);st.month--;if(st.month<0){st.month=11;st.year--;}st.selDay=null;st.selEv=null;CAL.render(pfx);}
+function calNext(pfx){const st=CAL.g(pfx);st.month++;if(st.month>11){st.month=0;st.year++;}st.selDay=null;st.selEv=null;CAL.render(pfx);}
+function calToday(pfx){const n=new Date();const st=CAL.g(pfx);st.year=n.getFullYear();st.month=n.getMonth();st.selDay=null;st.selEv=null;CAL.render(pfx);}
+
+function renderDashCalPreview(pfx){
+  let exams=[];
+  if(pfx==='s'&&S.student?.id){exams=DB.getExams(S.student.id);}
+  else if(pfx==='c'&&S.consultant?.id){const ms=DB.getStudents().filter(s=>s.consultantId===S.consultant.id);exams=ms.flatMap(s=>DB.getExams(s.id).map(e=>({...e,_studentName:s.name})));}
+  const n=new Date();const t0=`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+  const f=new Date(n.getTime()+14*86400000);const t1=`${f.getFullYear()}-${String(f.getMonth()+1).padStart(2,'0')}-${String(f.getDate()).padStart(2,'0')}`;
+  const ups=exams.filter(e=>e.dueDate>=t0&&e.dueDate<=t1).sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
+  const elId=pfx==='s'?'s-dash-cal-preview':'c-dash-cal-preview';const el=q(elId);if(!el)return;
+  if(!ups.length){el.innerHTML=`<div class="card"><div class="card-lbl" style="margin-bottom:8px">◫ 수행평가 일정 (14일 내)</div><div style="font-size:12px;color:var(--muted)">14일 내 예정된 수행평가가 없습니다</div></div>`;return;}
+  const calLink=pfx==='s'?"sSide(null,'s-cal')"  :"cSide(null,'c-cal')";
+  el.innerHTML=`<div class="card"><div class="card-lbl" style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between"><span>◫ 수행평가 일정 (14일 내)</span><button class="btn btn-ghost btn-sm" onclick="${calLink}">캘린더 전체 →</button></div>
+  ${ups.slice(0,4).map(e=>{
+    const c=TC_CAL[e.evalType||'제출'];
+    const dp=(e.dueDate||'').split('-');const dl=dp.length===3?`${parseInt(dp[1])}/${parseInt(dp[2])}`:'—';
+    const sn=e._studentName?` · ${e._studentName}`:'';
+    return `<div class="cal-mini-preview" onclick="${calLink}"><div class="cal-mini-dt">${dl}${e.time?' '+e.time:''}</div><div class="cal-mini-items"><span class="cal-tp" style="background:${c.bg};color:${c.color};border-color:${c.border};font-size:9px;padding:2px 7px">${e.evalType||'제출'}</span><span style="font-size:11px;color:var(--text);font-weight:600">${e.subject}${sn}</span></div></div>`;
+  }).join('')}
+  ${ups.length>4?`<div style="font-size:11px;color:var(--muted);text-align:center;padding:4px 0;cursor:pointer" onclick="${calLink}">+${ups.length-4}건 더보기</div>`:''}
+  </div>`;
+}
+
+// BOOT
+initDB();
+</script>
+</body>
+</html>

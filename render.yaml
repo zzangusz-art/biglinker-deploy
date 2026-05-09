@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: biglinker
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DB_PATH
+        value: /data/biglinker.db
+      - key: UPLOADS_DIR
+        value: /data/uploads
+      - key: ALLOWED_ORIGINS
+        value: https://your-domain.com
+    disk:
+      name: biglinker-data
+      mountPath: /data
+      sizeGB: 10
+    healthCheckPath: /health
+    autoDeploy: true

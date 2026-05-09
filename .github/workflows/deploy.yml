@@ -1,0 +1,40 @@
+name: BigLinker Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Railway 자동 배포
+      - name: Deploy to Railway
+        if: vars.PLATFORM == 'railway'
+        uses: bervProject/railway-deploy@main
+        with:
+          railway_token: ${{ secrets.RAILWAY_TOKEN }}
+          service: biglinker
+
+      # Render 자동 배포
+      - name: Deploy to Render
+        if: vars.PLATFORM == 'render'
+        run: |
+          curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}
+
+      # VPS SSH 배포
+      - name: Deploy to VPS
+        if: vars.PLATFORM == 'vps'
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd /var/www/biglinker
+            git pull origin main
+            npm install --only=production
+            pm2 restart biglinker
