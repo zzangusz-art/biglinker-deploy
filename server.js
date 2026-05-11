@@ -577,8 +577,8 @@ app.post('/api/claude/stream', auth, aiLimiter, async (req, res) => {
     ? messages
     : [{ role: 'user', content: userMsg }];
 
-  // 토큰 한도: 기본 4096, 최대 4096
-  const tokens = Math.min(parseInt(maxTokens) || 4096, 4096);
+  // 토큰 한도: 기본 8000, 최대 8000
+  const tokens = Math.min(parseInt(maxTokens) || 8000, 8000);
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
