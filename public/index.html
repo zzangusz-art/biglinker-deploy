@@ -1377,7 +1377,6 @@ function showStudent(){
   q('s-badge').textContent=`${s.name} · ${s.school||''} ${s.grade||''}학년`;
   renderStudentDash();
   loadProfile();
-  renderCutoffTables();
   renderPerfPage();
   renderFbPage();
   renderHistPage();
@@ -2006,33 +2005,6 @@ function renderStudentDash(){
   renderDashCalPreview('s');
 }
 
-// ═══════════════════════════════════════
-// CUTOFF TABLES
-// ═══════════════════════════════════════
-function renderCutoffTables(){
-  // 페이지 헤더를 현재 학생 정보로 동적 업데이트
-  const s=S.student||{};
-  const gb=DB.getGb(s.id)||'';
-  const hasGb=gb.length>50;
-  const titleEl=document.querySelector('#s-cutoff .ph-title');
-  const subEl=document.querySelector('#s-cutoff .ph-sub');
-  if(titleEl) titleEl.innerHTML=`${s.targetDept||'목표 학과'} <em>합격선 분석</em>`;
-  if(subEl) subEl.textContent=`2025학년도 기준 · ${s.name||''}학생 목표: ${s.targetUniv||'미입력'} ${s.targetDept||''} · ${hasGb?'생기부 등록됨 — AI 맞춤 분석 가능':'생기부 미등록 — 업로드 후 AI 분석 가능'} · 참고용 데이터`;
-
-  const cols=`<tr><th>대학교</th><th>학과</th><th>수시(학종) 내신</th><th>수시(교과) 내신</th><th>정시 백분위</th><th>경쟁률</th><th>분류</th><th>비고</th></tr>`;
-  const row=s=>{
-    const catLabel={reach:'상향 도전',match:'적정',safe:'하향 안정'}[s.cat];
-    const catClass={reach:'cat-reach',match:'cat-match',safe:'cat-safe'}[s.cat];
-    const targetUniv=S.student?.targetUniv||'';
-    const highlight=targetUniv&&s.name.includes(targetUniv.slice(0,4))?'background:rgba(79,125,255,.06);outline:1px solid rgba(79,125,255,.2)':'';
-    return `<tr style="${highlight}"><td><b>${s.name}</b></td><td>${s.dept}</td><td class="num">${s.수시학종}</td><td class="num">${s.수시교과}</td><td class="num">${s.정시}</td><td class="num">${s.경쟁률}</td><td class="${catClass}"><b>${catLabel}</b></td><td style="color:var(--muted)">${s.note}</td></tr>`;
-  };
-  const makeTable=(schools)=>`<div style="overflow-x:auto"><table class="tbl">${cols}${schools.map(row).join('')}</table></div>`;
-  q('cutoff-table-all').innerHTML=makeTable(SCHOOLS);
-  q('cutoff-table-reach').innerHTML=makeTable(SCHOOLS.filter(s=>s.cat==='reach'));
-  q('cutoff-table-match').innerHTML=makeTable(SCHOOLS.filter(s=>s.cat==='match'));
-  q('cutoff-table-safe').innerHTML=makeTable(SCHOOLS.filter(s=>s.cat==='safe'));
-}
 
 // ═══════════════════════════════════════
 // 수행평가 MANAGEMENT
@@ -2359,7 +2331,7 @@ const ST=()=>{
   const s=MEM.student||S.student||{};
   const gb=MEM.gb||DB.getGb(s.id)||'';
   const gbSection=gb
-    ? `[학생 생기부 (업로드 완료 — ${gb.length}자)]\n${gb.slice(0,3000)}`
+    ? `[학생 생기부 (업로드 완료 — ${gb.length}자)]\n${gb.slice(0,6000)}`
     : '[생기부 미업로드 — 학생이 생기부 분석 페이지에서 업로드해야 개인 맞춤 분석이 가능합니다]';
   const gradeStr=getGradeSummary();
   const gradeSection=gradeStr?`\n\n[성적 현황 (내신 등급)]\n${gradeStr}`:'';
@@ -2789,22 +2761,45 @@ async function handleGbFile(inp){
     notice.innerHTML='<div class="ntc ntc-b" style="margin-top:8px"><span>·</span>PDF 텍스트 추출 중...</div>';
     try{
       const buf=await f.arrayBuffer();
-      const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+      const pdf=await pdfjsLib.getDocument({data:buf,cMapUrl:'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',cMapPacked:true}).promise;
       let text='';
       for(let i=1;i<=pdf.numPages;i++){
         const page=await pdf.getPage(i);
-        const content=await page.getTextContent();
-        text+=content.items.map(it=>it.str).join(' ')+'\n';
+        const content=await page.getTextContent({includeMarkedContent:false});
+        const items=content.items;
+        // y좌표 기준으로 줄 그룹핑 (같은 줄 = y차이 3pt 이내)
+        const lineMap=new Map();
+        for(const it of items){
+          if(!it.str)continue;
+          const y=Math.round(it.transform[5]);
+          let key=y;
+          // 근접한 y값 찾기
+          for(const k of lineMap.keys()){if(Math.abs(k-y)<=3){key=k;break;}}
+          if(!lineMap.has(key))lineMap.set(key,[]);
+          lineMap.get(key).push({x:it.transform[4],str:it.str,eol:it.hasEOL});
+        }
+        // y 내림차순 정렬 (위에서 아래로)
+        const sortedY=[...lineMap.keys()].sort((a,b)=>b-a);
+        let prevY=null;
+        for(const y of sortedY){
+          // 큰 y 간격 = 단락 구분
+          if(prevY!==null&&Math.abs(prevY-y)>15)text+='\n';
+          const lineItems=lineMap.get(y).sort((a,b)=>a.x-b.x);
+          text+=lineItems.map(it=>it.str).join('')+'\n';
+          prevY=y;
+        }
+        text+='\n';
       }
-      q('gb-in').value=text.trim();
-      notice.innerHTML=`<div class="ntc ntc-g" style="margin-top:8px"><span>✓</span>PDF 추출 완료 — ${pdf.numPages}페이지 / ${text.length.toLocaleString()}자. 내용을 확인 후 AI 분석을 시작하세요.</div>`;
+      text=text.replace(/[ \t]{2,}/g,' ').replace(/\n{3,}/g,'\n\n').trim();
+      q('gb-in').value=text;
+      notice.innerHTML=`<div class="ntc ntc-g" style="margin-top:8px"><span>✓</span>PDF 추출 완료 — ${pdf.numPages}페이지 / ${text.length.toLocaleString()}자 추출. 내용을 확인 후 AI 분석을 시작하세요.</div>`;
     }catch(e){
       notice.innerHTML=`<div class="ntc ntc-r" style="margin-top:8px"><span>✗</span>PDF 추출 실패: ${e.message}. 내용을 직접 복사하여 붙여넣어 주세요.</div>`;
     }
   }else{
     const r=new FileReader();
     r.onload=e=>{q('gb-in').value=e.target.result;notice.innerHTML='<div class="ntc ntc-g" style="margin-top:8px"><span>✓</span>파일 로드 완료. AI 분석 시작 버튼을 눌러주세요.</div>';};
-    r.readAsText(f);
+    r.readAsText(f,'utf-8');
   }
 }
 function loadSample(){q('gb-in').value=SAMPLE_GB;}
@@ -2812,49 +2807,61 @@ function loadSavedGb(){const gb=DB.getGb(S.student?.id);if(gb)q('gb-in').value=g
 async function runUpload(){
   const text=v('gb-in');if(!text){alert('내용을 입력하세요.');return;}
   const sid=S.student?.id;if(!sid)return;
+  const s=MEM.student||S.student||{};
   const el=q('upload-r');
-  el.innerHTML='<div class="ntc ntc-b" style="margin-top:8px"><span>·</span>서버에 저장 중...</div>';
+  el.innerHTML='<div class="ntc ntc-b" style="margin-top:8px"><span>·</span>생기부 저장 중...</div>';
   try{
     await api('PUT',`/api/students/${sid}/gb`,{content:text});
     MEM.gb=text;
     renderStudentDash();
-    // 1단계: 생기부 종합 분석
+    // 1단계: 종합 대시보드 분석 (스트리밍 — 결과 즉시 표시)
+    const prog=document.createElement('div');
+    prog.id='upload-prog';
+    prog.innerHTML='<div class="ntc ntc-b" style="margin-top:8px"><span>·</span><b>전체 섹션 병렬 분석 중</b> (역량점수·로드맵·과목전략·합격컷·논술·면접) — 잠시만 기다려주세요...</div>';
+    el.innerHTML='';el.appendChild(prog);
     await callAI(
-      '당신은 대입 전문 컨설턴트입니다. 학생의 생기부를 정밀 분석하여 (1)3대 역량(학업·진로·공동체) 점수 추정(100점 만점) 및 진단 (2)핵심 강점 키워드 3가지 (3)즉시 보완 필요 항목 (4)목표 대학 합격 맞춤 전략을 구체적으로 제시하세요. **굵게**, ### 소제목 활용.',
-      `학생: ${(MEM.student||S.student)?.name}, ${(MEM.student||S.student)?.school} ${(MEM.student||S.student)?.grade}학년\n목표: ${(MEM.student||S.student)?.targetUniv} ${(MEM.student||S.student)?.targetDept}\n\n생기부:\n${text}`,
-      el,'biglinker AI — 생기부 분석',sid,null,'dashboard');
-    // 2단계: 나머지 섹션 자동 분석 (백그라운드 순차 실행)
-    el.innerHTML+='<div class="ntc ntc-b" style="margin-top:8px"><span>·</span>역량 점수·로드맵·과목 전략·합격 컷 분석 중 (백그라운드)...</div>';
+      PROMPTS.dashboard,
+      `학생: ${s.name||''}, ${s.school||''} ${s.grade||''}학년\n목표: ${s.targetUniv||''} ${s.targetDept||''}\n\n생기부:\n${text.slice(0,6000)}`,
+      el,'biglinker AI — 생기부 종합 분석',sid,null,'dashboard');
+    // 2단계: 모든 섹션 3개씩 병렬 분석 (백그라운드)
+    const progEl=document.createElement('div');
+    progEl.style.cssText='font-size:11px;color:var(--muted);margin-top:8px;padding:8px 12px;background:var(--s2);border-radius:var(--r8)';
+    progEl.textContent='⚡ 역량점수·로드맵·과목전략·합격컷·논술·면접 병렬 분석 중...';
+    el.appendChild(progEl);
     autoRunAllAnalyses(sid,text).then(()=>{
-      el.querySelector('.ntc-b')&&(el.querySelector('.ntc-b').outerHTML='');
+      progEl.textContent='✓ 전체 분석 완료 — 각 섹션에서 결과를 확인하세요.';
+      progEl.style.color='var(--green)';
       renderStudentDash();updateAnalysisBadges();
     });
-  }catch(e){el.innerHTML=`<div class="ntc ntc-r" style="margin-top:8px"><span>✗</span>저장 실패: ${e.message}</div>`;}
+  }catch(e){el.innerHTML=`<div class="ntc ntc-r" style="margin-top:8px"><span>✗</span>오류: ${e.message}</div>`;}
 }
 
 // 생기부 분석 완료 후 전체 섹션 자동 분석 (순차 실행으로 API 부하 분산)
 async function autoRunAllAnalyses(sid,gbText){
   const s=MEM.student||S.student||{};
-  const base=`학생: ${s.name||''}, ${s.school||''} ${s.grade||''}학년\n목표: ${s.targetUniv||''} ${s.targetDept||''}\n\n생기부:\n${gbText.slice(0,3000)}`;
+  // 생기부 최대 6000자 사용 (이전 3000자에서 확장)
+  const gbSlice=gbText.slice(0,6000);
+  const base=`학생: ${s.name||''}, ${s.school||''} ${s.grade||''}학년\n목표: ${s.targetUniv||''} ${s.targetDept||''}\n\n생기부:\n${gbSlice}`;
   const gradeStr=getGradeSummary();
   const fullBase=gradeStr?`${base}\n\n[성적 현황]\n${gradeStr}`:base;
   const tasks=[
-    {type:'academic',  sys:PROMPTS.academic,   msg:fullBase, label:'biglinker AI — 학업역량'},
-    {type:'career',    sys:PROMPTS.career,      msg:fullBase, label:'biglinker AI — 진로역량'},
-    {type:'community', sys:PROMPTS.community,   msg:fullBase, label:'biglinker AI — 공동체역량'},
-    {type:'admission', sys:PROMPTS.admission,   msg:fullBase, label:'biglinker AI — 전형 전략'},
-    {type:'roadmap',   sys:PROMPTS.roadmap,     msg:fullBase, label:'biglinker AI — 활동 로드맵'},
-    {type:'subjects',  sys:PROMPTS.subjects,    msg:fullBase, label:'biglinker AI — 과목 전략'},
-    {type:'cutoff',    sys:PROMPTS['cutoff-ai'],msg:`${fullBase}\n\n[분석 요청] 위 학생의 목표 학과(${s.targetDept||'목표 학과'}) 합격선 기준 상향·적정·하향 대학 추천과 전략을 구체적으로 제시하세요.`, label:'biglinker AI — 맞춤 지원 전략'},
-    {type:'essay',     sys:PROMPTS.essay,       msg:`${fullBase}\n\n[분석 요청] 위 학생의 목표 대학(${s.targetUniv||'목표 대학'}) ${s.targetDept||'목표 학과'} 논술 전형 대비 맞춤 분석 보고서를 작성하세요. 생기부 세특 내용을 구체적으로 인용하여 연계하세요.`, label:'biglinker AI — 논술 대비'},
-    {type:'interview', sys:PROMPTS.interview,   msg:`${fullBase}\n\n[분석 요청] 위 학생의 목표 대학(${s.targetUniv||'목표 대학'}) ${s.targetDept||'목표 학과'} 학종 면접 맞춤 예상 질문 7개를 생기부 내용을 직접 인용하여 생성하세요.`, label:'biglinker AI — 면접 질문'},
+    {type:'academic',  sys:PROMPTS.academic,   msg:fullBase},
+    {type:'career',    sys:PROMPTS.career,      msg:fullBase},
+    {type:'community', sys:PROMPTS.community,   msg:fullBase},
+    {type:'admission', sys:PROMPTS.admission,   msg:fullBase},
+    {type:'roadmap',   sys:PROMPTS.roadmap,     msg:fullBase},
+    {type:'subjects',  sys:PROMPTS.subjects,    msg:fullBase},
+    {type:'cutoff',    sys:PROMPTS['cutoff-ai'],msg:`${fullBase}\n\n[분석 요청] 위 학생의 목표 학과(${s.targetDept||'목표 학과'}) 합격선 기준 상향·적정·하향 대학 추천과 전략을 구체적으로 제시하세요.`},
+    {type:'essay',     sys:PROMPTS.essay,       msg:`${fullBase}\n\n[분석 요청] 위 학생의 목표 대학(${s.targetUniv||'목표 대학'}) ${s.targetDept||'목표 학과'} 논술 전형 대비 맞춤 분석 보고서를 작성하세요. 생기부 세특 내용을 구체적으로 인용하여 연계하세요.`},
+    {type:'interview', sys:PROMPTS.interview,   msg:`${fullBase}\n\n[분석 요청] 위 학생의 목표 대학(${s.targetUniv||'목표 대학'}) ${s.targetDept||'목표 학과'} 학종 면접 맞춤 예상 질문 7개를 생기부 내용을 직접 인용하여 생성하세요.`},
   ];
-  for(const t of tasks){
+
+  async function runTask(t){
     try{
       const r=await fetch('/api/claude/stream',{method:'POST',
         headers:{'Content-Type':'application/json','Authorization':`Bearer ${TOKEN}`},
         body:JSON.stringify({system:t.sys,userMsg:t.msg,maxTokens:8000})});
-      if(!r.ok)continue;
+      if(!r.ok)return;
       const reader=r.body.getReader();const dec=new TextDecoder();let buf='',full='';
       while(true){
         const{done,value}=await reader.read();if(done)break;
@@ -2868,8 +2875,8 @@ async function autoRunAllAnalyses(sid,gbText){
       if(full&&sid===S.student?.id){
         MEM.analyses[t.type]={content:full,updatedAt:Date.now()};
         api('PUT',`/api/students/${sid}/analyses/${t.type}`,{content:full}).catch(()=>{});
-        DB.addHistory(sid,{type:t.label,content:full.slice(0,300)});
-        api('POST',`/api/students/${sid}/history`,{type:t.label,content:full.slice(0,300)}).catch(()=>{});
+        DB.addHistory(sid,{type:`biglinker AI — ${t.type}`,content:full.slice(0,300)});
+        api('POST',`/api/students/${sid}/history`,{type:`biglinker AI — ${t.type}`,content:full.slice(0,300)}).catch(()=>{});
         // 현재 열린 섹션 즉시 갱신
         const apid=document.querySelector('#scr-student .page.on')?.id;
         if(apid==='s-scores')renderScoresPage();
@@ -2882,6 +2889,12 @@ async function autoRunAllAnalyses(sid,gbText){
         updateAnalysisBadges();
       }
     }catch(e){console.warn('autoRun error:',t.type,e);}
+  }
+
+  // 3개씩 병렬 실행 (순차 대비 ~3배 빠름)
+  const BATCH=3;
+  for(let i=0;i<tasks.length;i+=BATCH){
+    await Promise.allSettled(tasks.slice(i,i+BATCH).map(t=>runTask(t)));
   }
 }
 
