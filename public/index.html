@@ -634,7 +634,7 @@ textarea{resize:vertical;min-height:72px}
 
       <!-- ── CUTOFF & SCHOOL RECOMMEND ── -->
       <div class="page" id="s-cutoff">
-        <div class="ph"><div class="ph-tag">합격 컷 · 학교 추천</div><div class="ph-title">2025 간호학과 <em>합격선 분석</em></div><div class="ph-sub">2025학년도 기준 · 내신 4.70등급 기준 상향·적정·하향 분류 · 참고용 데이터</div></div>
+        <div class="ph"><div class="ph-tag">합격 컷 · 학교 추천</div><div class="ph-title" id="cutoff-ph-title"><em>합격선 분석</em></div><div class="ph-sub" id="cutoff-ph-sub">생기부 분석 후 개인 맞춤 지원 전략이 제공됩니다</div></div>
         <div class="ntc ntc-y"><span>⚠</span><div>아래 데이터는 <b>참고용 추정치</b>입니다. 실제 합격선은 매년 변동되며, 반드시 각 대학 입학처에서 확인하세요.</div></div>
         <div class="tabrow">
           <div class="tb on" onclick="switchTab(this,'ct-all')">전체 목록</div>
@@ -657,21 +657,7 @@ textarea{resize:vertical;min-height:72px}
       <!-- ── ADMISSION ── -->
       <div class="page" id="s-admission">
         <div class="ph"><div class="ph-tag">전형 전략</div><div class="ph-title">수시 6장 <em>최적 배분</em></div></div>
-        <div class="g2" style="margin-bottom:14px">
-          <div class="card"><div class="card-lbl" style="margin-bottom:10px">배분 제안</div>
-            <div class="iss iss-r"><div><div class="i-t">도전 1장</div><div class="i-d">가톨릭대 학교장추천 — 현 위험권, 3학년 개선 후 재평가</div></div></div>
-            <div class="iss iss-o"><div><div class="i-t">소신 2장</div><div class="i-d">중상위 간호학과 학종·논술 병행 전략</div></div></div>
-            <div class="iss iss-g"><div><div class="i-t">안정 3장</div><div class="i-d">지방 거점 간호학과 교과전형 (내신 4등급대)</div></div></div>
-          </div>
-          <div class="card"><div class="card-lbl" style="margin-bottom:10px">전형별 적합도</div>
-            <div class="sb-row"><div class="sb-nm">학생부종합</div><div class="sb-tr"><div class="sb-fl" style="width:32%;background:var(--yellow)"></div></div><div class="sb-ch ch-warn">소신</div></div>
-            <div class="sb-row"><div class="sb-nm">학생부교과</div><div class="sb-tr"><div class="sb-fl" style="width:55%;background:var(--blue)"></div></div><div class="sb-ch ch-good">적정</div></div>
-            <div class="sb-row"><div class="sb-nm">논술전형</div><div class="sb-tr"><div class="sb-fl" style="width:45%;background:var(--teal)"></div></div><div class="sb-ch ch-ok">준비</div></div>
-            <div class="sb-row"><div class="sb-nm">정시</div><div class="sb-tr"><div class="sb-fl" style="width:20%;background:var(--red)"></div></div><div class="sb-ch ch-bad">불리</div></div>
-          </div>
-        </div>
-        <button class="btn btn-b" onclick="runAI('admission',this,q('res-admission'))">🤖 AI 지원 전략 상세 분석</button>
-        <div id="res-admission"></div>
+        <div id="admission-content" style="margin-top:0"></div>
       </div>
 
       <!-- ── GRADES ── -->
@@ -734,181 +720,21 @@ textarea{resize:vertical;min-height:72px}
           <div class="tb" onclick="switchTab(this,'sc-jin')">진로역량</div>
           <div class="tb" onclick="switchTab(this,'sc-gong')">공동체역량</div>
         </div>
-        <div class="tc on" id="sc-hak">
-          <div class="g2" style="margin-bottom:12px">
-            <div class="card"><div class="card-lbl">학업역량 점수</div>
-              <div class="ring-wr" style="margin-top:10px">
-                <svg width="84" height="84" viewBox="0 0 84 84"><circle cx="42" cy="42" r="31" fill="none" stroke="var(--s4)" stroke-width="6"/><circle cx="42" cy="42" r="31" fill="none" stroke="var(--purple)" stroke-width="6" stroke-dasharray="194.8" stroke-dashoffset="111" stroke-linecap="round" transform="rotate(-90 42 42)"/><text x="42" y="46" text-anchor="middle" font-size="13" fill="var(--text)" font-family="JetBrains Mono,monospace" font-weight="500">43.3</text></svg>
-                <div><div class="ring-n">43.3<span style="font-size:14px;color:var(--muted)">/100</span></div><div class="ring-s">경쟁자 평균 69.4점</div><div class="ring-d c-r">▼ 26.1점 부족</div></div>
-              </div>
-            </div>
-            <div class="card"><div class="card-lbl">세부 항목</div>
-              <div style="margin-top:8px">
-                <div class="sb-row"><div class="sb-nm">적극성</div><div class="sb-tr"><div class="sb-fl" style="width:62%;background:var(--teal)"></div></div><div class="sb-ch ch-ok">양호</div></div>
-                <div class="sb-row"><div class="sb-nm">탐구정신</div><div class="sb-tr"><div class="sb-fl" style="width:32%;background:var(--orange)"></div></div><div class="sb-ch ch-warn">보완</div></div>
-                <div class="sb-row"><div class="sb-nm">전공진로</div><div class="sb-tr"><div class="sb-fl" style="width:28%;background:var(--red)"></div></div><div class="sb-ch ch-bad">취약</div></div>
-                <div class="sb-row"><div class="sb-nm">협력성</div><div class="sb-tr"><div class="sb-fl" style="width:66%;background:var(--blue)"></div></div><div class="sb-ch ch-good">양호</div></div>
-              </div>
-            </div>
-          </div>
-          <div class="card"><div class="card-lbl" style="margin-bottom:10px">AI 학업역량 보완 전략</div>
-            <button class="btn btn-b" onclick="runAI('academic',this,q('res-academic'))">🤖 보완 전략 생성</button><div id="res-academic"></div></div>
-        </div>
-        <div class="tc" id="sc-jin">
-          <div class="g2" style="margin-bottom:12px">
-            <div class="card"><div class="card-lbl">진로역량 — 최우선 보완</div>
-              <div class="ring-wr" style="margin-top:10px">
-                <svg width="84" height="84" viewBox="0 0 84 84"><circle cx="42" cy="42" r="31" fill="none" stroke="var(--s4)" stroke-width="6"/><circle cx="42" cy="42" r="31" fill="none" stroke="var(--orange)" stroke-width="6" stroke-dasharray="194.8" stroke-dashoffset="118" stroke-linecap="round" transform="rotate(-90 42 42)"/><text x="42" y="46" text-anchor="middle" font-size="13" fill="var(--text)" font-family="JetBrains Mono,monospace" font-weight="500">39.6</text></svg>
-                <div><div class="ring-n">39.6<span style="font-size:14px;color:var(--muted)">/100</span></div><div class="ring-s">경쟁자 평균 68.3점</div><div class="ring-d c-r">▼ 28.7점 · 최우선</div></div>
-              </div>
-            </div>
-            <div class="card"><div class="card-lbl">전공 연계 과목</div>
-              <table class="tbl" style="margin-top:8px">
-                <tr><th>과목</th><th>구분</th><th>등급</th><th>상태</th></tr>
-                <tr><td>생명과학Ⅰ</td><td>핵심</td><td><span class="bdg bdg-p">5등급</span></td><td style="color:var(--orange)">미흡</td></tr>
-                <tr style="opacity:.5"><td>생명과학Ⅱ</td><td>핵심</td><td>—</td><td style="color:var(--red)">미이수</td></tr>
-                <tr style="opacity:.5"><td>확률과통계</td><td>핵심</td><td>—</td><td style="color:var(--red)">미이수</td></tr>
-                <tr style="opacity:.5"><td>화학Ⅰ</td><td>권장</td><td>—</td><td style="color:var(--orange)">미이수</td></tr>
-              </table>
-            </div>
-          </div>
-          <div class="card"><div class="card-lbl" style="margin-bottom:8px">진로 강점 키워드</div>
-            <div class="chips"><span class="chip chip-p">간호학 진로탐색</span><span class="chip chip-t">응급처치</span><span class="chip chip-b">코로나 모델링</span><span class="chip chip-o">심폐소생술</span><span class="chip chip-g">의료윤리</span></div>
-            <div class="btn-row"><button class="btn btn-b" onclick="runAI('career',this,q('res-career'))">🤖 진로역량 보완 전략</button></div><div id="res-career"></div></div>
-        </div>
-        <div class="tc" id="sc-gong">
-          <div class="card"><div class="card-lbl">공동체역량 — 강점</div>
-            <div class="ring-wr" style="margin-top:10px">
-              <svg width="84" height="84" viewBox="0 0 84 84"><circle cx="42" cy="42" r="31" fill="none" stroke="var(--s4)" stroke-width="6"/><circle cx="42" cy="42" r="31" fill="none" stroke="var(--green)" stroke-width="6" stroke-dasharray="194.8" stroke-dashoffset="58" stroke-linecap="round" transform="rotate(-90 42 42)"/><text x="42" y="46" text-anchor="middle" font-size="13" fill="var(--text)" font-family="JetBrains Mono,monospace" font-weight="500">70.7</text></svg>
-              <div><div class="ring-n">70.7<span style="font-size:14px;color:var(--muted)">/100</span></div><div class="ring-s">전체 상위 24.8% · 우수</div><div class="ring-d c-g">✓ 경쟁자 평균 초과</div></div>
-            </div>
-            <div class="chips" style="margin-top:14px"><span class="chip chip-g">출결 무결점</span><span class="chip chip-g">반대표</span><span class="chip chip-b">서번트 리더십</span><span class="chip chip-t">배려·포용</span></div>
-          </div>
-        </div>
+        <div class="tc on" id="sc-hak"><div id="sc-hak-ai" style="margin-top:10px"></div></div>
+        <div class="tc" id="sc-jin"><div id="sc-jin-ai" style="margin-top:10px"></div></div>
+        <div class="tc" id="sc-gong"><div id="sc-gong-ai" style="margin-top:10px"></div></div>
       </div>
 
       <!-- ── ROADMAP + KEYWORDS ── -->
       <div class="page" id="s-roadmap">
-        <div class="ph"><div class="ph-tag">활동 로드맵 · 생기부 키워드 가이드</div><div class="ph-title">세부 항목별 <em>키워드 전략</em></div><div class="ph-sub">간호학과 합격 생기부 기반 권장 키워드 · 컨설턴트 가이드 포함</div></div>
-        <div class="tabrow">
-          <div class="tb on" onclick="switchTab(this,'rm-map')">3년 로드맵</div>
-          <div class="tb" onclick="switchTab(this,'rm-setech')">세특 키워드</div>
-          <div class="tb" onclick="switchTab(this,'rm-chang')">창체 키워드</div>
-          <div class="tb" onclick="switchTab(this,'rm-club')">동아리 키워드</div>
-          <div class="tb" onclick="switchTab(this,'rm-career')">진로 키워드</div>
-        </div>
-        <div class="tc on" id="rm-map">
-          <div class="ntc ntc-b"><span>◎</span><div>현재 <b>2학년 2학기</b> — 남은 기간 집중 전략으로 역전 가능합니다</div></div>
-          <div class="road-wr">
-            <div class="road-col"><div class="road-gd">1학년 (완료)</div>
-              <div class="road-it" style="border-color:var(--muted)"><div class="road-it-t" style="color:var(--muted)">기초 탐색</div><div class="road-it-d">통합과학·통합사회 수강<br>심전도·체온조절 탐구<br>국어 2등급 강점 확보</div></div>
-              <div class="road-it" style="border-color:var(--muted)"><div class="road-it-t" style="color:var(--muted)">공동체 기반</div><div class="road-it-d">학급회장 · 출결 무결점<br>심폐소생술 영상 제작</div></div>
-            </div>
-            <div class="road-col"><div class="road-gd">2학년 (진행중)</div>
-              <div class="road-it" style="border-color:var(--red)"><div class="road-it-t" style="color:var(--red)">▶ 지금 당장</div><div class="road-it-d">생명과학 세특 3건↑<br>항상성·면역·유전자 치료<br>수학 의료통계 모델링</div></div>
-              <div class="road-it" style="border-color:var(--orange)"><div class="road-it-t" style="color:var(--orange)">▶ 이번 학기</div><div class="road-it-d">동아리 발표 주도<br>수업대표·모둠장 역할<br>진로 스터디 보고서 완성</div></div>
-            </div>
-            <div class="road-col"><div class="road-gd">3학년 (예정)</div>
-              <div class="road-it" style="border-color:var(--blue)"><div class="road-it-t" style="color:var(--blue)">1학기 필수</div><div class="road-it-d">생명과학Ⅱ + 확률과통계<br>세특 스토리 완성<br>간호 윤리 탐구 심화</div></div>
-              <div class="road-it" style="border-color:var(--green)"><div class="road-it-t" style="color:var(--green)">마무리</div><div class="road-it-d">논술·면접 집중 대비<br>수시 6장 최적 배분<br>모의면접 10회↑</div></div>
-            </div>
-          </div>
-          <div class="btn-row" style="margin-top:14px"><button class="btn btn-b" onclick="runAI('roadmap',this,q('res-roadmap'))">🤖 AI 맞춤 로드맵 생성</button></div>
-          <div id="res-roadmap"></div>
-        </div>
-        <!-- 세특 키워드 -->
-        <div class="tc" id="rm-setech">
-          <div class="rk-section">
-            <div class="rk-title">🔬 생명과학 세특 <span class="bdg bdg-b">핵심 과목</span></div>
-            <div class="rk-sub">간호학과 평가에서 가장 중요하게 반영되는 세특입니다. 아래 키워드를 중심으로 탐구 활동을 구성하세요.</div>
-            <div class="kw-group"><div class="kw-group-lbl">추천 탐구 키워드</div>
-              <div class="chips"><span class="chip chip-b">항상성·음성피드백</span><span class="chip chip-b">체온조절 기작</span><span class="chip chip-b">면역반응</span><span class="chip chip-b">유전자 치료</span><span class="chip chip-b">CRISPR-Cas9</span><span class="chip chip-t">신경전달물질</span><span class="chip chip-t">호르몬 조절</span><span class="chip chip-t">감염병 역학</span><span class="chip chip-g">혈압 조절</span><span class="chip chip-g">저체온증 처치</span></div>
-            </div>
-            <div class="kw-group"><div class="kw-group-lbl">포함 요소 (반드시 포함)</div>
-              <div class="chips"><span class="chip chip-o">자기주도 탐구과정</span><span class="chip chip-o">가설→검증 구조</span><span class="chip chip-o">간호학 연계 결론</span><span class="chip chip-o">데이터 시각화</span><span class="chip chip-o">한계점·발전방향</span></div>
-            </div>
-            <div class="kw-group"><div class="kw-group-lbl">피해야 할 표현</div>
-              <div class="chips"><span class="chip chip-p">단순 개념 정리</span><span class="chip chip-p">교과서 요약</span><span class="chip chip-p">인상 깊었다</span><span class="chip chip-p">배웠다·알았다</span></div>
-            </div>
-          </div>
-          <div class="rk-section">
-            <div class="rk-title">📐 수학 세특 <span class="bdg bdg-g">전략적 연계</span></div>
-            <div class="rk-sub">의료·간호 분야와 수학을 연계하면 진로역량 점수를 동시에 높일 수 있습니다.</div>
-            <div class="kw-group"><div class="kw-group-lbl">추천 탐구 키워드</div>
-              <div class="chips"><span class="chip chip-b">감염병 SIR 모델</span><span class="chip chip-b">지수함수 활용</span><span class="chip chip-b">확률과통계 의료</span><span class="chip chip-t">R₀ 기초감염재생산</span><span class="chip chip-t">의료 통계 분석</span><span class="chip chip-g">생존율 곡선</span><span class="chip chip-g">카플란-마이어</span></div>
-            </div>
-          </div>
-          <div class="rk-section">
-            <div class="rk-title">📚 국어·영어 세특 <span class="bdg bdg-p">보조 역량</span></div>
-            <div class="chips"><span class="chip chip-b">의료 비문학 비판적 분석</span><span class="chip chip-b">헌혈 통계 논리 구조</span><span class="chip chip-t">WHO 영문 보고서 분석</span><span class="chip chip-t">의학 용어 어원 탐구</span><span class="chip chip-g">간호사 역할 에세이</span></div>
-          </div>
-        </div>
-        <!-- 창체 키워드 -->
-        <div class="tc" id="rm-chang">
-          <div class="rk-section">
-            <div class="rk-title">🏫 자율활동 <span class="bdg bdg-o">리더십 강화</span></div>
-            <div class="rk-sub">학급·학년 단위 활동에서 리더십과 공동체 기여를 구체적으로 기록해야 합니다.</div>
-            <div class="kw-group"><div class="kw-group-lbl">추천 활동 키워드</div>
-              <div class="chips"><span class="chip chip-o">학급자치활동 주도</span><span class="chip chip-o">건강·의료 캠페인</span><span class="chip chip-o">AED 위치 홍보</span><span class="chip chip-b">데이터 시각화 발표</span><span class="chip chip-b">의료기기 체험</span><span class="chip chip-g">감염병 예방 홍보</span></div>
-            </div>
-            <div class="kw-group"><div class="kw-group-lbl">포함 요소</div>
-              <div class="chips"><span class="chip chip-o">주도적 역할 명시</span><span class="chip chip-o">배움→실천 연결</span><span class="chip chip-o">간호직 연계 성찰</span></div>
-            </div>
-          </div>
-          <div class="rk-section">
-            <div class="rk-title">🔬 진로탐색활동 (창체 내)</div>
-            <div class="chips"><span class="chip chip-b">병원·보건소 견학</span><span class="chip chip-b">간호사 인터뷰</span><span class="chip chip-t">응급처치 교육 이수</span><span class="chip chip-t">대학 전공 설명회</span><span class="chip chip-g">의학 드라마 비판적 분석</span><span class="chip chip-p">간호 관련 뉴스 스크랩</span></div>
-          </div>
-        </div>
-        <!-- 동아리 키워드 -->
-        <div class="tc" id="rm-club">
-          <div class="rk-section">
-            <div class="rk-title">🩺 의료·보건 동아리 <span class="bdg bdg-r">최우선 구성</span></div>
-            <div class="rk-sub">간호학과는 동아리에서 전공 연계 활동 비중이 평가에 크게 반영됩니다.</div>
-            <div class="kw-group"><div class="kw-group-lbl">핵심 활동 키워드</div>
-              <div class="chips"><span class="chip chip-b">심폐소생술 실습·영상</span><span class="chip chip-b">활력징후 측정</span><span class="chip chip-b">응급처치 시나리오</span><span class="chip chip-t">의료 AI 탐구</span><span class="chip chip-t">공황장애·정신건강</span><span class="chip chip-g">감염관리 방법론</span><span class="chip chip-g">재난의료 대응</span><span class="chip chip-o">부장·발표 주도 역할</span></div>
-            </div>
-            <div class="kw-group"><div class="kw-group-lbl">포함 요소 (차별화)</div>
-              <div class="chips"><span class="chip chip-o">본인이 직접 주도한 활동</span><span class="chip chip-o">팀 내 역할 명확히</span><span class="chip chip-o">탐구 결과 보고서</span><span class="chip chip-p">동료 가르치기(멘토)</span></div>
-            </div>
-          </div>
-        </div>
-        <!-- 진로 키워드 -->
-        <div class="tc" id="rm-career">
-          <div class="rk-section">
-            <div class="rk-title">🎯 진로활동 핵심 키워드</div>
-            <div class="rk-sub">진로 일관성과 심화 탐색이 핵심입니다. 1학년부터 3학년까지 점점 구체화되는 스토리를 만드세요.</div>
-            <div class="kw-group"><div class="kw-group-lbl">1학년 (탐색기)</div>
-              <div class="chips"><span class="chip chip-b">간호사 직업 탐색</span><span class="chip chip-b">의료 직군 비교</span><span class="chip chip-t">간호 관련 도서 독서</span></div>
-            </div>
-            <div class="kw-group"><div class="kw-group-lbl">2학년 (심화기)</div>
-              <div class="chips"><span class="chip chip-o">전공 설명회 참가</span><span class="chip chip-o">간호 스터디 조직</span><span class="chip chip-o">남성 간호사 탐구</span><span class="chip chip-b">실제 간호 현장 이해</span></div>
-            </div>
-            <div class="kw-group"><div class="kw-group-lbl">3학년 (확신기)</div>
-              <div class="chips"><span class="chip chip-g">간호사 인터뷰 보고서</span><span class="chip chip-g">진로 포트폴리오 완성</span><span class="chip chip-g">임상 간호 분야 선택</span></div>
-            </div>
-            <div class="kw-group"><div class="kw-group-lbl">추천 독서 (면접 활용)</div>
-              <div class="chips"><span class="chip chip-p">미스터 나이팅게일</span><span class="chip chip-p">간호사가 말하는 간호사</span><span class="chip chip-p">아픔이 길이 되려면</span><span class="chip chip-p">돌봄의 역설</span><span class="chip chip-p">무너지지 말고 무뎌지지도</span></div>
-            </div>
-          </div>
-        </div>
+        <div class="ph"><div class="ph-tag">활동 로드맵</div><div class="ph-title">생기부 기반 <em>맞춤 로드맵</em></div><div class="ph-sub" id="roadmap-sub">생기부 분석 후 개인 맞춤 로드맵이 생성됩니다</div></div>
+        <div id="roadmap-content" style="margin-top:0"></div>
       </div>
 
       <!-- ── SUBJECTS ── -->
       <div class="page" id="s-subjects">
-        <div class="ph"><div class="ph-tag">과목 전략</div><div class="ph-title">고교학점제 <em>최적 이수</em></div></div>
-        <div class="g2">
-          <div class="card"><div class="card-lbl" style="margin-bottom:10px">🔴 반드시 이수</div>
-            <div class="iss iss-r"><div><div class="i-t">생명과학Ⅱ (3학년 1학기)</div><div class="i-d">핵심과목 · 세포신호전달·유전자발현 기초<br>항상성 탐구 → 임상 연계 심화 가능</div></div></div>
-            <div class="iss iss-r"><div><div class="i-t">확률과통계 (3학년 1학기)</div><div class="i-d">핵심과목 · 의료 데이터 분석 기반<br>코로나 모델링 세특과 완벽 연계</div></div></div>
-          </div>
-          <div class="card"><div class="card-lbl" style="margin-bottom:10px">🟠 권장 이수</div>
-            <div class="iss iss-o"><div><div class="i-t">화학Ⅰ</div><div class="i-d">권장과목 · 약물 작용 원리 기초<br>생명과학과 연계 탐구 확장</div></div></div>
-            <div class="iss iss-o"><div><div class="i-t">생활과 윤리 / 심리학</div><div class="i-d">간호 윤리·환자 심리 탐구 연계<br>면접 답변 깊이 향상</div></div></div>
-          </div>
-        </div>
-        <div class="btn-row"><button class="btn btn-b" onclick="runAI('subjects',this,q('res-subjects'))">🤖 AI 과목 선택 조언</button></div>
-        <div id="res-subjects"></div>
+        <div class="ph"><div class="ph-tag">과목 전략</div><div class="ph-title">생기부 기반 <em>과목 이수 전략</em></div><div class="ph-sub">생기부와 목표 학과를 분석하여 최적 과목 이수 경로를 제안합니다</div></div>
+        <div id="subjects-content" style="margin-top:0"></div>
       </div>
 
       <!-- ── 수행평가 캘린더 ── -->
@@ -1620,29 +1446,99 @@ function sSide(el,id){
   if(id==='s-history')renderHistPage();
   if(id==='s-perf')renderPerfPage();
   if(id==='s-feedback')renderFbPage();
-  if(id==='s-cutoff'||id==='s-admission'){renderCutoffTables();injectCachedAnalysis('cutoff','cutoff-ai-r');injectCachedAnalysis('admission','res-admission');}
-  if(id==='s-scores'){injectCachedAnalysis('academic','res-academic');injectCachedAnalysis('career','res-career');injectCachedAnalysis('community','res-community');}
-  if(id==='s-roadmap')injectCachedAnalysis('roadmap','res-roadmap');
-  if(id==='s-subjects')injectCachedAnalysis('subjects','res-subjects');
+  if(id==='s-cutoff'||id==='s-admission'){renderCutoffPage();}
+  if(id==='s-scores')renderScoresPage();
+  if(id==='s-roadmap')renderRoadmapPage();
+  if(id==='s-subjects')renderSubjectsPage();
   if(id==='s-grades')renderGradesPage();
   if(id==='s-cal'){CAL.init('s',S.student?.id?DB.getExams(S.student.id):[],'student');CAL.render('s');}
   updateAnalysisBadges();
 }
 
-// 캐시된 분석 결과를 해당 섹션에 주입
-function injectCachedAnalysis(type,elId){
-  const el=q(elId);if(!el)return;
-  const cached=MEM.analyses[type];
-  if(!cached?.content)return;
-  // 이미 내용이 있으면 덮어쓰지 않음
-  if(el.querySelector('.ai-box'))return;
-  const when=new Date(cached.updatedAt).toLocaleString('ko-KR');
-  const fmt=cached.content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+function fmtAI(content){
+  return content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/\*\*(.*?)\*\*/g,'<b>$1</b>')
     .replace(/^### (.+)$/gm,'<h3 style="margin:10px 0 4px;font-size:13px;color:var(--blue)">$1</h3>')
     .replace(/^## (.+)$/gm,'<h2 style="margin:12px 0 5px;font-size:14px;color:var(--text)">$1</h2>')
     .replace(/^- (.+)$/gm,'<div style="padding:2px 0 2px 13px;border-left:2px solid var(--border2);margin:2px 0;color:var(--muted);font-size:12px">$1</div>');
-  el.innerHTML=`<div class="ai-box"><div class="ai-head"><div class="ai-dot"></div>생기부 분석 기반 결과 <span style="font-size:10px;color:var(--muted);margin-left:6px">${when} 분석</span></div><div class="ai-body">${fmt}</div></div>`;
+}
+
+function renderAISection(containerId, type, runLabel, runType){
+  const el=q(containerId);if(!el)return;
+  const cached=MEM.analyses[type];
+  const gb=MEM.gb||DB.getGb(S.student?.id)||'';
+  const hasGb=gb.length>50;
+  const s=MEM.student||S.student||{};
+  if(cached?.content){
+    const when=new Date(cached.updatedAt).toLocaleString('ko-KR');
+    el.innerHTML=`<div class="ai-box"><div class="ai-head"><div class="ai-dot"></div>생기부 기반 AI 분석 — ${s.name||''} <span style="font-size:10px;color:var(--muted);margin-left:6px">${when} 분석</span><button class="btn btn-ghost btn-sm" style="margin-left:10px;padding:2px 8px;font-size:10px" onclick="rerunSection('${type}','${containerId}','${runLabel}','${runType}',this)">재분석</button></div><div class="ai-body">${fmtAI(cached.content)}</div></div>`;
+  }else if(hasGb){
+    el.innerHTML=`<div class="ntc ntc-b"><span>🤖</span><div><b>${s.name||'학생'}의 생기부가 등록되어 있습니다.</b><br>AI가 개인 맞춤 ${runLabel}을 생성합니다.<br><button class="btn btn-b btn-sm" style="margin-top:8px" onclick="rerunSection('${type}','${containerId}','${runLabel}','${runType}',this)">🤖 ${runLabel} 생성</button></div></div>`;
+  }else{
+    el.innerHTML=`<div class="ntc ntc-y"><span>📄</span><div>생기부를 업로드하면 <b>${s.targetUniv||'목표 대학'} ${s.targetDept||'목표 학과'}</b> 맞춤 AI 분석이 제공됩니다.<br><button class="btn btn-b btn-sm" style="margin-top:8px" onclick="sSide(null,'s-upload')">생기부 업로드 →</button></div></div>`;
+  }
+}
+
+async function rerunSection(type,containerId,runLabel,runType,btn){
+  const el=q(containerId);if(!el)return;
+  const orig=btn.innerHTML;btn.disabled=true;btn.innerHTML='분석 중...';
+  await runAI(runType||type,null,el);
+  btn.disabled=false;btn.innerHTML=orig;
+  renderAISection(containerId,type,runLabel,runType);
+}
+
+function renderScoresPage(){
+  renderAISection('sc-hak-ai','academic','학업역량 분석','academic');
+  renderAISection('sc-jin-ai','career','진로역량 분석','career');
+  // 공동체역량은 dashboard 분석 일부에서 추출
+  const el=q('sc-gong-ai');if(!el)return;
+  const cached=MEM.analyses['dashboard']||MEM.analyses['academic'];
+  const gb=MEM.gb||DB.getGb(S.student?.id)||'';
+  const hasGb=gb.length>50;
+  const s=MEM.student||S.student||{};
+  if(cached?.content){
+    const when=new Date(cached.updatedAt).toLocaleString('ko-KR');
+    el.innerHTML=`<div class="ntc ntc-b" style="margin-bottom:10px"><span>ℹ</span><div>공동체역량은 종합 대시보드 AI 분석에 포함되어 있습니다.</div></div><div class="ai-box"><div class="ai-head"><div class="ai-dot"></div>생기부 기반 종합 분석 — ${s.name||''} <span style="font-size:10px;color:var(--muted);margin-left:6px">${when}</span></div><div class="ai-body">${fmtAI(cached.content)}</div></div>`;
+  }else if(hasGb){
+    el.innerHTML=`<div class="ntc ntc-b"><span>🤖</span><div><b>${s.name||'학생'}의 생기부가 등록되어 있습니다.</b><br><button class="btn btn-b btn-sm" style="margin-top:8px" onclick="sSide(null,'s-upload')">생기부 분석 실행 →</button></div></div>`;
+  }else{
+    el.innerHTML=`<div class="ntc ntc-y"><span>📄</span><div>생기부를 업로드하면 공동체역량 분석이 제공됩니다.<br><button class="btn btn-b btn-sm" style="margin-top:8px" onclick="sSide(null,'s-upload')">생기부 업로드 →</button></div></div>`;
+  }
+}
+
+function renderRoadmapPage(){
+  const s=MEM.student||S.student||{};
+  const subEl=q('roadmap-sub');
+  if(subEl)subEl.textContent=`${s.name||'학생'}의 생기부 기반 · ${s.targetUniv||'목표 대학'} ${s.targetDept||'목표 학과'} 합격 전략`;
+  renderAISection('roadmap-content','roadmap','활동 로드맵','roadmap');
+}
+
+function renderSubjectsPage(){
+  renderAISection('subjects-content','subjects','과목 이수 전략','subjects');
+}
+
+function renderAdmissionPage(){
+  renderAISection('admission-content','admission','전형 전략 분석','admission');
+}
+
+function renderCutoffPage(){
+  renderCutoffTables();
+  const s=MEM.student||S.student||{};
+  const titleEl=q('cutoff-ph-title');
+  if(titleEl)titleEl.innerHTML=`${s.targetUniv||''} ${s.targetDept||''} <em>합격선 분석</em>`;
+  const subEl=q('cutoff-ph-sub');
+  if(subEl)subEl.textContent=`${s.name||'학생'} 맞춤 지원 전략 · 생기부 기반 분석`;
+  renderAISection('cutoff-ai-r','cutoff','맞춤 지원 전략','cutoff-ai');
+  renderAISection('admission-content','admission','전형 전략','admission');
+}
+
+// 캐시된 분석 결과를 해당 섹션에 주입 (레거시 호환용)
+function injectCachedAnalysis(type,elId){
+  const el=q(elId);if(!el)return;
+  const cached=MEM.analyses[type];
+  if(!cached?.content)return;
+  const when=new Date(cached.updatedAt).toLocaleString('ko-KR');
+  el.innerHTML=`<div class="ai-box"><div class="ai-head"><div class="ai-dot"></div>생기부 분석 기반 결과 <span style="font-size:10px;color:var(--muted);margin-left:6px">${when} 분석</span></div><div class="ai-body">${fmtAI(cached.content)}</div></div>`;
 }
 
 function renderStudentDash(){
@@ -2373,6 +2269,13 @@ async function autoRunAllAnalyses(sid,gbText){
         api('PUT',`/api/students/${sid}/analyses/${t.type}`,{content:full}).catch(()=>{});
         DB.addHistory(sid,{type:t.label,content:full.slice(0,300)});
         api('POST',`/api/students/${sid}/history`,{type:t.label,content:full.slice(0,300)}).catch(()=>{});
+        // 현재 열려있는 섹션 즉시 갱신
+        const activePageId=document.querySelector('#scr-student .page.on')?.id;
+        if(activePageId==='s-scores')renderScoresPage();
+        else if(activePageId==='s-roadmap')renderRoadmapPage();
+        else if(activePageId==='s-subjects')renderSubjectsPage();
+        else if(activePageId==='s-admission'||activePageId==='s-cutoff')renderCutoffPage();
+        updateAnalysisBadges();
       }
     }catch{}
   }
