@@ -119,6 +119,32 @@ db.exec(`
     description   TEXT,
     created_at    INTEGER DEFAULT (strftime('%s','now'))
   );
+
+  CREATE TABLE IF NOT EXISTS grades (
+    id             TEXT PRIMARY KEY,
+    student_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    year           INTEGER NOT NULL,
+    semester       INTEGER NOT NULL,
+    subject        TEXT NOT NULL,
+    credits        INTEGER DEFAULT 2,
+    raw_score      REAL,
+    subject_avg    REAL,
+    std_dev        REAL,
+    grade_level    REAL,
+    achievement    TEXT,
+    rank_in_class  INTEGER,
+    total_students INTEGER,
+    notes          TEXT,
+    created_at     INTEGER DEFAULT (strftime('%s','now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS analysis_results (
+    student_id  TEXT NOT NULL,
+    type        TEXT NOT NULL,
+    content     TEXT,
+    updated_at  INTEGER DEFAULT (strftime('%s','now')),
+    PRIMARY KEY (student_id, type)
+  );
 `);
 
 // ─── SEED DEFAULT ADMIN ──────────────────────────────────────────────
@@ -297,16 +323,16 @@ function cleanExam(e) {
 
 function getFullStudentData(sid) {
   const exams    = db.prepare('SELECT * FROM exams WHERE student_id=? ORDER BY due_date').all(sid).map(cleanExam);
-  const feedbacks= db.prepare('SELECT * FROM report_feedbacks WHERE student_id=? ORDER BY created_at DESC').all(sid).map(f => ({
-    ...f,
-    studentContent:    f.student_content,
-    consultantContent: f.consultant_content,
-    createdAt: f.created_at*1000, updatedAt: f.updated_at*1000, studentRead: !!f.student_read
-  }));
+  const feedbacks= db.prepare('SELECT * FROM report_feedbacks WHERE student_id=? ORDER BY created_at DESC').all(sid).map(cleanFb);
   const history  = db.prepare('SELECT * FROM analysis_history WHERE student_id=? ORDER BY created_at DESC LIMIT 100').all(sid).map(h => ({ ...h, ts: h.created_at*1000 }));
   const gb       = db.prepare('SELECT content FROM gb_data WHERE student_id=?').get(sid)?.content || '';
   const files    = db.prepare('SELECT * FROM files WHERE student_id=? ORDER BY created_at DESC').all(sid);
-  return { exams, feedbacks, history, gb, files };
+  const grades   = db.prepare('SELECT * FROM grades WHERE student_id=? ORDER BY year,semester,subject').all(sid);
+  // 캐시된 AI 분석 결과 (섹션별 최신)
+  const analysisRows = db.prepare('SELECT type,content,updated_at FROM analysis_results WHERE student_id=?').all(sid);
+  const analyses = {};
+  analysisRows.forEach(r => { analyses[r.type] = { content: r.content, updatedAt: r.updated_at * 1000 }; });
+  return { exams, feedbacks, history, gb, files, grades, analyses };
 }
 
 // ─── USER MANAGEMENT (Admin) ───────────────────────────────────────────
@@ -579,6 +605,56 @@ app.post('/api/claude/stream', auth, aiLimiter, async (req, res) => {
     res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
     res.end();
   }
+});
+
+// ─── GRADES ────────────────────────────────────────────────────────────
+app.get('/api/students/:studentId/grades', auth, canAccessStudent, (req, res) => {
+  const grades = db.prepare('SELECT * FROM grades WHERE student_id=? ORDER BY year,semester,subject').all(req.params.studentId);
+  res.json(grades);
+});
+
+app.post('/api/students/:studentId/grades', auth, canAccessStudent, (req, res) => {
+  const { year, semester, subject, credits, rawScore, subjectAvg, stdDev, gradeLevel, achievement, rankInClass, totalStudents, notes } = req.body;
+  if (!year || !semester || !subject) return res.status(400).json({ error: '학년, 학기, 과목은 필수입니다' });
+  const id = `gr_${uid()}`;
+  const ts = Math.floor(Date.now() / 1000);
+  db.prepare('INSERT INTO grades (id,student_id,year,semester,subject,credits,raw_score,subject_avg,std_dev,grade_level,achievement,rank_in_class,total_students,notes,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+    .run(id, req.params.studentId, year, semester, subject, credits||2, rawScore||null, subjectAvg||null, stdDev||null, gradeLevel||null, achievement||null, rankInClass||null, totalStudents||null, notes||null, ts);
+  res.json(db.prepare('SELECT * FROM grades WHERE id=?').get(id));
+});
+
+app.put('/api/grades/:id', auth, (req, res) => {
+  const g = db.prepare('SELECT * FROM grades WHERE id=?').get(req.params.id);
+  if (!g) return res.status(404).json({ error: '성적을 찾을 수 없습니다' });
+  if (req.user.role !== 'admin' && req.user.id !== g.student_id) return res.status(403).json({ error: '권한 없음' });
+  const { year, semester, subject, credits, rawScore, subjectAvg, stdDev, gradeLevel, achievement, rankInClass, totalStudents, notes } = req.body;
+  db.prepare('UPDATE grades SET year=?,semester=?,subject=?,credits=?,raw_score=?,subject_avg=?,std_dev=?,grade_level=?,achievement=?,rank_in_class=?,total_students=?,notes=? WHERE id=?')
+    .run(year??g.year, semester??g.semester, subject||g.subject, credits??g.credits, rawScore??g.raw_score, subjectAvg??g.subject_avg, stdDev??g.std_dev, gradeLevel??g.grade_level, achievement??g.achievement, rankInClass??g.rank_in_class, totalStudents??g.total_students, notes??g.notes, req.params.id);
+  res.json(db.prepare('SELECT * FROM grades WHERE id=?').get(req.params.id));
+});
+
+app.delete('/api/grades/:id', auth, (req, res) => {
+  const g = db.prepare('SELECT * FROM grades WHERE id=?').get(req.params.id);
+  if (!g) return res.status(404).json({ error: '성적을 찾을 수 없습니다' });
+  if (req.user.role !== 'admin' && req.user.id !== g.student_id) return res.status(403).json({ error: '권한 없음' });
+  db.prepare('DELETE FROM grades WHERE id=?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// ─── ANALYSIS RESULTS CACHE ────────────────────────────────────────────
+app.get('/api/students/:studentId/analyses', auth, canAccessStudent, (req, res) => {
+  const rows = db.prepare('SELECT type,content,updated_at FROM analysis_results WHERE student_id=?').all(req.params.studentId);
+  const result = {};
+  rows.forEach(r => { result[r.type] = { content: r.content, updatedAt: r.updated_at * 1000 }; });
+  res.json(result);
+});
+
+app.put('/api/students/:studentId/analyses/:type', auth, canAccessStudent, (req, res) => {
+  const { content } = req.body;
+  const ts = Math.floor(Date.now() / 1000);
+  db.prepare('INSERT OR REPLACE INTO analysis_results (student_id,type,content,updated_at) VALUES (?,?,?,?)')
+    .run(req.params.studentId, req.params.type, content, ts);
+  res.json({ success: true });
 });
 
 // ─── GLOBAL ERROR HANDLER ──────────────────────────────────────────────

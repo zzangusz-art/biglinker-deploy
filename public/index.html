@@ -605,6 +605,8 @@ textarea{resize:vertical;min-height:72px}
       <div class="si" onclick="sSide(this,'s-scores')"><span class="si-ic">≋</span>역량 점수</div>
       <div class="si" onclick="sSide(this,'s-roadmap')"><span class="si-ic">→</span>활동 로드맵<span class="si-bd bd-b">NEW</span></div>
       <div class="si" onclick="sSide(this,'s-subjects')"><span class="si-ic">◎</span>과목 전략</div>
+      <div class="sg">성적 관리</div>
+      <div class="si" onclick="sSide(this,'s-grades')"><span class="si-ic">📈</span>내신 성적 관리</div>
       <div class="sg">수행평가</div>
       <div class="si" onclick="sSide(this,'s-cal')"><span class="si-ic">◫</span>수행평가 캘린더<span class="si-bd bd-b">NEW</span></div>
       <div class="si" onclick="sSide(this,'s-perf')"><span class="si-ic">✓</span>수행평가 현황<span class="si-bd bd-y" id="s-perf-cnt">0</span></div>
@@ -670,6 +672,43 @@ textarea{resize:vertical;min-height:72px}
         </div>
         <button class="btn btn-b" onclick="runAI('admission',this,q('res-admission'))">🤖 AI 지원 전략 상세 분석</button>
         <div id="res-admission"></div>
+      </div>
+
+      <!-- ── GRADES ── -->
+      <div class="page" id="s-grades">
+        <div class="ph">
+          <div class="ph-tag">성적 관리</div>
+          <div class="ph-title">내신 성적 <em>학기별 관리</em></div>
+          <div class="ph-sub" id="grades-sub">학기별 과목 성적을 입력하면 AI 분석에 자동 반영됩니다</div>
+          <div class="ph-acts"><button class="btn btn-b" onclick="openGradeModal()">+ 성적 추가</button></div>
+        </div>
+
+        <!-- 전체 평균 카드 -->
+        <div class="g4" style="margin-bottom:14px" id="grades-summary-cards"></div>
+
+        <!-- 학기 탭 -->
+        <div class="tabrow" id="grades-tabrow">
+          <div class="tb on" onclick="switchGradeTab(this,1,1)">1학년 1학기</div>
+          <div class="tb" onclick="switchGradeTab(this,1,2)">1학년 2학기</div>
+          <div class="tb" onclick="switchGradeTab(this,2,1)">2학년 1학기</div>
+          <div class="tb" onclick="switchGradeTab(this,2,2)">2학년 2학기</div>
+          <div class="tb" onclick="switchGradeTab(this,3,1)">3학년 1학기</div>
+          <div class="tb" onclick="switchGradeTab(this,3,2)">3학년 2학기</div>
+        </div>
+
+        <!-- 현재 학기 테이블 -->
+        <div class="card" style="margin-top:0;border-top-left-radius:0;border-top-right-radius:0">
+          <div id="grades-table-wrap"></div>
+          <div class="btn-row" style="margin-top:10px">
+            <button class="btn btn-ghost btn-sm" onclick="openGradeModal()">+ 이 학기 과목 추가</button>
+          </div>
+        </div>
+
+        <!-- 전체 학기 성적 추이 -->
+        <div class="card" style="margin-top:14px">
+          <div class="card-lbl" style="margin-bottom:10px">📊 학기별 내신 평균 추이</div>
+          <div id="grades-trend"></div>
+        </div>
       </div>
 
       <!-- ── UPLOAD ── -->
@@ -1095,6 +1134,42 @@ textarea{resize:vertical;min-height:72px}
   <div class="mfoot"><button class="btn btn-ghost" onclick="closeM('m-fb')">취소</button><button class="btn btn-b" onclick="saveFb()">요청 보내기</button></div>
 </div></div>
 
+<!-- Grade Modal -->
+<div class="modal-ov" id="m-grade"><div class="modal" style="max-width:540px">
+  <div class="mhead"><div class="mhead-t" id="m-grade-title">성적 입력</div><button class="mclose" onclick="closeM('m-grade')">×</button></div>
+  <div class="mbody">
+    <input type="hidden" id="m-gid">
+    <div class="g2">
+      <div class="fl"><label>학년 *</label>
+        <select id="m-gyear"><option value="1">1학년</option><option value="2">2학년</option><option value="3">3학년</option></select>
+      </div>
+      <div class="fl"><label>학기 *</label>
+        <select id="m-gsem"><option value="1">1학기</option><option value="2">2학기</option></select>
+      </div>
+    </div>
+    <div class="g2">
+      <div class="fl"><label>과목명 *</label><input type="text" id="m-gsubj" placeholder="예: 생명과학Ⅰ"></div>
+      <div class="fl"><label>단위수</label><input type="number" id="m-gcredits" value="2" min="1" max="8"></div>
+    </div>
+    <div class="g2">
+      <div class="fl"><label>원점수</label><input type="number" id="m-graw" placeholder="85" step="0.1"></div>
+      <div class="fl"><label>과목평균</label><input type="number" id="m-gavg" placeholder="72.5" step="0.1"></div>
+    </div>
+    <div class="g2">
+      <div class="fl"><label>표준편차</label><input type="number" id="m-gstd" placeholder="8.5" step="0.1"></div>
+      <div class="fl"><label>내신 등급 (1~9)</label><input type="number" id="m-ggrade" placeholder="2" min="1" max="9" step="0.1"></div>
+    </div>
+    <div class="g2">
+      <div class="fl"><label>성취도</label>
+        <select id="m-gachieve"><option value="">선택 없음</option><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option><option value="E">E</option></select>
+      </div>
+      <div class="fl"><label>수강인원</label><input type="number" id="m-gtotal" placeholder="250"></div>
+    </div>
+    <div class="fl"><label>메모</label><input type="text" id="m-gnotes" placeholder="참고 사항 (선택)"></div>
+  </div>
+  <div class="mfoot"><button class="btn btn-ghost" onclick="closeM('m-grade')">취소</button><button class="btn btn-b" onclick="saveGrade()">저장</button></div>
+</div></div>
+
 <!-- Confirm Modal -->
 <div class="modal-ov" id="m-confirm"><div class="modal" style="max-width:360px">
   <div class="mhead"><div class="mhead-t" id="mc-t">확인</div><button class="mclose" onclick="closeM('m-confirm')">×</button></div>
@@ -1138,7 +1213,12 @@ const MEM = {
   apiKey: '', model: 'claude-sonnet-4-6',
   // 현재 로그인한 학생 데이터
   student: null, gb: '', exams: [], feedbacks: [], history: [],
-  // admin·consultant가 조회한 학생 데이터 캐시 { [sid]: { gb, exams, feedbacks, history } }
+  // 성적 데이터 (6학기)
+  grades: [],
+  // AI 분석 결과 캐시 { dashboard, academic, career, roadmap, subjects, cutoff, admission, 'perf-ai' }
+  analyses: {},
+  consultant: null,
+  // admin·consultant가 조회한 학생 데이터 캐시 { [sid]: { gb, exams, feedbacks, history, grades, analyses } }
   cache: {},
 };
 
@@ -1156,17 +1236,22 @@ async function api(method, url, body) {
 
 // 학생 상세 데이터를 서버에서 로드해 캐시에 저장
 async function loadStudentCache(sid) {
-  if (MEM.cache[sid]) return MEM.cache[sid];
+  if (MEM.cache[sid]?.exams) return MEM.cache[sid];
   try {
-    const [exams, fbs, hist, gbRes] = await Promise.all([
+    const [exams, fbs, hist, gbRes, grades, analyses] = await Promise.all([
       api('GET', `/api/students/${sid}/exams`),
       api('GET', `/api/students/${sid}/feedbacks`),
       api('GET', `/api/students/${sid}/history`),
       api('GET', `/api/students/${sid}/gb`),
+      api('GET', `/api/students/${sid}/grades`),
+      api('GET', `/api/students/${sid}/analyses`),
     ]);
-    MEM.cache[sid] = { exams: exams || [], feedbacks: fbs || [], history: hist || [], gb: gbRes?.content || '' };
+    MEM.cache[sid] = {
+      exams: exams || [], feedbacks: fbs || [], history: hist || [],
+      gb: gbRes?.content || '', grades: grades || [], analyses: analyses || {},
+    };
   } catch {
-    MEM.cache[sid] = { exams: [], feedbacks: [], history: [], gb: '' };
+    MEM.cache[sid] = { exams: [], feedbacks: [], history: [], gb: '', grades: [], analyses: {} };
   }
   return MEM.cache[sid];
 }
@@ -1269,6 +1354,8 @@ async function doLogin(){
       MEM.exams=sd.exams||[];
       MEM.feedbacks=sd.feedbacks||[];
       MEM.history=sd.history||[];
+      MEM.grades=sd.grades||[];
+      MEM.analyses=sd.analyses||{};
       MEM.consultant=r.consultant;
       S.user=r.user;S.student=r.user;
       showStudent();
@@ -1533,8 +1620,29 @@ function sSide(el,id){
   if(id==='s-history')renderHistPage();
   if(id==='s-perf')renderPerfPage();
   if(id==='s-feedback')renderFbPage();
-  if(id==='s-cutoff'||id==='s-admission')renderCutoffTables();
+  if(id==='s-cutoff'||id==='s-admission'){renderCutoffTables();injectCachedAnalysis('cutoff','cutoff-ai-r');injectCachedAnalysis('admission','res-admission');}
+  if(id==='s-scores'){injectCachedAnalysis('academic','res-academic');injectCachedAnalysis('career','res-career');injectCachedAnalysis('community','res-community');}
+  if(id==='s-roadmap')injectCachedAnalysis('roadmap','res-roadmap');
+  if(id==='s-subjects')injectCachedAnalysis('subjects','res-subjects');
+  if(id==='s-grades')renderGradesPage();
   if(id==='s-cal'){CAL.init('s',S.student?.id?DB.getExams(S.student.id):[],'student');CAL.render('s');}
+  updateAnalysisBadges();
+}
+
+// 캐시된 분석 결과를 해당 섹션에 주입
+function injectCachedAnalysis(type,elId){
+  const el=q(elId);if(!el)return;
+  const cached=MEM.analyses[type];
+  if(!cached?.content)return;
+  // 이미 내용이 있으면 덮어쓰지 않음
+  if(el.querySelector('.ai-box'))return;
+  const when=new Date(cached.updatedAt).toLocaleString('ko-KR');
+  const fmt=cached.content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*\*(.*?)\*\*/g,'<b>$1</b>')
+    .replace(/^### (.+)$/gm,'<h3 style="margin:10px 0 4px;font-size:13px;color:var(--blue)">$1</h3>')
+    .replace(/^## (.+)$/gm,'<h2 style="margin:12px 0 5px;font-size:14px;color:var(--text)">$1</h2>')
+    .replace(/^- (.+)$/gm,'<div style="padding:2px 0 2px 13px;border-left:2px solid var(--border2);margin:2px 0;color:var(--muted);font-size:12px">$1</div>');
+  el.innerHTML=`<div class="ai-box"><div class="ai-head"><div class="ai-dot"></div>생기부 분석 기반 결과 <span style="font-size:10px;color:var(--muted);margin-left:6px">${when} 분석</span></div><div class="ai-body">${fmt}</div></div>`;
 }
 
 function renderStudentDash(){
@@ -1927,7 +2035,8 @@ function confirmDelCons(cid,name){
 // ═══════════════════════════════════════
 // API
 // ═══════════════════════════════════════
-async function callAI(sys,msg,el,label='biglinker AI',sid=null,messages=null){
+// type 파라미터: 섹션별 분석 결과 캐시 키 (dashboard, academic, career, roadmap, subjects, cutoff, admission, perf-ai …)
+async function callAI(sys,msg,el,label='biglinker AI',sid=null,messages=null,type=null){
   if(!el)return;
   el.innerHTML=`<div class="ai-box"><div class="ai-head"><div class="ai-dot"></div>${label}</div><div class="ld-wrap"><div class="ld-tr"><div class="ld-fl"></div></div><div class="ld-tx">AI 분석 중...</div></div></div>`;
   const bodyEl=document.createElement('div');bodyEl.className='ai-body';
@@ -1968,24 +2077,58 @@ async function callAI(sys,msg,el,label='biglinker AI',sid=null,messages=null){
       .replace(/^## (.+)$/gm,'<h2 style="margin:12px 0 5px;font-size:14px;color:var(--text)">$1</h2>')
       .replace(/^- (.+)$/gm,'<div style="padding:2px 0 2px 13px;border-left:2px solid var(--border2);margin:2px 0;color:var(--muted);font-size:12px">$1</div>');
     bodyEl.innerHTML=fmt;
-    // 분석 완료 후 히스토리 서버 저장 + MEM 갱신 + 대시보드 즉시 반영
+    // 분석 완료 후 MEM 갱신 + 대시보드·히스토리 즉시 반영
     const sid2=sid||S.student?.id;
     if(sid2){
       DB.addHistory(sid2,{type:label,content:full.slice(0,300)});
-      // 서버에 히스토리 비동기 저장
       api('POST',`/api/students/${sid2}/history`,{type:label,content:full.slice(0,300)}).catch(()=>{});
+      // 섹션별 전체 분석 결과를 MEM.analyses에 저장 + 서버 캐시
+      const atype=type||(label.includes('학업역량')?'academic':label.includes('진로역량')?'career':label.includes('활동 로드맵')?'roadmap':label.includes('과목 전략')?'subjects':label.includes('지원 전략')?'cutoff':label.includes('전형 전략')?'admission':label.includes('생기부 분석')?'dashboard':label.includes('수행평가 전략')?'perf-ai':null);
+      if(atype&&sid2===S.student?.id){
+        MEM.analyses[atype]={content:full,updatedAt:Date.now()};
+        api('PUT',`/api/students/${sid2}/analyses/${atype}`,{content:full}).catch(()=>{});
+        // 분석 완료 후 관련 섹션 뱃지 업데이트
+        updateAnalysisBadges();
+      }
       if(S.student?.id===sid2){renderStudentDash();renderHistPage();}
     }
   }catch(e){cur.remove();head.innerHTML=`<div class="ai-dot"></div>${label} · 오류`;bodyEl.innerHTML=`<b style="color:var(--red)">오류: ${e.message}</b>\n관리자 설정에서 API 키를 확인하거나 관리자에게 문의하세요.`;}
 }
 
+// 성적 요약 문자열 (AI 프롬프트용)
+function getGradeSummary(){
+  if(!MEM.grades||!MEM.grades.length)return'';
+  const sems=[[1,1],[1,2],[2,1],[2,2],[3,1],[3,2]];
+  let out='';
+  sems.forEach(([y,s])=>{
+    const gs=MEM.grades.filter(g=>g.year===y&&g.semester===s);
+    if(!gs.length)return;
+    const avg=calcWeightedAvg(gs);
+    out+=`${y}학년 ${s}학기: `;
+    out+=gs.map(g=>`${g.subject}(${g.grade_level||'?'}등급,${g.credits||2}단위)`).join(', ');
+    if(avg)out+=` → 가중평균 ${avg}등급`;
+    out+='\n';
+  });
+  return out.trim();
+}
+
+function calcWeightedAvg(grades){
+  const valid=grades.filter(g=>g.grade_level&&g.credits);
+  if(!valid.length)return null;
+  const total=valid.reduce((a,g)=>a+g.grade_level*g.credits,0);
+  const credits=valid.reduce((a,g)=>a+g.credits,0);
+  return credits?Math.round(total/credits*100)/100:null;
+}
+
 const ST=()=>{
-  const s=S.student||{};
-  const gb=DB.getGb(s.id)||'';
+  const s=MEM.student||S.student||{};
+  const gb=MEM.gb||DB.getGb(s.id)||'';
   const gbSection=gb
     ? `[학생 생기부 (업로드 완료 — ${gb.length}자)]\n${gb.slice(0,3000)}`
     : '[생기부 미업로드 — 학생이 생기부 분석 페이지에서 업로드해야 개인 맞춤 분석이 가능합니다]';
-  return `[학생 정보]\n이름: ${s.name||'미입력'}\n학교: ${s.school||'미입력'} ${s.grade||''}학년\n목표 대학: ${s.targetUniv||'미입력'}\n목표 학과: ${s.targetDept||'미입력'}\n\n${gbSection}`;
+  const gradeStr=getGradeSummary();
+  const gradeSection=gradeStr?`\n\n[성적 현황 (내신 등급)]\n${gradeStr}`:'';
+  return `[학생 정보]\n이름: ${s.name||'미입력'}\n학교: ${s.school||'미입력'} ${s.grade||''}학년\n목표 대학: ${s.targetUniv||'미입력'}\n목표 학과: ${s.targetDept||'미입력'}${gradeSection}\n\n${gbSection}`;
 };
 
 const PROMPTS={
@@ -2003,17 +2146,32 @@ const PROMPTS={
   'perf-ai':`당신은 대입 수행평가 전문 컨설턴트입니다. 학생의 생기부와 수행평가 목록을 분석하여 (1)각 수행평가별 생기부 세특 연계 전략 (2)탐구 주제·키워드 심화 방향 (3)목표 학과 어필 포인트 (4)마감 우선순위 순서로 구체적으로 제시하세요. **굵게**, ### 소제목, - 리스트 활용.`,
 };
 
-async function runAI(type,btn,el){
+// 분석 완료 뱃지 업데이트 (사이드바)
+function updateAnalysisBadges(){
+  const typeMap={dashboard:'s-dash',academic:'s-scores',career:'s-scores',roadmap:'s-roadmap',subjects:'s-subjects',cutoff:'s-cutoff',admission:'s-admission'};
+  Object.keys(MEM.analyses).forEach(t=>{
+    const sid=typeMap[t];
+    if(sid){
+      const si=document.querySelector(`.si[onclick*="${sid}"]`);
+      if(si&&!si.querySelector('.si-bd.bd-g')){
+        const old=si.querySelector('.si-bd');if(old)old.remove();
+        const bd=document.createElement('span');bd.className='si-bd bd-g';bd.textContent='✓';
+        si.appendChild(bd);
+      }
+    }
+  });
+}
+
+async function runAI(type,btn,el,silent=false){
   const orig=btn?.innerHTML;
-  if(btn){btn.disabled=true;btn.innerHTML='<div class="spin spin-w"></div> 분석 중...';}
-  setTimeout(()=>{if(btn){btn.disabled=false;btn.innerHTML=orig;}},30000);
+  if(btn&&!silent){btn.disabled=true;btn.innerHTML='<div class="spin spin-w"></div> 분석 중...';}
   const sys=PROMPTS[type]||PROMPTS.dashboard;
   let msg=ST();
   if(type==='essay-fb'){const inp=v('essay-in');if(!inp){if(el)el.innerHTML='<div class="ntc ntc-o" style="margin-top:10px"><span>⚠</span>답안을 입력해주세요.</div>';if(btn){btn.disabled=false;btn.innerHTML=orig;}return;}msg=`학생: ${S.student?.name}\n\n답안:\n${inp}`;}
-  if(type==='cutoff-ai'){const s=S.student||{};msg=`${ST()}\n\n[분석 요청] 위 학생의 목표 학과(${s.targetDept||'목표 학과'}) 합격선 기준으로 상향·적정·하향 대학 추천과 전략을 구체적으로 제시하세요.`;}
-  if(type==='more-q'){const s=S.student||{};msg=`${ST()}\n\n[분석 요청] 위 학생의 목표 대학(${s.targetUniv||'목표 대학'}) ${s.targetDept||'목표 학과'} 학종 면접에서 출제될 예상 질문 5개와 힌트를 생성하세요.`;}
-  const labels={dashboard:'종합 분석',academic:'학업역량',career:'진로역량',roadmap:'활동 로드맵',subjects:'과목 전략',essay1:'논술 풀이',essay2:'수학 논술','essay-fb':'첨삭 결과','more-q':'추가 질문',admission:'지원 전략','cutoff-ai':'맞춤 지원 전략'};
-  await callAI(sys,msg,el,`biglinker AI — ${labels[type]||type}`);
+  if(type==='cutoff-ai'||type==='cutoff'){const s=MEM.student||S.student||{};msg=`${ST()}\n\n[분석 요청] 위 학생의 목표 학과(${s.targetDept||'목표 학과'}) 합격선 기준으로 상향·적정·하향 대학 추천과 전략을 구체적으로 제시하세요.`;}
+  if(type==='more-q'){const s=MEM.student||S.student||{};msg=`${ST()}\n\n[분석 요청] 위 학생의 목표 대학(${s.targetUniv||'목표 대학'}) ${s.targetDept||'목표 학과'} 학종 면접에서 출제될 예상 질문 5개와 힌트를 생성하세요.`;}
+  const labels={dashboard:'종합 분석',academic:'학업역량',career:'진로역량',roadmap:'활동 로드맵',subjects:'과목 전략',essay1:'논술 풀이',essay2:'수학 논술','essay-fb':'첨삭 결과','more-q':'추가 질문',admission:'전형 전략','cutoff-ai':'맞춤 지원 전략',cutoff:'맞춤 지원 전략'};
+  await callAI(sys,msg,el,`biglinker AI — ${labels[type]||type}`,null,null,type);
   if(btn){btn.disabled=false;btn.innerHTML=orig;}
 }
 
@@ -2163,15 +2321,216 @@ async function runUpload(){
   const el=q('upload-r');
   el.innerHTML='<div class="ntc ntc-b" style="margin-top:8px"><span>·</span>서버에 저장 중...</div>';
   try{
-    // 서버에 생기부 저장
     await api('PUT',`/api/students/${sid}/gb`,{content:text});
     MEM.gb=text;
     renderStudentDash();
+    // 1단계: 생기부 종합 분석
     await callAI(
-      '당신은 대입 전문 컨설턴트입니다. 학생의 생기부를 정밀 분석하여 (1)3대 역량(학업·진로·공동체) 점수 추정 및 진단 (2)핵심 강점 키워드 (3)즉시 보완 필요 항목 (4)목표 대학 합격 맞춤 전략을 구체적으로 제시하세요. **굵게**, ### 소제목 활용.',
-      `학생: ${S.student?.name}, ${S.student?.school} ${S.student?.grade}학년\n목표: ${S.student?.targetUniv} ${S.student?.targetDept}\n\n생기부:\n${text}`,
-      el,'biglinker AI — 생기부 분석',sid);
+      '당신은 대입 전문 컨설턴트입니다. 학생의 생기부를 정밀 분석하여 (1)3대 역량(학업·진로·공동체) 점수 추정(100점 만점) 및 진단 (2)핵심 강점 키워드 3가지 (3)즉시 보완 필요 항목 (4)목표 대학 합격 맞춤 전략을 구체적으로 제시하세요. **굵게**, ### 소제목 활용.',
+      `학생: ${(MEM.student||S.student)?.name}, ${(MEM.student||S.student)?.school} ${(MEM.student||S.student)?.grade}학년\n목표: ${(MEM.student||S.student)?.targetUniv} ${(MEM.student||S.student)?.targetDept}\n\n생기부:\n${text}`,
+      el,'biglinker AI — 생기부 분석',sid,null,'dashboard');
+    // 2단계: 나머지 섹션 자동 분석 (백그라운드 순차 실행)
+    el.innerHTML+='<div class="ntc ntc-b" style="margin-top:8px"><span>·</span>역량 점수·로드맵·과목 전략·합격 컷 분석 중 (백그라운드)...</div>';
+    autoRunAllAnalyses(sid,text).then(()=>{
+      el.querySelector('.ntc-b')&&(el.querySelector('.ntc-b').outerHTML='');
+      renderStudentDash();updateAnalysisBadges();
+    });
   }catch(e){el.innerHTML=`<div class="ntc ntc-r" style="margin-top:8px"><span>✗</span>저장 실패: ${e.message}</div>`;}
+}
+
+// 생기부 분석 완료 후 전체 섹션 자동 분석 (순차 실행으로 API 부하 분산)
+async function autoRunAllAnalyses(sid,gbText){
+  const s=MEM.student||S.student||{};
+  const base=`학생: ${s.name||''}, ${s.school||''} ${s.grade||''}학년\n목표: ${s.targetUniv||''} ${s.targetDept||''}\n\n생기부:\n${gbText.slice(0,3000)}`;
+  const gradeStr=getGradeSummary();
+  const fullBase=gradeStr?`${base}\n\n[성적 현황]\n${gradeStr}`:base;
+  const tasks=[
+    {type:'academic',sys:PROMPTS.academic,msg:fullBase,label:'biglinker AI — 학업역량'},
+    {type:'career',sys:PROMPTS.career,msg:fullBase,label:'biglinker AI — 진로역량'},
+    {type:'roadmap',sys:PROMPTS.roadmap,msg:fullBase,label:'biglinker AI — 활동 로드맵'},
+    {type:'subjects',sys:PROMPTS.subjects,msg:fullBase,label:'biglinker AI — 과목 전략'},
+    {type:'cutoff',sys:PROMPTS['cutoff-ai'],msg:`${fullBase}\n\n[분석 요청] 위 학생의 목표 학과(${s.targetDept||''}) 합격선 기준 상향·적정·하향 추천과 전략을 제시하세요.`,label:'biglinker AI — 맞춤 지원 전략'},
+    {type:'admission',sys:PROMPTS.admission,msg:fullBase,label:'biglinker AI — 전형 전략'},
+  ];
+  for(const t of tasks){
+    try{
+      const r=await fetch('/api/claude/stream',{method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':`Bearer ${TOKEN}`},
+        body:JSON.stringify({system:t.sys,userMsg:t.msg,maxTokens:4096})});
+      if(!r.ok)continue;
+      const reader=r.body.getReader();const dec=new TextDecoder();let buf='',full='';
+      while(true){
+        const{done,value}=await reader.read();if(done)break;
+        buf+=dec.decode(value,{stream:true});
+        const lines=buf.split('\n');buf=lines.pop();
+        for(const ln of lines){
+          if(!ln.startsWith('data:'))continue;
+          try{const d=JSON.parse(ln.slice(5));if(d.text)full+=d.text;}catch{}
+        }
+      }
+      if(full&&sid===S.student?.id){
+        MEM.analyses[t.type]={content:full,updatedAt:Date.now()};
+        api('PUT',`/api/students/${sid}/analyses/${t.type}`,{content:full}).catch(()=>{});
+        DB.addHistory(sid,{type:t.label,content:full.slice(0,300)});
+        api('POST',`/api/students/${sid}/history`,{type:t.label,content:full.slice(0,300)}).catch(()=>{});
+      }
+    }catch{}
+  }
+}
+
+// ═══════════════════════════════════════
+// GRADES
+// ═══════════════════════════════════════
+let _gradeSem={year:1,sem:1};
+
+function switchGradeTab(el,year,sem){
+  q('grades-tabrow').querySelectorAll('.tb').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on');
+  _gradeSem={year,sem};
+  renderGradesTable();
+}
+
+function renderGradesPage(){
+  renderGradesSummary();
+  renderGradesTable();
+  renderGradesTrend();
+}
+
+function renderGradesSummary(){
+  const all=MEM.grades||[];
+  const sems=[[1,1],[1,2],[2,1],[2,2],[3,1],[3,2]];
+  const avgs=sems.map(([y,s])=>calcWeightedAvg(all.filter(g=>g.year===y&&g.semester===s))).filter(Boolean);
+  const overallAvg=avgs.length?(avgs.reduce((a,b)=>a+b,0)/avgs.length).toFixed(2):null;
+  const totalCredits=all.reduce((a,g)=>a+(g.credits||2),0);
+  const totalSubjects=all.length;
+  const semsDone=avgs.length;
+  q('grades-summary-cards').innerHTML=`
+    <div class="card"><div class="card-lbl">전체 내신 평균</div>
+      <div class="sn ${overallAvg?'c-b':'c-r'}" style="font-size:20px;margin-top:4px">${overallAvg?overallAvg+'등급':'미입력'}</div>
+      <div class="ss">${semsDone}개 학기 평균</div></div>
+    <div class="card"><div class="card-lbl">등록 과목 수</div>
+      <div class="sn c-g">${totalSubjects}</div><div class="ss">총 ${totalCredits}단위</div></div>
+    <div class="card"><div class="card-lbl">입력 완료 학기</div>
+      <div class="sn c-p">${semsDone}<span style="font-size:13px;color:var(--muted)">/6</span></div><div class="ss">학기별 입력 현황</div></div>
+    <div class="card"><div class="card-lbl">최근 학기 평균</div>
+      <div class="sn c-y" style="font-size:20px;margin-top:4px">${avgs.length?avgs[avgs.length-1]+'등급':'—'}</div>
+      <div class="ss">마지막 입력 학기</div></div>`;
+  q('grades-sub').textContent=overallAvg
+    ?`전체 가중평균 ${overallAvg}등급 · ${totalSubjects}과목 ${totalCredits}단위 입력 완료`
+    :'학기별 과목 성적을 입력하면 AI 분석에 자동 반영됩니다';
+}
+
+function renderGradesTable(){
+  const {year,sem}=_gradeSem;
+  const gs=(MEM.grades||[]).filter(g=>g.year===year&&g.semester===sem);
+  const avg=calcWeightedAvg(gs);
+  const wrap=q('grades-table-wrap');
+  if(!gs.length){
+    wrap.innerHTML=`<div class="empty" style="padding:30px 0"><div class="empty-ic">📋</div><div class="empty-t">${year}학년 ${sem}학기 성적 없음</div><div style="font-size:12px;color:var(--muted);margin-top:4px">+ 과목 추가 버튼으로 성적을 입력하세요</div></div>`;
+    return;
+  }
+  wrap.innerHTML=`
+    ${avg?`<div style="font-size:12px;color:var(--blue);font-weight:700;margin-bottom:8px;padding:6px 10px;background:var(--blue3);border-radius:var(--r8)">📊 ${year}학년 ${sem}학기 가중평균: <b>${avg}등급</b> (${gs.reduce((a,g)=>a+(g.credits||2),0)}단위)</div>`:''}
+    <div style="overflow-x:auto"><table class="tbl">
+      <tr><th>과목</th><th>단위</th><th>원점수</th><th>평균</th><th>표준편차</th><th>등급</th><th>성취도</th><th>수강인원</th><th>메모</th><th></th></tr>
+      ${gs.map(g=>`<tr>
+        <td><b>${g.subject}</b></td>
+        <td class="num">${g.credits||2}</td>
+        <td class="num">${g.raw_score??'—'}</td>
+        <td class="num">${g.subject_avg??'—'}</td>
+        <td class="num">${g.std_dev??'—'}</td>
+        <td class="num"><b style="color:${gradeColor(g.grade_level)}">${g.grade_level??'—'}</b></td>
+        <td class="num">${g.achievement||'—'}</td>
+        <td class="num">${g.total_students??'—'}</td>
+        <td style="font-size:11px;color:var(--muted)">${g.notes||'—'}</td>
+        <td>
+          <button class="btn btn-ghost btn-sm" onclick="openGradeModal('${g.id}')">수정</button>
+          <button class="btn btn-red btn-sm" onclick="deleteGrade('${g.id}')">삭제</button>
+        </td>
+      </tr>`).join('')}
+    </table></div>`;
+}
+
+function gradeColor(g){
+  if(!g)return'var(--muted)';
+  if(g<=2)return'var(--green)';
+  if(g<=4)return'var(--blue)';
+  if(g<=6)return'var(--yellow)';
+  return'var(--red)';
+}
+
+function renderGradesTrend(){
+  const sems=[[1,1],[1,2],[2,1],[2,2],[3,1],[3,2]];
+  const labels=['1-1','1-2','2-1','2-2','3-1','3-2'];
+  const avgs=sems.map(([y,s])=>calcWeightedAvg((MEM.grades||[]).filter(g=>g.year===y&&g.semester===s)));
+  const hasData=avgs.some(Boolean);
+  if(!hasData){q('grades-trend').innerHTML='<div style="color:var(--muted);font-size:12px;padding:10px 0">성적을 입력하면 학기별 추이가 표시됩니다.</div>';return;}
+  const max=9,barH=80;
+  const bars=avgs.map((a,i)=>{
+    const h=a?Math.round((a/max)*barH):0;
+    const col=a?gradeColor(a):'var(--s4)';
+    return`<div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1">
+      <div style="font-size:11px;font-weight:700;color:${col}">${a?a+'등':'—'}</div>
+      <div style="height:${barH}px;display:flex;align-items:flex-end">
+        <div style="width:28px;height:${h}px;background:${col};border-radius:4px 4px 0 0;transition:height .3s"></div>
+      </div>
+      <div style="font-size:10px;color:var(--muted)">${labels[i]}</div>
+    </div>`;
+  }).join('');
+  q('grades-trend').innerHTML=`<div style="display:flex;gap:6px;align-items:flex-end;padding:4px 0">${bars}</div>
+    <div style="font-size:10px;color:var(--dim);margin-top:4px">※ 등급이 낮을수록 막대 높이가 높습니다 (9등급 기준)</div>`;
+}
+
+function openGradeModal(gid){
+  q('m-gid').value=gid||'';
+  if(gid){
+    const g=(MEM.grades||[]).find(x=>x.id===gid);if(!g)return;
+    q('m-grade-title').textContent='성적 수정';
+    q('m-gyear').value=g.year;q('m-gsem').value=g.semester;
+    q('m-gsubj').value=g.subject;q('m-gcredits').value=g.credits||2;
+    q('m-graw').value=g.raw_score||'';q('m-gavg').value=g.subject_avg||'';
+    q('m-gstd').value=g.std_dev||'';q('m-ggrade').value=g.grade_level||'';
+    q('m-gachieve').value=g.achievement||'';q('m-gtotal').value=g.total_students||'';
+    q('m-gnotes').value=g.notes||'';
+  }else{
+    q('m-grade-title').textContent='성적 입력';
+    q('m-gyear').value=_gradeSem.year;q('m-gsem').value=_gradeSem.sem;
+    ['m-gsubj','m-graw','m-gavg','m-gstd','m-ggrade','m-gtotal','m-gnotes'].forEach(id=>q(id).value='');
+    q('m-gcredits').value=2;q('m-gachieve').value='';
+  }
+  openM('m-grade');
+}
+
+async function saveGrade(){
+  const gid=v('m-gid');
+  const subj=v('m-gsubj');if(!subj){alert('과목명은 필수입니다.');return;}
+  const sid=S.student?.id;if(!sid)return;
+  const body={
+    year:parseInt(q('m-gyear').value),semester:parseInt(q('m-gsem').value),
+    subject:subj,credits:parseInt(q('m-gcredits').value)||2,
+    rawScore:parseFloat(v('m-graw'))||null,subjectAvg:parseFloat(v('m-gavg'))||null,
+    stdDev:parseFloat(v('m-gstd'))||null,gradeLevel:parseFloat(v('m-ggrade'))||null,
+    achievement:q('m-gachieve').value||null,
+    totalStudents:parseInt(v('m-gtotal'))||null,notes:v('m-gnotes')||null,
+  };
+  try{
+    let saved;
+    if(gid){saved=await api('PUT',`/api/grades/${gid}`,body);}
+    else{saved=await api('POST',`/api/students/${sid}/grades`,body);}
+    // MEM 갱신
+    const idx=(MEM.grades||[]).findIndex(g=>g.id===(gid||saved.id));
+    if(idx>=0)MEM.grades[idx]=saved; else MEM.grades.push(saved);
+    closeM('m-grade');renderGradesPage();
+  }catch(e){alert('저장 실패: '+e.message);}
+}
+
+async function deleteGrade(gid){
+  if(!confirm('이 성적을 삭제하시겠습니까?'))return;
+  try{
+    await api('DELETE',`/api/grades/${gid}`);
+    MEM.grades=(MEM.grades||[]).filter(g=>g.id!==gid);
+    renderGradesPage();
+  }catch(e){alert('삭제 실패: '+e.message);}
 }
 
 // Mock Interview
