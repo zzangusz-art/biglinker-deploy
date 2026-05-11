@@ -199,8 +199,11 @@ input:focus,textarea:focus,select:focus{border-color:var(--blue)}
 .ai-body{padding:14px;font-size:13px;line-height:1.85;white-space:pre-wrap;word-break:break-word;font-family:'Noto Sans KR',sans-serif}
 .ai-body b{color:var(--blue);font-weight:700}.ai-body h3{font-size:13px;font-weight:700;color:var(--teal);margin:13px 0 5px}
 .report-body{white-space:normal}
-.report-body h2{margin:14px 0 6px;font-size:15px;color:var(--text);font-weight:700;border-bottom:1px solid var(--border);padding-bottom:4px}
-.report-body h3{margin:10px 0 4px;font-size:13px;color:var(--blue)}
+.report-body p{margin:0 0 8px;line-height:1.8}
+.rpt-h2{margin:18px 0 8px;font-size:14px;font-weight:800;color:var(--text);border-bottom:2px solid var(--blue);padding-bottom:5px;display:flex;align-items:center;gap:6px}
+.rpt-h3{margin:12px 0 6px;font-size:13px;font-weight:700;color:var(--blue);padding-left:8px;border-left:3px solid var(--blue)}
+.rpt-li{padding:4px 0 4px 16px;position:relative;line-height:1.7;color:var(--muted);font-size:12px}
+.rpt-li::before{content:'▸';position:absolute;left:2px;color:var(--blue);font-size:10px;top:5px}
 .cblink{display:inline-block;width:2px;height:13px;background:var(--blue);animation:blkb .8s step-end infinite;vertical-align:text-bottom;margin-left:1px}
 @keyframes blkb{50%{opacity:0}}
 .ld-wrap{display:flex;flex-direction:column;align-items:center;gap:10px;padding:26px}
@@ -637,24 +640,8 @@ textarea{resize:vertical;min-height:72px}
 
       <!-- ── CUTOFF & SCHOOL RECOMMEND ── -->
       <div class="page" id="s-cutoff">
-        <div class="ph"><div class="ph-tag">합격 컷 · 학교 추천</div><div class="ph-title" id="cutoff-ph-title"><em>합격선 분석</em></div><div class="ph-sub" id="cutoff-ph-sub">생기부 분석 후 개인 맞춤 지원 전략이 제공됩니다</div></div>
-        <div class="ntc ntc-y"><span>⚠</span><div>아래 데이터는 <b>참고용 추정치</b>입니다. 실제 합격선은 매년 변동되며, 반드시 각 대학 입학처에서 확인하세요.</div></div>
-        <div class="tabrow">
-          <div class="tb on" onclick="switchTab(this,'ct-all')">전체 목록</div>
-          <div class="tb" onclick="switchTab(this,'ct-reach')">상향 도전</div>
-          <div class="tb" onclick="switchTab(this,'ct-match')">적정</div>
-          <div class="tb" onclick="switchTab(this,'ct-safe')">하향 안정</div>
-        </div>
-        <div class="tc on" id="ct-all"><div id="cutoff-table-all"></div></div>
-        <div class="tc" id="ct-reach"><div id="cutoff-table-reach"></div></div>
-        <div class="tc" id="ct-match"><div id="cutoff-table-match"></div></div>
-        <div class="tc" id="ct-safe"><div id="cutoff-table-safe"></div></div>
-        <div class="divider"></div>
-        <div class="card">
-          <div class="card-lbl" style="margin-bottom:10px">AI 맞춤 지원 전략 분석</div>
-          <button class="btn btn-b" onclick="runAI('cutoff-ai',this,q('cutoff-ai-r'))">🤖 내 내신 기준 지원 전략 생성</button>
-          <div id="cutoff-ai-r"></div>
-        </div>
+        <div class="ph"><div class="ph-tag">합격 컷 · 학교 추천</div><div class="ph-title" id="cutoff-ph-title"><em>합격선 분석</em></div><div class="ph-sub" id="cutoff-ph-sub">생기부 기반 목표 학과 맞춤 상향·적정·하향 추천</div></div>
+        <div id="cutoff-ai-r"></div>
       </div>
 
       <!-- ── ADMISSION ── -->
@@ -1459,7 +1446,8 @@ function sSide(el,id){
   if(id==='s-history')renderHistPage();
   if(id==='s-perf')renderPerfPage();
   if(id==='s-feedback')renderFbPage();
-  if(id==='s-cutoff'||id==='s-admission'){renderCutoffPage();}
+  if(id==='s-cutoff')renderCutoffPage();
+  if(id==='s-admission')renderAdmissionPage();
   if(id==='s-scores')renderScoresPage();
   if(id==='s-roadmap')renderRoadmapPage();
   if(id==='s-subjects')renderSubjectsPage();
@@ -1469,19 +1457,88 @@ function sSide(el,id){
 }
 
 function fmtAI(content){
-  return content
-    .replace(/\[SCORE:[^\]]+\]\s*\d+\s*\n?/g,'')
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/\*\*(.*?)\*\*/g,'<b>$1</b>')
-    .replace(/^### (.+)$/gm,'<h3 style="margin:10px 0 4px;font-size:13px;color:var(--blue)">$1</h3>')
-    .replace(/^## (.+)$/gm,'<h2 style="margin:14px 0 6px;font-size:15px;color:var(--text);font-weight:700;border-bottom:1px solid var(--border);padding-bottom:4px">$1</h2>')
-    .replace(/^\*\*(.+)\*\*$/gm,'<b>$1</b>')
-    .replace(/^- (.+)$/gm,'<div style="padding:3px 0 3px 14px;border-left:2px solid var(--border2);margin:2px 0;color:var(--muted);font-size:12px">$1</div>')
-    .replace(/^\| (.+) \|$/gm,(m,cells)=>{
-      const tds=cells.split('|').map(c=>c.trim());
-      return '<tr>'+tds.map(c=>`<td style="padding:5px 8px;border:1px solid var(--border);font-size:11px">${c}</td>`).join('')+'</tr>';
-    })
-    .replace(/(<tr>.*<\/tr>\n?)+/gs,t=>`<div style="overflow-x:auto;margin:8px 0"><table style="width:100%;border-collapse:collapse">${t}</table></div>`);
+  // Strip score markers
+  let t=content.replace(/\[SCORE:[^\]]+\]\s*\d+\s*\n?/g,'').trim();
+  // Parse markdown tables first (before HTML escaping)
+  const tables=[];
+  t=t.replace(/(\|.+\|\n)+/g,m=>{
+    const rows=m.trim().split('\n').filter(r=>!/^\|[-: |]+\|$/.test(r.trim()));
+    const html=rows.map((r,i)=>{
+      const cells=r.split('|').slice(1,-1).map(c=>c.trim());
+      const tag=i===0?'th':'td';
+      return`<tr>${cells.map(c=>`<${tag} style="padding:6px 10px;border:1px solid var(--border);font-size:11px;${i===0?'background:var(--s2);font-weight:700;color:var(--text)':'color:var(--muted)'}">${c}</${tag}>`).join('')}</tr>`;
+    }).join('');
+    const ph=`%%TABLE${tables.length}%%`;
+    tables.push(`<div style="overflow-x:auto;margin:10px 0;border-radius:var(--r8);overflow:hidden;border:1px solid var(--border)"><table style="width:100%;border-collapse:collapse">${html}</table></div>`);
+    return ph+'\n';
+  });
+  // HTML escape
+  t=t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  // Headings
+  t=t.replace(/^## (.+)$/gm,'<div class="rpt-h2">$1</div>');
+  t=t.replace(/^### (.+)$/gm,'<div class="rpt-h3">$1</div>');
+  // Bold
+  t=t.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');
+  // Lists
+  t=t.replace(/^[-•] (.+)$/gm,'<div class="rpt-li">$1</div>');
+  // Numbered lists
+  t=t.replace(/^\d+\. (.+)$/gm,'<div class="rpt-li" style="padding-left:20px">$1</div>');
+  // Restore tables
+  tables.forEach((html,i)=>{t=t.replace(`%%TABLE${i}%%`,html);});
+  // Paragraphs
+  t=t.replace(/\n{2,}/g,'</p><p>').replace(/\n/g,'<br>');
+  return `<p>${t}</p>`;
+}
+
+// 합격 컷 AI 응답을 상향/적정/하향 카드로 파싱해서 렌더링
+function renderCutoffReport(content, s){
+  const tiers=[
+    {key:'상향',color:'var(--red)',icon:'🔴',label:'상향 도전'},
+    {key:'적정',color:'var(--blue)',icon:'🟡',label:'적정 지원'},
+    {key:'하향',color:'var(--green)',icon:'🟢',label:'하향 안정'},
+  ];
+  // Try to split by ## tier headings
+  const sections={};
+  content.split(/\n(?=## )/).forEach(block=>{
+    const m=block.match(/^## (.+)/);
+    if(m){
+      const heading=m[1];
+      tiers.forEach(t=>{if(heading.includes(t.key))sections[t.key]=block.replace(/^## .+\n/,'').trim();});
+      if(heading.includes('종합')||heading.includes('전략'))sections['summary']=block.replace(/^## .+\n/,'').trim();
+    }
+  });
+  const hasTiers=Object.keys(sections).some(k=>['상향','적정','하향'].includes(k));
+  if(!hasTiers){
+    // Fallback: just render as formatted text
+    return fmtAI(content);
+  }
+  let html=`<div style="margin-bottom:12px;padding:10px 14px;background:rgba(79,125,255,.07);border-radius:var(--r8);border:1px solid rgba(79,125,255,.18);font-size:11px;color:var(--muted)">⚠ 아래 데이터는 AI 추정 기반 참고용입니다. 실제 합격선은 매년 변동되며 각 대학 입학처를 확인하세요.</div>`;
+  tiers.forEach(({key,color,icon,label})=>{
+    const block=sections[key];
+    if(!block)return;
+    // Try to parse table rows from this block
+    const tableMatch=block.match(/(\|.+\|\n?)+/);
+    let tableHtml='';
+    if(tableMatch){
+      const rows=tableMatch[0].trim().split('\n').filter(r=>!/^\|[-: |]+\|$/.test(r.trim()));
+      tableHtml=rows.map((r,i)=>{
+        const cells=r.split('|').slice(1,-1).map(c=>c.trim());
+        const tag=i===0?'th':'td';
+        return`<tr>${cells.map(c=>`<${tag} style="padding:6px 10px;border:1px solid var(--border);font-size:11px;${i===0?'background:var(--s2);font-weight:700':'color:var(--muted)'}">${c}</${tag}>`).join('')}</tr>`;
+      }).join('');
+      tableHtml=`<div style="overflow-x:auto;border-radius:var(--r8);overflow:hidden;border:1px solid var(--border);margin-top:8px"><table style="width:100%;border-collapse:collapse">${tableHtml}</table></div>`;
+    }
+    const textBlock=block.replace(/(\|.+\|\n?)+/g,'').trim().replace(/\[SCORE:[^\]]+\]\s*\d+\s*\n?/g,'').replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/^[-•] (.+)$/gm,'<div class="rpt-li">$1</div>');
+    html+=`<div style="margin-bottom:14px;border:1px solid ${color};border-radius:var(--r8);overflow:hidden">
+      <div style="padding:8px 14px;background:${color};color:white;font-size:12px;font-weight:700">${icon} ${label}</div>
+      <div style="padding:12px 14px">${tableHtml}<div style="font-size:12px;line-height:1.7;margin-top:${tableHtml?'8px':'0'}">${textBlock}</div></div>
+    </div>`;
+  });
+  if(sections['summary']){
+    const txt=sections['summary'].replace(/\[SCORE:[^\]]+\]\s*\d+\s*\n?/g,'').replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/^[-•] (.+)$/gm,'<div class="rpt-li">$1</div>');
+    html+=`<div style="padding:12px 14px;background:var(--s2);border-radius:var(--r8);border:1px solid var(--border)"><div style="font-size:12px;font-weight:700;margin-bottom:6px;color:var(--text)">📋 지원 전략 종합</div><div style="font-size:12px;line-height:1.7;color:var(--muted)">${txt}</div></div>`;
+  }
+  return html;
 }
 
 function parseScores(text){
@@ -1548,17 +1605,36 @@ function noAnalysisCard(name,label,type,contId,hasGb){
 }
 
 async function rerunSectionBtn(type,contId,btn){
-  const el=q(contId);if(!el)return;
+  if(!btn||btn.disabled)return;
   const orig=btn.innerHTML;btn.disabled=true;btn.innerHTML='<div class="spin spin-w" style="width:10px;height:10px;border-width:2px"></div> 분석 중...';
-  const elTarget=document.createElement('div');
-  await runAI(type,null,elTarget);
-  // After runAI completes, re-render the section
-  if(type==='academic'||type==='career')renderScoresPage();
-  else if(type==='admission')renderAdmissionPage();
-  else if(type==='cutoff'||type==='cutoff-ai')renderCutoffPage();
-  else if(type==='roadmap')renderRoadmapPage();
-  else if(type==='subjects')renderSubjectsPage();
-  btn.disabled=false;btn.innerHTML=orig;
+  try{
+    if(type==='community'){
+      // community는 dashboard 키로 저장 (공동체역량 전용 프롬프트 사용)
+      const s=MEM.student||S.student||{};
+      const gb=MEM.gb||DB.getGb(s.id)||'';
+      const sid=s.id;
+      const r=await fetch('/api/claude/stream',{method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':`Bearer ${TOKEN}`},
+        body:JSON.stringify({system:PROMPTS.community,userMsg:ST(),maxTokens:4096})});
+      if(r.ok){
+        const reader=r.body.getReader();const dec=new TextDecoder();let buf='',full='';
+        while(true){const{done,value}=await reader.read();if(done)break;buf+=dec.decode(value,{stream:true});const lines=buf.split('\n');buf=lines.pop();for(const ln of lines){if(!ln.startsWith('data:'))continue;try{const d=JSON.parse(ln.slice(5));if(d.text)full+=d.text;}catch{}}}
+        if(full&&sid===S.student?.id){
+          MEM.analyses['community']={content:full,updatedAt:Date.now()};
+          api('PUT',`/api/students/${sid}/analyses/community`,{content:full}).catch(()=>{});
+        }
+      }
+      renderScoresPage();
+    }else{
+      const elTarget=document.createElement('div');
+      await runAI(type,null,elTarget);
+      if(type==='academic'||type==='career')renderScoresPage();
+      else if(type==='admission')renderAdmissionPage();
+      else if(type==='cutoff'||type==='cutoff-ai')renderCutoffPage();
+      else if(type==='roadmap')renderRoadmapPage();
+      else if(type==='subjects')renderSubjectsPage();
+    }
+  }finally{btn.disabled=false;btn.innerHTML=orig;}
 }
 
 async function rerunSection(type,containerId,runLabel,runType,btn){
@@ -1596,25 +1672,41 @@ function renderScoresPage(){
     }else{caEl.innerHTML=noAnalysisCard(s.name,'진로역량','career','sc-jin-ai',hasGb);}
   }
 
-  // 공동체역량 탭
+  // 공동체역량 탭 - dashboard/admission 다중 소스에서 점수 조회
   const goEl=q('sc-gong-ai');
   if(goEl){
-    const c=MEM.analyses['dashboard'];
-    if(c?.content){
-      const sc=parseScores(c.content);
-      const commScore=sc['공동체역량']||sc['공동체']||0;
-      const when=new Date(c.updatedAt).toLocaleString('ko-KR');
+    // 점수 소스 우선순위: community > dashboard > admission > academic
+    const srcKeys=['community','dashboard','admission','academic'];
+    let commScore=0,commSrc=null;
+    for(const k of srcKeys){
+      const a=MEM.analyses[k];
+      if(a?.content){const sc=parseScores(a.content);const v=sc['공동체역량']||sc['공동체']||sc['인성공동체']||0;if(v>0){commScore=v;commSrc=a;break;}}
+    }
+    if(commSrc){
+      const when=new Date(commSrc.updatedAt).toLocaleString('ko-KR');
       const col=scoreColor(commScore);
+      const subKeys=['협력성','나눔·배려','리더십','출결·성실성'];
+      const sc2=parseScores(commSrc.content);
+      const subScores=subKeys.filter(k=>sc2[k]>0);
+      const bars=subScores.map(k=>{const v=sc2[k];const bc=scoreColor(v);return`<div style="margin-bottom:7px"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span style="color:var(--muted)">${k}</span><span style="font-weight:700;color:${bc};font-family:'JetBrains Mono',monospace">${v}</span></div><div style="height:6px;background:var(--s4);border-radius:3px"><div style="height:100%;width:${v}%;background:${bc};border-radius:3px;transition:.5s"></div></div></div>`;}).join('');
       goEl.innerHTML=`<div class="ai-box">
-        <div class="ai-head"><div class="ai-dot"></div>공동체역량 분석 — ${s.name||''} <span style="font-size:10px;color:var(--muted);margin-left:6px">${when}</span></div>
-        ${commScore>0?`<div style="display:flex;align-items:center;gap:16px;padding:14px;background:var(--s2);border-radius:var(--r8);margin:12px 0">
-          ${scoreRingSVG(commScore,80)}
-          <div><div style="font-size:11px;color:var(--muted)">공동체역량 종합</div><div style="font-size:22px;font-weight:800;color:${col};font-family:'JetBrains Mono',monospace">${commScore}<span style="font-size:12px;color:var(--muted)">/100</span></div><div style="font-size:10px;padding:2px 8px;border-radius:10px;background:${col};color:white;font-weight:700;display:inline-block;margin-top:4px">${commScore>=80?'우수':commScore>=65?'양호':commScore>=50?'보통':'보완필요'}</div></div>
-        </div>`:``}
-        <div class="ai-body">${fmtAI(c.content)}</div>
+        <div class="ai-head"><div class="ai-dot"></div>공동체역량 분석 — ${s.name||''} <span style="font-size:10px;color:var(--muted);margin-left:6px">${when}</span><button class="btn btn-ghost btn-sm" style="margin-left:8px;padding:2px 8px;font-size:10px" onclick="rerunSectionBtn('community','sc-gong-ai',this)">재분석</button></div>
+        <div class="g2" style="margin:12px 0">
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;background:var(--s2);border-radius:var(--r8)">
+            ${scoreRingSVG(commScore,88)}
+            <div style="margin-top:6px;font-size:11px;color:var(--muted)">공동체역량 종합</div>
+            <div style="font-size:20px;font-weight:800;color:${col};font-family:'JetBrains Mono',monospace;margin-top:2px">${commScore}<span style="font-size:12px;color:var(--muted);font-weight:400">/100</span></div>
+            <div style="font-size:10px;margin-top:4px;padding:2px 8px;border-radius:10px;background:${col};color:white;font-weight:700">${commScore>=80?'우수':commScore>=65?'양호':commScore>=50?'보통':'보완필요'}</div>
+          </div>
+          <div style="padding:14px;background:var(--s2);border-radius:var(--r8)">
+            <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:10px">세부 항목 점수</div>
+            ${bars||'<div style="font-size:11px;color:var(--muted)">재분석 시 세부 점수가 표시됩니다</div>'}
+          </div>
+        </div>
+        <div class="ai-body report-body">${fmtAI(commSrc.content)}</div>
       </div>`;
     }else if(hasGb){
-      goEl.innerHTML=`<div class="ntc ntc-b"><span>🤖</span><div>생기부 분석 탭에서 AI 분석을 실행하면 공동체역량 점수와 진단이 자동 생성됩니다.<br><button class="btn btn-b btn-sm" style="margin-top:8px" onclick="sSide(null,'s-upload')">생기부 분석 →</button></div></div>`;
+      goEl.innerHTML=`<div class="ntc ntc-b"><span>🤖</span><div><b>${s.name||'학생'}의 생기부가 등록되어 있습니다.</b><br>공동체역량을 100점 만점으로 분석합니다.<br><button class="btn btn-b btn-sm" style="margin-top:8px" onclick="rerunSectionBtn('community','sc-gong-ai',this)">🤖 공동체역량 분석 실행</button></div></div>`;
     }else{
       goEl.innerHTML=`<div class="ntc ntc-y"><span>📄</span><div>생기부를 업로드하면 공동체역량 분석이 제공됩니다.<br><button class="btn btn-b btn-sm" style="margin-top:8px" onclick="sSide(null,'s-upload')">업로드 →</button></div></div>`;
     }
@@ -1679,39 +1771,48 @@ function renderAdmissionPage(){
   if(c?.content){
     const sc=parseScores(c.content);
     const when=new Date(c.updatedAt).toLocaleString('ko-KR');
+    // 크로스소스: admission에 점수 없으면 academic/career/community/dashboard에서 가져옴
+    const getScore=(key,fallbackKeys)=>{
+      if(sc[key]>0)return sc[key];
+      for(const fk of fallbackKeys){
+        const a=MEM.analyses[fk];
+        if(a?.content){const fs=parseScores(a.content);if(fs[key]>0)return fs[key];}
+      }
+      return 0;
+    };
     const radarData=[
-      {label:'학업역량',value:sc['학업역량']||0},
-      {label:'진로역량',value:sc['진로역량']||0},
-      {label:'공동체역량',value:sc['공동체역량']||0},
-      {label:'전공적합성',value:sc['전공적합성']||0},
-      {label:'발전가능성',value:sc['발전가능성']||0},
-      {label:'인성공동체',value:sc['인성공동체']||0},
+      {label:'학업역량', value:getScore('학업역량',['academic','dashboard'])},
+      {label:'진로역량',  value:getScore('진로역량', ['career','dashboard'])},
+      {label:'공동체역량',value:getScore('공동체역량',['community','dashboard'])},
+      {label:'전공적합성',value:getScore('전공적합성',['career','academic'])},
+      {label:'발전가능성',value:getScore('발전가능성',['career','academic'])},
+      {label:'인성공동체',value:getScore('인성공동체',['community','dashboard'])},
     ].filter(d=>d.value>0);
     const hasRadar=radarData.length>=3;
-    const legend=hasRadar?radarData.map(d=>`<div style="display:flex;align-items:center;gap:5px;font-size:11px"><span style="width:8px;height:8px;border-radius:50%;background:${scoreColor(d.value)};display:inline-block"></span>${d.label}: <b style="color:${scoreColor(d.value)};font-family:'JetBrains Mono',monospace">${d.value}</b></div>`).join(''):'';
+    const legend=radarData.map(d=>`<div style="display:flex;align-items:center;gap:5px;font-size:11px"><span style="width:8px;height:8px;border-radius:50%;background:${scoreColor(d.value)};display:inline-block"></span>${d.label}: <b style="color:${scoreColor(d.value)};font-family:'JetBrains Mono',monospace">${d.value}</b></div>`).join('');
     el.innerHTML=`<div class="ai-box">
       <div class="ai-head"><div class="ai-dot"></div>전형 전략 보고서 — ${s.name||''} · ${s.targetUniv||''} ${s.targetDept||''} <span style="font-size:10px;color:var(--muted);margin-left:6px">${when}</span><button class="btn btn-ghost btn-sm" style="margin-left:8px;padding:2px 8px;font-size:10px" onclick="rerunSectionBtn('admission','admission-content',this)">재분석</button></div>
       ${hasRadar?`<div style="margin:14px 0;padding:16px;background:var(--s2);border-radius:var(--r8)">
-        <div style="font-size:12px;font-weight:700;text-align:center;margin-bottom:10px;color:var(--text)">역량 레이더 차트</div>
+        <div style="font-size:13px;font-weight:700;text-align:center;margin-bottom:14px;color:var(--text)">역량 레이더 차트</div>
         ${radarChartSVG(radarData)}
-        <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:12px">${legend}</div>
-      </div>`:''}
+        <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:14px">${legend}</div>
+      </div>`:
+      `<div class="ntc ntc-b" style="margin:12px 0"><span>ℹ</span><div>역량 레이더 차트를 표시하려면 학업역량·진로역량·공동체역량 분석을 먼저 실행해 주세요.</div></div>`}
       <div class="ai-body report-body" style="margin-top:8px">${fmtAI(c.content)}</div>
     </div>`;
   }else if(hasGb){
-    el.innerHTML=`<div class="ntc ntc-b"><span>🤖</span><div><b>${s.name||'학생'}의 생기부가 등록되어 있습니다.</b><br>AI가 역량 레이더 차트와 수시 전형 전략 보고서를 생성합니다.<br><button class="btn btn-b btn-sm" style="margin-top:8px" onclick="rerunSectionBtn('admission','admission-content',this)">🤖 전형 전략 보고서 생성</button></div></div>`;
+    el.innerHTML=`<div class="ntc ntc-b"><span>🤖</span><div><b>${s.name||'학생'}의 생기부가 등록되어 있습니다.</b><br>역량 레이더 차트와 수시 전형 전략 보고서를 생성합니다.<br><button class="btn btn-b btn-sm" style="margin-top:8px" onclick="rerunSectionBtn('admission','admission-content',this)">🤖 전형 전략 보고서 생성</button></div></div>`;
   }else{
     el.innerHTML=`<div class="ntc ntc-y"><span>📄</span><div>생기부를 업로드하면 역량 레이더 차트와 전형 전략 보고서가 제공됩니다.<br><button class="btn btn-b btn-sm" style="margin-top:8px" onclick="sSide(null,'s-upload')">생기부 업로드 →</button></div></div>`;
   }
 }
 
 function renderCutoffPage(){
-  renderCutoffTables();
   const s=MEM.student||S.student||{};
   const titleEl=q('cutoff-ph-title');
   if(titleEl)titleEl.innerHTML=`${s.targetUniv||''} ${s.targetDept||''} <em>합격선 분석</em>`;
   const subEl=q('cutoff-ph-sub');
-  if(subEl)subEl.textContent=`${s.name||'학생'} 맞춤 지원 전략 · 생기부 기반 분석`;
+  if(subEl)subEl.textContent=`${s.name||'학생'} · ${s.targetDept||'목표 학과'} 기준 맞춤 상향·적정·하향 추천`;
   const gb=MEM.gb||DB.getGb(S.student?.id)||'';
   const hasGb=gb.length>50;
   const c=MEM.analyses['cutoff'];
@@ -1719,14 +1820,14 @@ function renderCutoffPage(){
   if(aiEl){
     if(c?.content){
       const when=new Date(c.updatedAt).toLocaleString('ko-KR');
-      aiEl.innerHTML=`<div class="ai-box" style="margin-top:14px">
-        <div class="ai-head"><div class="ai-dot"></div>AI 맞춤 지원 전략 — ${s.name||''} · ${s.targetDept||''} <span style="font-size:10px;color:var(--muted);margin-left:6px">${when}</span><button class="btn btn-ghost btn-sm" style="margin-left:8px;padding:2px 8px;font-size:10px" onclick="rerunSectionBtn('cutoff-ai','cutoff-ai-r',this)">재분석</button></div>
-        <div class="ai-body report-body" style="margin-top:8px">${fmtAI(c.content)}</div>
+      aiEl.innerHTML=`<div class="ai-box">
+        <div class="ai-head"><div class="ai-dot"></div>맞춤 지원 전략 — ${s.name||''} · ${s.targetDept||''} <span style="font-size:10px;color:var(--muted);margin-left:6px">${when}</span><button class="btn btn-ghost btn-sm" style="margin-left:8px;padding:2px 8px;font-size:10px" onclick="rerunSectionBtn('cutoff-ai','cutoff-ai-r',this)">재분석</button></div>
+        <div class="ai-body report-body" style="margin-top:8px">${renderCutoffReport(c.content,s)}</div>
       </div>`;
     }else if(hasGb){
-      aiEl.innerHTML=`<div class="ntc ntc-b" style="margin-top:14px"><span>🤖</span><div><b>${s.name||'학생'}의 생기부가 등록되어 있습니다.</b><br>AI가 목표 학과 기준 상향·적정·하향 대학 추천과 전략을 생성합니다.<br><button class="btn btn-b btn-sm" style="margin-top:8px" onclick="rerunSectionBtn('cutoff-ai','cutoff-ai-r',this)">🤖 맞춤 지원 전략 생성</button></div></div>`;
+      aiEl.innerHTML=`<div class="ntc ntc-b"><span>🤖</span><div><b>${s.name||'학생'}의 생기부가 등록되어 있습니다.</b><br>AI가 <b>${s.targetDept||'목표 학과'}</b> 기준 상향·적정·하향 대학 추천과 전략을 생성합니다.<br><button class="btn btn-b btn-sm" style="margin-top:8px" onclick="rerunSectionBtn('cutoff-ai','cutoff-ai-r',this)">🤖 맞춤 지원 전략 생성</button></div></div>`;
     }else{
-      aiEl.innerHTML=`<div class="ntc ntc-y" style="margin-top:14px"><span>📄</span><div>생기부를 업로드하면 맞춤 대학 추천이 제공됩니다.<br><button class="btn btn-b btn-sm" style="margin-top:8px" onclick="sSide(null,'s-upload')">생기부 업로드 →</button></div></div>`;
+      aiEl.innerHTML=`<div class="ntc ntc-y"><span>📄</span><div>생기부를 업로드하면 목표 학과 맞춤 대학 추천이 제공됩니다.<br><button class="btn btn-b btn-sm" style="margin-top:8px" onclick="sSide(null,'s-upload')">생기부 업로드 →</button></div></div>`;
     }
   }
 }
@@ -2318,6 +2419,19 @@ const PROMPTS={
 | 대학명 | 학과명 | 전형명 | X.XX등급 | 핵심 전략 |
 
 ## 지원 전략 종합 분석`,
+  community:`당신은 대입 전문 컨설턴트입니다. 학생의 생기부를 분석하여 공동체역량을 100점 만점으로 수치화하고 진단하세요.
+반드시 응답 맨 앞에 다음 형식으로 점수를 출력하세요 (0~100 정수):
+[SCORE:공동체역량] 숫자
+[SCORE:협력성] 숫자
+[SCORE:나눔·배려] 숫자
+[SCORE:리더십] 숫자
+[SCORE:출결·성실성] 숫자
+이후:
+## 공동체역량 종합 진단
+### 강점 분석
+### 보완 필요 항목
+### 목표 학과 연계 공동체 활동 전략
+### 자율활동·동아리·진로 연계 방향`,
   'perf-ai':`당신은 대입 수행평가 전문 컨설턴트입니다. 학생의 생기부와 수행평가 목록을 분석하여 (1)각 수행평가별 생기부 세특 연계 전략 (2)탐구 주제·키워드 심화 방향 (3)목표 학과 어필 포인트 (4)마감 우선순위 순서로 구체적으로 제시하세요. **굵게**, ### 소제목, - 리스트 활용.`,
 };
 
@@ -2521,12 +2635,13 @@ async function autoRunAllAnalyses(sid,gbText){
   const gradeStr=getGradeSummary();
   const fullBase=gradeStr?`${base}\n\n[성적 현황]\n${gradeStr}`:base;
   const tasks=[
-    {type:'academic',sys:PROMPTS.academic,msg:fullBase,label:'biglinker AI — 학업역량'},
-    {type:'career',sys:PROMPTS.career,msg:fullBase,label:'biglinker AI — 진로역량'},
-    {type:'roadmap',sys:PROMPTS.roadmap,msg:fullBase,label:'biglinker AI — 활동 로드맵'},
-    {type:'subjects',sys:PROMPTS.subjects,msg:fullBase,label:'biglinker AI — 과목 전략'},
-    {type:'cutoff',sys:PROMPTS['cutoff-ai'],msg:`${fullBase}\n\n[분석 요청] 위 학생의 목표 학과(${s.targetDept||''}) 합격선 기준 상향·적정·하향 추천과 전략을 제시하세요.`,label:'biglinker AI — 맞춤 지원 전략'},
-    {type:'admission',sys:PROMPTS.admission,msg:fullBase,label:'biglinker AI — 전형 전략'},
+    {type:'academic',  sys:PROMPTS.academic,   msg:fullBase, label:'biglinker AI — 학업역량'},
+    {type:'career',    sys:PROMPTS.career,      msg:fullBase, label:'biglinker AI — 진로역량'},
+    {type:'community', sys:PROMPTS.community,   msg:fullBase, label:'biglinker AI — 공동체역량'},
+    {type:'admission', sys:PROMPTS.admission,   msg:fullBase, label:'biglinker AI — 전형 전략'},
+    {type:'roadmap',   sys:PROMPTS.roadmap,     msg:fullBase, label:'biglinker AI — 활동 로드맵'},
+    {type:'subjects',  sys:PROMPTS.subjects,    msg:fullBase, label:'biglinker AI — 과목 전략'},
+    {type:'cutoff',    sys:PROMPTS['cutoff-ai'],msg:`${fullBase}\n\n[분석 요청] 위 학생의 목표 학과(${s.targetDept||'목표 학과'}) 합격선 기준 상향·적정·하향 대학 추천과 전략을 구체적으로 제시하세요.`, label:'biglinker AI — 맞춤 지원 전략'},
   ];
   for(const t of tasks){
     try{
@@ -2549,15 +2664,16 @@ async function autoRunAllAnalyses(sid,gbText){
         api('PUT',`/api/students/${sid}/analyses/${t.type}`,{content:full}).catch(()=>{});
         DB.addHistory(sid,{type:t.label,content:full.slice(0,300)});
         api('POST',`/api/students/${sid}/history`,{type:t.label,content:full.slice(0,300)}).catch(()=>{});
-        // 현재 열려있는 섹션 즉시 갱신
-        const activePageId=document.querySelector('#scr-student .page.on')?.id;
-        if(activePageId==='s-scores')renderScoresPage();
-        else if(activePageId==='s-roadmap')renderRoadmapPage();
-        else if(activePageId==='s-subjects')renderSubjectsPage();
-        else if(activePageId==='s-admission'||activePageId==='s-cutoff')renderCutoffPage();
+        // 현재 열린 섹션 즉시 갱신
+        const apid=document.querySelector('#scr-student .page.on')?.id;
+        if(apid==='s-scores')renderScoresPage();
+        else if(apid==='s-roadmap')renderRoadmapPage();
+        else if(apid==='s-subjects')renderSubjectsPage();
+        else if(apid==='s-admission')renderAdmissionPage();
+        else if(apid==='s-cutoff')renderCutoffPage();
         updateAnalysisBadges();
       }
-    }catch{}
+    }catch(e){console.warn('autoRun error:',t.type,e);}
   }
 }
 
