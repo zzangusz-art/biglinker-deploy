@@ -596,8 +596,9 @@ textarea{resize:vertical;min-height:72px}
       <button class="tn s-role" onclick="sNav(this,'s-interview')">면접 코칭</button>
     </div>
     <div class="tb-right">
+      <button id="s-back-cons-btn" class="btn btn-ghost btn-sm" style="display:none;margin-right:6px" onclick="backToConsultant()">← 컨설턴트 홈</button>
       <div class="role-badge"><span class="badge-dot dot-student"></span><span id="s-badge"></span></div>
-      <button class="btn-logout" onclick="logout()">로그아웃</button>
+      <button id="s-logout-btn" class="btn-logout" onclick="logout()">로그아웃</button>
     </div>
   </div>
   <div class="layout">
@@ -1083,7 +1084,7 @@ function now(){return new Date().toLocaleString('ko-KR')}
 // ═══════════════════════════════════════
 // SESSION & AUTH
 // ═══════════════════════════════════════
-let S={user:null,student:null,consultant:null};
+let S={user:null,student:null,consultant:null,consultantView:false,_prevMEM:{}};
 let loginRole='admin';
 
 function setRole(r){
@@ -1233,6 +1234,7 @@ async function viewStudent(sid,screen='admin'){
         <button class="btn btn-b" onclick="adminRunAI('${sid}')">🤖 AI 분석 실행</button>
         ${screen==='admin'?`<button class="btn btn-s2" onclick="openStModal('${sid}')">정보 수정</button>`:''}
         <button class="btn btn-s2" onclick="openPerfModal('${sid}')">+ 수행평가 추가</button>
+        ${screen==='consultant'?`<button class="btn btn-b" onclick="viewStudentFull('${sid}')">전체 화면으로 보기 →</button>`:''}
         <button class="btn btn-ghost" onclick="${screen==='admin'?'aSide(null,\'a-students\')':'cSide(null,\'c-students\')'}">← 목록</button>
       </div>
     </div>
@@ -1299,6 +1301,35 @@ async function showConsultant(){
   renderConsDash();
 }
 
+async function viewStudentFull(sid){
+  const s=DB.getStudents().find(x=>x.id===sid);
+  if(!s)return;
+  await loadStudentCache(sid);
+  const cache=MEM.cache[sid]||{};
+  // 현재 MEM 상태 저장 (컨설턴트 자신의 컨텍스트)
+  S._prevMEM={student:MEM.student,exams:MEM.exams,feedbacks:MEM.feedbacks,
+    gb:MEM.gb,analyses:MEM.analyses,history:MEM.history,grades:MEM.grades};
+  // 학생 데이터를 MEM에 주입
+  S.student=s;MEM.student=s;
+  MEM.exams=cache.exams||[];
+  MEM.feedbacks=cache.feedbacks||[];
+  MEM.gb=cache.gb||'';
+  MEM.analyses=cache.analyses||{};
+  MEM.history=cache.history||[];
+  MEM.grades=cache.grades||[];
+  S.consultantView=true;
+  showStudent();
+}
+function backToConsultant(){
+  // MEM 복원
+  const p=S._prevMEM||{};
+  MEM.student=p.student||null;S.student=p.student||null;
+  MEM.exams=p.exams||[];MEM.feedbacks=p.feedbacks||[];
+  MEM.gb=p.gb||'';MEM.analyses=p.analyses||{};
+  MEM.history=p.history||[];MEM.grades=p.grades||[];
+  S.consultantView=false;S._prevMEM={};
+  show('scr-consultant');
+}
 function cNav(btn,id){document.querySelectorAll('#scr-consultant .tn').forEach(t=>t.classList.remove('on'));btn.classList.add('on');cSide(null,id);}
 function cSide(el,id){
   if(el){document.querySelectorAll('#scr-consultant .si').forEach(s=>s.classList.remove('on'));el.classList.add('on');}
@@ -1323,7 +1354,7 @@ function renderConsDash(){
     <div class="card"><div class="card-lbl">미처리 피드백</div><div class="sn c-o">${pendingFbs.length}</div><div class="ss">답변 대기</div></div>
     <div class="card"><div class="card-lbl">총 수행평가</div><div class="sn c-b">${myStudents.reduce((a,s)=>a+DB.getExams(s.id).length,0)}</div><div class="ss">관리 항목</div></div>`;
   q('c-my-students').innerHTML=myStudents.map(s=>`
-    <div class="st-row" onclick="viewStudent('${s.id}','consultant')">
+    <div class="st-row" onclick="viewStudentFull('${s.id}')">
       <div class="st-av" style="color:var(--purple)">${s.name[0]}</div>
       <div class="st-info"><div class="st-nm">${s.name}</div><div class="st-mt">${s.school} ${s.grade}학년 · ${s.targetUniv} ${s.targetDept}</div></div>
       <div class="st-sc"><div class="sv c-p">${DB.getFeedbacks(s.id).filter(f=>!f.consultantContent).length}</div><div class="sl">미처리</div></div>
@@ -1336,7 +1367,7 @@ function renderConsStudentList(){
   const c=S.consultant;
   const sts=DB.getStudents().filter(s=>(s.consultantId||s.consultant_id)===c.id);
   q('c-student-list').innerHTML=sts.map(s=>`
-    <div class="st-row" onclick="viewStudent('${s.id}','consultant')">
+    <div class="st-row" onclick="viewStudentFull('${s.id}')">
       <div class="st-av" style="color:var(--purple)">${s.name[0]}</div>
       <div class="st-info"><div class="st-nm">${s.name}</div><div class="st-mt">${s.school} ${s.grade}학년 · ${s.targetUniv} ${s.targetDept}</div></div>
     </div>`).join('')||'<div class="empty"><div class="empty-ic">◉</div><div class="empty-t">담당 학생 없음</div></div>';
@@ -1375,6 +1406,15 @@ function showStudent(){
   show('scr-student');
   const s=MEM.student||S.student;
   q('s-badge').textContent=`${s.name} · ${s.school||''} ${s.grade||''}학년`;
+  // 컨설턴트 뷰 모드: 뒤로가기 버튼 표시, 로그아웃 숨김
+  const backBtn=q('s-back-cons-btn'),logoutBtn=q('s-logout-btn');
+  if(S.consultantView){
+    if(backBtn)backBtn.style.display='';
+    if(logoutBtn)logoutBtn.style.display='none';
+  }else{
+    if(backBtn)backBtn.style.display='none';
+    if(logoutBtn)logoutBtn.style.display='';
+  }
   renderStudentDash();
   loadProfile();
   renderPerfPage();
