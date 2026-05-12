@@ -1493,13 +1493,25 @@ function parseScores(text){
   while((m=re.exec(text))!==null)s[m[1]]=Math.min(100,Math.max(0,parseInt(m[2])));
   return s;
 }
+function calcWeightedAvg(sc,weightMap){
+  let wSum=0,vSum=0;
+  for(const[k,w]of Object.entries(weightMap)){const v=sc[k]||0;if(v>0){vSum+=v*w;wSum+=w;}}
+  return wSum>0?Math.round(vSum/wSum*10)/10:0;
+}
+function calcAvg(sc,keys){
+  const vals=keys.map(k=>sc[k]||0).filter(v=>v>0);
+  return vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length*10)/10:0;
+}
+function fmtScore(v){return(v%1===0)?String(v):v.toFixed(1);}
 
 function scoreColor(v){return v>=70?'var(--green)':v>=50?'var(--blue)':'var(--orange)';}
 
 function scoreRingSVG(score,size=80){
   const r=28,c=size/2,circ=2*Math.PI*r,offset=circ*(1-score/100);
   const col=scoreColor(score);
-  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--s4)" stroke-width="6"/><circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${col}" stroke-width="6" stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}" stroke-linecap="round" transform="rotate(-90 ${c} ${c})"/><text x="${c}" y="${c+4}" text-anchor="middle" font-size="14" fill="var(--text)" font-family="JetBrains Mono,monospace" font-weight="700">${score}</text></svg>`;
+  const disp=fmtScore(score);
+  const fs=disp.length>3?11:14;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--s4)" stroke-width="6"/><circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${col}" stroke-width="6" stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}" stroke-linecap="round" transform="rotate(-90 ${c} ${c})"/><text x="${c}" y="${c+4}" text-anchor="middle" font-size="${fs}" fill="var(--text)" font-family="JetBrains Mono,monospace" font-weight="700">${disp}</text></svg>`;
 }
 
 function radarChartSVG(data){
@@ -1534,7 +1546,7 @@ function scoreTabCard(mainScore, mainLabel, subScores, content, sid, contId, typ
       <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;background:var(--s2);border-radius:var(--r8)">
         ${scoreRingSVG(mainScore,88)}
         <div style="margin-top:6px;font-size:11px;color:var(--muted)">${mainLabel} 종합</div>
-        <div style="font-size:20px;font-weight:800;color:${col};font-family:'JetBrains Mono',monospace;margin-top:2px">${mainScore}<span style="font-size:12px;color:var(--muted);font-weight:400">/100</span></div>
+        <div style="font-size:20px;font-weight:800;color:${col};font-family:'JetBrains Mono',monospace;margin-top:2px">${fmtScore(mainScore)}<span style="font-size:12px;color:var(--muted);font-weight:400">/100</span></div>
         <div style="font-size:10px;margin-top:4px;padding:2px 8px;border-radius:10px;background:${col};color:white;font-weight:700">${mainScore>=80?'우수':mainScore>=65?'양호':mainScore>=50?'보통':'보완필요'}</div>
       </div>
       <div style="padding:14px;background:var(--s2);border-radius:var(--r8)">
@@ -1693,7 +1705,8 @@ function renderScoresPage(){
       const when=new Date(c.updatedAt).toLocaleString('ko-KR');
       const sub={'탐구심':sc['탐구심']||0,'학업발전도':sc['학업발전도']||0,'과목세특질':sc['과목세특질']||0,'학습태도':sc['학습태도']||0};
       const hasSubScores=Object.values(sub).some(v=>v>0);
-      acEl.innerHTML=scoreTabCard(sc['학업역량']||0,'학업역량',hasSubScores?sub:{},c.content,'sc-hak-ai','sc-hak-ai','academic',when,s);
+      const hakScore=hasSubScores?calcAvg(sc,['탐구심','학업발전도','과목세특질','학습태도'])||sc['학업역량']||0:sc['학업역량']||0;
+      acEl.innerHTML=scoreTabCard(hakScore,'학업역량',hasSubScores?sub:{},c.content,'sc-hak-ai','sc-hak-ai','academic',when,s);
     }else{acEl.innerHTML=noAnalysisCard(s.name,'학업역량','academic','sc-hak-ai',hasGb);}
   }
 
@@ -1706,7 +1719,8 @@ function renderScoresPage(){
       const when=new Date(c.updatedAt).toLocaleString('ko-KR');
       const sub={'진로일관성':sc['진로일관성']||0,'전공적합성':sc['전공적합성']||0,'진로탐색활동':sc['진로탐색활동']||0,'발전가능성':sc['발전가능성']||0};
       const hasSubScores=Object.values(sub).some(v=>v>0);
-      caEl.innerHTML=scoreTabCard(sc['진로역량']||0,'진로역량',hasSubScores?sub:{},c.content,'sc-jin-ai','sc-jin-ai','career',when,s);
+      const jinScore=hasSubScores?calcAvg(sc,['진로일관성','전공적합성','진로탐색활동','발전가능성'])||sc['진로역량']||0:sc['진로역량']||0;
+      caEl.innerHTML=scoreTabCard(jinScore,'진로역량',hasSubScores?sub:{},c.content,'sc-jin-ai','sc-jin-ai','career',when,s);
     }else{caEl.innerHTML=noAnalysisCard(s.name,'진로역량','career','sc-jin-ai',hasGb);}
   }
 
@@ -1722,19 +1736,20 @@ function renderScoresPage(){
     }
     if(commSrc){
       const when=new Date(commSrc.updatedAt).toLocaleString('ko-KR');
-      const col=scoreColor(commScore);
       const subKeys=['협력성','나눔·배려','리더십','출결·성실성'];
       const sc2=parseScores(commSrc.content);
+      const gongScore=calcAvg(sc2,['협력성','나눔·배려','리더십','출결·성실성'])||commScore;
+      const col=scoreColor(gongScore);
       const subScores=subKeys.filter(k=>sc2[k]>0);
       const bars=subScores.map(k=>{const v=sc2[k];const bc=scoreColor(v);return`<div style="margin-bottom:7px"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span style="color:var(--muted)">${k}</span><span style="font-weight:700;color:${bc};font-family:'JetBrains Mono',monospace">${v}</span></div><div style="height:6px;background:var(--s4);border-radius:3px"><div style="height:100%;width:${v}%;background:${bc};border-radius:3px;transition:.5s"></div></div></div>`;}).join('');
       goEl.innerHTML=`<div class="ai-box">
         <div class="ai-head"><div class="ai-dot"></div>공동체역량 분석 — ${s.name||''} <span style="font-size:10px;color:var(--muted);margin-left:6px">${when}</span><button class="btn btn-ghost btn-sm" style="margin-left:8px;padding:2px 8px;font-size:10px" onclick="rerunSectionBtn('community','sc-gong-ai',this)">재분석</button></div>
         <div class="g2" style="margin:12px 0">
           <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;background:var(--s2);border-radius:var(--r8)">
-            ${scoreRingSVG(commScore,88)}
+            ${scoreRingSVG(gongScore,88)}
             <div style="margin-top:6px;font-size:11px;color:var(--muted)">공동체역량 종합</div>
-            <div style="font-size:20px;font-weight:800;color:${col};font-family:'JetBrains Mono',monospace;margin-top:2px">${commScore}<span style="font-size:12px;color:var(--muted);font-weight:400">/100</span></div>
-            <div style="font-size:10px;margin-top:4px;padding:2px 8px;border-radius:10px;background:${col};color:white;font-weight:700">${commScore>=80?'우수':commScore>=65?'양호':commScore>=50?'보통':'보완필요'}</div>
+            <div style="font-size:20px;font-weight:800;color:${col};font-family:'JetBrains Mono',monospace;margin-top:2px">${fmtScore(gongScore)}<span style="font-size:12px;color:var(--muted);font-weight:400">/100</span></div>
+            <div style="font-size:10px;margin-top:4px;padding:2px 8px;border-radius:10px;background:${col};color:white;font-weight:700">${gongScore>=80?'우수':gongScore>=65?'양호':gongScore>=50?'보통':'보완필요'}</div>
           </div>
           <div style="padding:14px;background:var(--s2);border-radius:var(--r8)">
             <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:10px">세부 항목 점수</div>
@@ -1818,10 +1833,14 @@ function renderAdmissionPage(){
       }
       return 0;
     };
+    const _hakSc=parseScores(MEM.analyses['academic']?.content||'');
+    const _jinSc=parseScores(MEM.analyses['career']?.content||'');
+    const _gongSrc=['community','dashboard','admission'].map(k=>MEM.analyses[k]).find(a=>a?.content);
+    const _gongSc=_gongSrc?parseScores(_gongSrc.content):{};
     const radarData=[
-      {label:'학업역량', value:getScore('학업역량',['academic','dashboard'])},
-      {label:'진로역량',  value:getScore('진로역량', ['career','dashboard'])},
-      {label:'공동체역량',value:getScore('공동체역량',['community','dashboard'])},
+      {label:'학업역량', value:calcAvg(_hakSc,['탐구심','학업발전도','과목세특질','학습태도'])||getScore('학업역량',['academic','dashboard'])},
+      {label:'진로역량',  value:calcAvg(_jinSc,['진로일관성','전공적합성','진로탐색활동','발전가능성'])||getScore('진로역량',['career','dashboard'])},
+      {label:'공동체역량',value:calcAvg(_gongSc,['협력성','나눔·배려','리더십','출결·성실성'])||getScore('공동체역량',['community','dashboard'])},
       {label:'전공적합성',value:getScore('전공적합성',['career','academic'])},
       {label:'발전가능성',value:getScore('발전가능성',['career','academic'])},
       {label:'인성공동체',value:getScore('인성공동체',['community','dashboard'])},
@@ -1853,7 +1872,7 @@ function renderCutoffPage(){
   if(subEl)subEl.textContent=`${s.name||'학생'} · ${s.targetDept||'목표 학과'} 기준 맞춤 상향·적정·하향 추천`;
   const gb=MEM.gb||DB.getGb(S.student?.id)||'';
   const hasGb=gb.length>50;
-  const c=MEM.analyses['cutoff'];
+  const c=MEM.analyses['cutoff']||MEM.analyses['cutoff-ai'];
   const aiEl=q('cutoff-ai-r');
   if(aiEl){
     if(c?.content){
@@ -2290,7 +2309,8 @@ async function callAI(sys,msg,el,label='biglinker AI',sid=null,messages=null,typ
       DB.addHistory(sid2,{type:label,content:full.slice(0,300)});
       api('POST',`/api/students/${sid2}/history`,{type:label,content:full.slice(0,300)}).catch(()=>{});
       // 섹션별 전체 분석 결과를 MEM.analyses에 저장 + 서버 캐시
-      const atype=type||(label.includes('학업역량')?'academic':label.includes('진로역량')?'career':label.includes('활동 로드맵')?'roadmap':label.includes('과목 전략')?'subjects':label.includes('지원 전략')?'cutoff':label.includes('전형 전략')?'admission':label.includes('생기부 분석')?'dashboard':label.includes('수행평가 전략')?'perf-ai':null);
+      const normalizedType=(type==='cutoff-ai')?'cutoff':type;
+      const atype=normalizedType||(label.includes('학업역량')?'academic':label.includes('진로역량')?'career':label.includes('활동 로드맵')?'roadmap':label.includes('과목 전략')?'subjects':label.includes('지원 전략')?'cutoff':label.includes('전형 전략')?'admission':label.includes('생기부 분석')?'dashboard':label.includes('수행평가 전략')?'perf-ai':null);
       if(atype&&sid2===S.student?.id){
         MEM.analyses[atype]={content:full,updatedAt:Date.now()};
         api('PUT',`/api/students/${sid2}/analyses/${atype}`,{content:full}).catch(()=>{});
