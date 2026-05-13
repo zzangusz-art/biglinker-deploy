@@ -483,7 +483,7 @@ textarea{resize:vertical;min-height:72px}
         <div class="g2">
           <div class="card">
             <div class="card-lbl" style="margin-bottom:12px">Anthropic Claude API</div>
-            <div class="ntc ntc-b" style="margin-bottom:12px"><span>ℹ</span><div>API 키는 로컬에 저장됩니다. Anthropic 콘솔에서 발급하세요.</div></div>
+            <div class="ntc ntc-b" style="margin-bottom:12px"><span>🔒</span><div>API 키는 <b>서버(DB)에만 저장</b>되며 클라이언트에 전달되지 않습니다.<br>운영 환경에서는 Railway/Render 환경변수 <b>ANTHROPIC_API_KEY</b>로 설정하면 DB 입력 불필요합니다.</div></div>
             <div class="fl"><label>API Key</label><div style="display:flex;gap:8px"><input type="password" id="api-key-in" placeholder="sk-ant-api03-..."><button class="btn btn-b btn-sm" onclick="saveApiKey()" style="flex-shrink:0">저장</button></div></div>
             <div class="fl"><label>모델</label><select id="model-sel"><option value="claude-sonnet-4-6">Claude Sonnet 4.6 (권장)</option><option value="claude-opus-4-6">Claude Opus 4.6</option><option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option></select></div>
             <div id="api-st"></div>
@@ -635,6 +635,7 @@ textarea{resize:vertical;min-height:72px}
         <div class="g4" style="margin-bottom:14px" id="s-stat-cards"></div>
         <div class="g2" style="margin-bottom:14px" id="s-dash-mid"></div>
         <div style="margin-bottom:14px" id="s-interview-summary"></div>
+        <div id="s-recommendations"></div>
         <div style="margin-bottom:14px" id="s-dash-cal-preview"></div>
         <div class="btn-row" id="s-dash-acts"></div><div id="s-dash-ai"></div>
       </div>
@@ -981,7 +982,9 @@ let TOKEN = localStorage.getItem('bl_token') || '';
 const MEM = {
   user: null,
   students: [], consultants: [],
-  apiKey: '', model: 'claude-sonnet-4-6',
+  // API 키는 클라이언트에 저장하지 않음 — 서버가 ENV/DB에서 관리
+  // apiKeySet: boolean만 보관 (설정 여부 표시용)
+  apiKeySet: false, apiKeySource: 'none', model: 'claude-sonnet-4-6',
   // 현재 로그인한 학생 데이터
   student: null, gb: '', exams: [], feedbacks: [], history: [],
   // 성적 데이터 (6학기)
@@ -993,6 +996,8 @@ const MEM = {
   consultant: null,
   // admin·consultant가 조회한 학생 데이터 캐시 { [sid]: { gb, exams, feedbacks, history, grades, analyses } }
   cache: {},
+  // 개인화 추천
+  recommendations: [],
 };
 
 async function api(method, url, body) {
@@ -1037,8 +1042,7 @@ const DB = {
   setConsultants(v) { MEM.consultants = v; },
   getAdmins() { return MEM.user?.role === 'admin' ? [MEM.user] : []; },
   setAdmins() {},
-  getApiKey() { return MEM.apiKey; },
-  setApiKey(v) { MEM.apiKey = v; },
+  getApiKeySet() { return MEM.apiKeySet; },
   getModel() { return MEM.model || 'claude-sonnet-4-6'; },
   setModel(v) { MEM.model = v; },
   getGb(sid) {
@@ -1109,7 +1113,8 @@ async function doLogin(){
     if(role==='admin'){
       MEM.students=r.students||[];
       MEM.consultants=r.consultants||[];
-      MEM.apiKey=r.apiKey||'';
+      MEM.apiKeySet=r.apiKeySet||false;
+      MEM.apiKeySource=r.apiKeySource||'none';
       MEM.model=r.model||'claude-sonnet-4-6';
       MEM.cache={};
       S.user=r.user;
@@ -1132,6 +1137,8 @@ async function doLogin(){
       MEM.consultant=r.consultant;
       S.user=r.user;S.student=r.user;
       showStudent();
+      // 로그인 후 개인화 추천 비동기 로드
+      refreshRecommendations(r.user.id);
     }
   }catch(e){q('lerr').textContent=e.message||'서버 연결 오류';}
   finally{if(btn){btn.disabled=false;btn.textContent='로그인';}}
@@ -1156,7 +1163,10 @@ function showAdmin(){
   q('a-cnt').textContent=DB.getStudents().length;
   q('c-cnt').textContent=DB.getConsultants().length;
   renderAdminDash();
-  if(MEM.apiKey)q('api-key-in').value=MEM.apiKey;
+  // API 키는 서버에서 관리 — 클라이언트에 키 값 표시 금지
+  if(MEM.apiKeySet){
+    q('api-key-in').placeholder='설정됨 (변경 시 새 키 입력)';
+  }
   q('model-sel').value=MEM.model||'claude-sonnet-4-6';
 }
 
@@ -1172,12 +1182,13 @@ function aSide(el,id){
 function renderAdminDash(){
   const sts=DB.getStudents(),cons=DB.getConsultants();
   const totalAI=sts.reduce((a,s)=>a+(s.analysisCount||0),0);
-  const apiKey=DB.getApiKey();
+  const apiKeySet=DB.getApiKeySet();
+  const srcLabel={'env':'ENV (환경변수)','db':'DB (관리자 설정)','none':'미설정'}[MEM.apiKeySource]||'미설정';
   q('a-stats').innerHTML=`
     <div class="card"><div class="card-lbl">총 학생</div><div class="sn c-b">${sts.length}</div><div class="ss">등록 학생 수</div></div>
     <div class="card"><div class="card-lbl">컨설턴트</div><div class="sn c-p">${cons.length}</div><div class="ss">활성 컨설턴트</div></div>
     <div class="card"><div class="card-lbl">누적 AI 분석</div><div class="sn c-g">${totalAI}</div><div class="ss">총 분석 횟수</div></div>
-    <div class="card"><div class="card-lbl">API 상태</div><div class="sn ${apiKey?'c-g':'c-r'}" style="font-size:16px;margin-top:4px">${apiKey?'연결됨':'미설정'}</div><div class="ss">${apiKey?'정상':'설정 필요'}</div></div>`;
+    <div class="card"><div class="card-lbl">API 상태</div><div class="sn ${apiKeySet?'c-g':'c-r'}" style="font-size:16px;margin-top:4px">${apiKeySet?'연결됨':'미설정'}</div><div class="ss">${srcLabel}</div></div>`;
   q('a-recent').innerHTML=sts.slice(-4).reverse().map(s=>`
     <div class="st-row" onclick="viewStudent('${s.id}')">
       <div class="st-av" style="color:var(--blue)">${s.name[0]}</div>
@@ -1319,6 +1330,8 @@ async function viewStudentFull(sid){
   MEM.grades=cache.grades||[];
   S.consultantView=true;
   showStudent();
+  // 학생 추천 데이터 비동기 로드
+  refreshRecommendations(sid);
 }
 function backToConsultant(){
   // MEM 복원
@@ -1327,6 +1340,7 @@ function backToConsultant(){
   MEM.exams=p.exams||[];MEM.feedbacks=p.feedbacks||[];
   MEM.gb=p.gb||'';MEM.analyses=p.analyses||{};
   MEM.history=p.history||[];MEM.grades=p.grades||[];
+  MEM.recommendations=[];
   S.consultantView=false;S._prevMEM={};
   show('scr-consultant');
 }
@@ -2062,8 +2076,64 @@ function renderStudentDash(){
     <button class="btn btn-ghost" onclick="sSide(null,'s-upload')">📄 생기부 ${hasGb?'수정':'업로드'}</button>`;
 
   renderDashCalPreview('s');
+  renderRecommendations();
 }
 
+// ═══════════════════════════════════════
+// AI 개인화 추천 패널
+// ═══════════════════════════════════════
+function renderRecommendations(){
+  const el=q('s-recommendations');
+  if(!el)return;
+  const recs=MEM.recommendations||[];
+  if(!recs.length){el.innerHTML='';return;}
+
+  // 미읽음 우선, 최대 5개 표시
+  const unread=recs.filter(r=>!r.is_read);
+  const toShow=recs.slice(0,5);
+
+  const priorityColor=p=>p>=8?'var(--red)':p>=5?'var(--orange)':'var(--green)';
+  const priorityLabel=p=>p>=8?'🔴 긴급':p>=5?'🟡 권장':'🟢 유지';
+  const catIcon={'학업역량':'📚','진로역량':'🎯','공동체역량':'🤝','수행평가':'📋','일반':'💡'}
+
+  el.innerHTML=`
+    <div class="card" style="margin-top:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div class="card-lbl" style="margin-bottom:0">🤖 AI 개인화 추천${unread.length?` <span class="bdg bdg-r">${unread.length}신규</span>`:''}</div>
+        <button class="btn btn-ghost btn-sm" onclick="markAllRecsRead()" style="font-size:10px">전체 읽음</button>
+      </div>
+      ${toShow.map(r=>`
+        <div class="iss ${r.priority>=8?'iss-r':r.priority>=5?'iss-o':'iss-g'}" style="opacity:${r.is_read?'.55':'1'}">
+          <div style="flex:1">
+            <div class="i-t">${catIcon[r.category]||'💡'} ${r.title}
+              <span style="font-size:10px;font-weight:400;color:${priorityColor(r.priority)};margin-left:6px">${priorityLabel(r.priority)}</span>
+            </div>
+            <div class="i-d">${r.content}</div>
+            <div class="i-tag">${r.category}</div>
+          </div>
+          ${!r.is_read?`<button class="btn btn-ghost btn-sm" style="flex-shrink:0;font-size:10px" onclick="markRecRead('${r.id}')">읽음</button>`:''}
+        </div>`).join('')}
+      ${recs.length>5?`<div style="text-align:center;margin-top:8px;font-size:11px;color:var(--muted)">외 ${recs.length-5}개 추천 — 분석 완료 후 갱신됩니다</div>`:''}
+    </div>`;
+}
+
+async function markRecRead(id){
+  try{
+    await api('PUT',`/api/recommendations/${id}/read`,{});
+    const rec=MEM.recommendations.find(r=>r.id===id);
+    if(rec)rec.is_read=1;
+    renderRecommendations();
+  }catch(e){/* silent */}
+}
+
+async function markAllRecsRead(){
+  const sid=S.student?.id;if(!sid)return;
+  try{
+    await api('PUT',`/api/students/${sid}/recommendations/read-all`,{});
+    MEM.recommendations.forEach(r=>r.is_read=1);
+    renderRecommendations();
+  }catch(e){/* silent */}
+}
 
 // ═══════════════════════════════════════
 // 수행평가 MANAGEMENT
@@ -2302,7 +2372,9 @@ function confirmDelCons(cid,name){
 // API
 // ═══════════════════════════════════════
 // type 파라미터: 섹션별 분석 결과 캐시 키 (dashboard, academic, career, roadmap, subjects, cutoff, admission, perf-ai …)
-async function callAI(sys,msg,el,label='biglinker AI',sid=null,messages=null,type=null){
+// type 파라미터: 섹션별 분석 결과 캐시 키
+// ragQuery: BM25 RAG 검색에 사용할 쿼리 문자열 (지정 시 서버가 관련 KB 청크 자동 주입)
+async function callAI(sys,msg,el,label='biglinker AI',sid=null,messages=null,type=null,ragQuery=null){
   if(!el)return;
   el.innerHTML=`<div class="ai-box"><div class="ai-head"><div class="ai-dot"></div>${label}</div><div class="ld-wrap"><div class="ld-tr"><div class="ld-fl"></div></div><div class="ld-tx">AI 분석 중...</div></div></div>`;
   const bodyEl=document.createElement('div');bodyEl.className='ai-body';
@@ -2314,10 +2386,21 @@ async function callAI(sys,msg,el,label='biglinker AI',sid=null,messages=null,typ
   head.innerHTML=`<div class="ai-dot"></div>${label} · 생성 중`;
   box.appendChild(head);box.appendChild(bodyEl);bodyEl.appendChild(cur);el.appendChild(box);
   try{
-    // 서버 프록시 사용 (API 키는 서버에서 관리, 토큰 4096)
+    // RAG 쿼리: type·label에서 자동 추론 (미지정 시)
+    const autoRagQuery=ragQuery||(
+      type==='academic'?'학업역량 탐구심 학업발전도 세특 평가기준':
+      type==='career'?'진로역량 전공적합성 진로탐색활동 평가기준':
+      type==='community'?'공동체역량 협력성 리더십 봉사 평가기준':
+      type==='cutoff'||type==='cutoff-ai'?'합격컷 학종 지원전략 합격가능성':
+      type==='admission'?'수시 학종 전형전략 합격':
+      type==='interview'?'면접 예상질문 생기부 기반':
+      null
+    );
+    const sid2=sid||S.student?.id;
+    // 서버 프록시 사용 (API 키는 서버 ENV/DB에서 관리 — 클라이언트 미노출)
     const body = messages
-      ? {system:sys, messages, maxTokens:8000}
-      : {system:sys, userMsg:msg, maxTokens:8000};
+      ? {system:sys, messages, maxTokens:8000, ragQuery:autoRagQuery, studentId:sid2}
+      : {system:sys, userMsg:msg, maxTokens:8000, ragQuery:autoRagQuery, studentId:sid2};
     const r=await fetch('/api/claude/stream',{method:'POST',
       headers:{'Content-Type':'application/json','Authorization':`Bearer ${TOKEN}`},
       body:JSON.stringify(body)});
@@ -2338,28 +2421,45 @@ async function callAI(sys,msg,el,label='biglinker AI',sid=null,messages=null,typ
     }
     cur.remove();head.innerHTML=`<div class="ai-dot"></div>${label} · 완료`;
     const fmt=full.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/\[SCORE:[^\]]+\]\s*\d+/g,'') // 점수 태그는 화면 표시에서 제거
       .replace(/\*\*(.*?)\*\*/g,'<b>$1</b>')
       .replace(/^### (.+)$/gm,'<h3 style="margin:10px 0 4px;font-size:13px;color:var(--blue)">$1</h3>')
       .replace(/^## (.+)$/gm,'<h2 style="margin:12px 0 5px;font-size:14px;color:var(--text)">$1</h2>')
       .replace(/^- (.+)$/gm,'<div style="padding:2px 0 2px 13px;border-left:2px solid var(--border2);margin:2px 0;color:var(--muted);font-size:12px">$1</div>');
     bodyEl.innerHTML=fmt;
     // 분석 완료 후 MEM 갱신 + 대시보드·히스토리 즉시 반영
-    const sid2=sid||S.student?.id;
     if(sid2){
       DB.addHistory(sid2,{type:label,content:full.slice(0,300)});
       api('POST',`/api/students/${sid2}/history`,{type:label,content:full.slice(0,300)}).catch(()=>{});
-      // 섹션별 전체 분석 결과를 MEM.analyses에 저장 + 서버 캐시
+      // 섹션별 전체 분석 결과를 MEM.analyses에 저장 + 서버 캐시 + 점수 히스토리 자동 기록
       const normalizedType=(type==='cutoff-ai')?'cutoff':type;
       const atype=normalizedType||(label.includes('학업역량')?'academic':label.includes('진로역량')?'career':label.includes('활동 로드맵')?'roadmap':label.includes('과목 전략')?'subjects':label.includes('지원 전략')?'cutoff':label.includes('전형 전략')?'admission':label.includes('생기부 분석')?'dashboard':label.includes('수행평가 전략')?'perf-ai':null);
       if(atype&&sid2===S.student?.id){
         MEM.analyses[atype]={content:full,updatedAt:Date.now()};
-        api('PUT',`/api/students/${sid2}/analyses/${atype}`,{content:full}).catch(()=>{});
+        // 서버 저장 (score_history + recommendations도 서버에서 자동 처리)
+        api('PUT',`/api/students/${sid2}/analyses/${atype}`,{content:full})
+          .then(r=>{
+            // 분석 저장 후 추천 목록 갱신
+            if(r?.scoresExtracted>0) refreshRecommendations(sid2);
+          })
+          .catch(()=>{});
         // 분석 완료 후 관련 섹션 뱃지 업데이트
         updateAnalysisBadges();
       }
       if(S.student?.id===sid2){renderStudentDash();renderHistPage();}
     }
   }catch(e){cur.remove();head.innerHTML=`<div class="ai-dot"></div>${label} · 오류`;bodyEl.innerHTML=`<b style="color:var(--red)">오류: ${e.message}</b>\n관리자 설정에서 API 키를 확인하거나 관리자에게 문의하세요.`;}
+}
+
+/** 학생 추천 목록 비동기 갱신 */
+async function refreshRecommendations(sid){
+  try{
+    const recs=await api('GET',`/api/students/${sid}/recommendations?unreadOnly=0`);
+    if(sid===S.student?.id){
+      MEM.recommendations=recs||[];
+      renderRecommendations();
+    }
+  }catch(e){/* silent */}
 }
 
 // 성적 요약 문자열 (AI 프롬프트용)
@@ -2787,13 +2887,17 @@ async function runAnswerFb(btn){
   btn.disabled=false;btn.innerHTML='🤖 AI 피드백';
 }
 
-// API Settings
+// API Settings — API 키는 서버 DB에만 저장, 클라이언트로 반환하지 않음
 async function saveApiKey(){
-  const k=v('api-key-in');if(!k)return;
+  const k=v('api-key-in');
   const model=q('model-sel').value;
   try{
-    await api('POST','/api/settings',{apiKey:k,model});
-    MEM.apiKey=k;MEM.model=model;
+    const r=await api('POST','/api/settings',{apiKey:k||undefined,model});
+    if(r.apiKeySet!==undefined)MEM.apiKeySet=r.apiKeySet;
+    MEM.model=model;
+    // 저장 후 입력 필드 초기화 (보안: 화면에 키 잔류 방지)
+    q('api-key-in').value='';
+    q('api-key-in').placeholder=MEM.apiKeySet?'설정됨 (변경 시 새 키 입력)':'sk-ant-api03-...';
     q('api-st').innerHTML='<div class="ntc ntc-g" style="margin-top:8px"><span>✓</span>저장되었습니다.</div>';
     renderAdminDash();
   }catch(e){q('api-st').innerHTML=`<div class="ntc ntc-r" style="margin-top:8px"><span>✗</span>${e.message}</div>`;}
