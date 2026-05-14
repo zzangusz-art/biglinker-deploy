@@ -1757,9 +1757,13 @@ function renderScoresPage(){
     if(c?.content){
       const sc=parseScores(c.content);
       const when=new Date(c.updatedAt).toLocaleString('ko-KR');
-      const sub={'탐구심':sc['탐구심']||0,'학업발전도':sc['학업발전도']||0,'과목세특질':sc['과목세특질']||0,'학습태도':sc['학습태도']||0};
+      // 신규 3-item 키 우선, 없으면 레거시 4-item 키 폴백
+      const hakNewKeys=['학업성취도','탐구역량','학업태도'];
+      const hakLegacyKeys=['탐구심','학업발전도','과목세특질','학습태도'];
+      const hakSubArr=hakNewKeys.some(k=>sc[k]>0)?hakNewKeys:hakLegacyKeys;
+      const sub=Object.fromEntries(hakSubArr.map(k=>[k,sc[k]||0]));
       const hasSubScores=Object.values(sub).some(v=>v>0);
-      const hakScore=hasSubScores?calcAvg(sc,['탐구심','학업발전도','과목세특질','학습태도'])||sc['학업역량']||0:sc['학업역량']||0;
+      const hakScore=hasSubScores?calcAvg(sc,hakSubArr)||sc['학업역량']||0:sc['학업역량']||0;
       acEl.innerHTML=scoreTabCard(hakScore,'학업역량',hasSubScores?sub:{},c.content,'sc-hak-ai','sc-hak-ai','academic',when,s);
     }else{acEl.innerHTML=noAnalysisCard(s.name,'학업역량','academic','sc-hak-ai',hasGb);}
   }
@@ -1771,9 +1775,13 @@ function renderScoresPage(){
     if(c?.content){
       const sc=parseScores(c.content);
       const when=new Date(c.updatedAt).toLocaleString('ko-KR');
-      const sub={'진로일관성':sc['진로일관성']||0,'전공적합성':sc['전공적합성']||0,'진로탐색활동':sc['진로탐색활동']||0,'발전가능성':sc['발전가능성']||0};
+      // 신규 5-item 키 우선, 없으면 레거시 키 폴백
+      const jinNewKeys=['전공연계교과선택','전공연계성취도','진로탐색활동','기록충실성','자기주도탐색'];
+      const jinLegacyKeys=['진로일관성','전공적합성','진로탐색활동','발전가능성'];
+      const jinSubArr=jinNewKeys.some(k=>sc[k]>0)?jinNewKeys:jinLegacyKeys;
+      const sub=Object.fromEntries(jinSubArr.map(k=>[k,sc[k]||0]));
       const hasSubScores=Object.values(sub).some(v=>v>0);
-      const jinScore=hasSubScores?calcAvg(sc,['진로일관성','전공적합성','진로탐색활동','발전가능성'])||sc['진로역량']||0:sc['진로역량']||0;
+      const jinScore=hasSubScores?calcAvg(sc,jinSubArr)||sc['진로역량']||0:sc['진로역량']||0;
       caEl.innerHTML=scoreTabCard(jinScore,'진로역량',hasSubScores?sub:{},c.content,'sc-jin-ai','sc-jin-ai','career',when,s);
     }else{caEl.innerHTML=noAnalysisCard(s.name,'진로역량','career','sc-jin-ai',hasGb);}
   }
@@ -1790,9 +1798,12 @@ function renderScoresPage(){
     }
     if(commSrc){
       const when=new Date(commSrc.updatedAt).toLocaleString('ko-KR');
-      const subKeys=['협력성','나눔·배려','리더십','출결·성실성'];
+      // 신규 3-item 키 우선, 없으면 레거시 키 폴백
+      const gongNewKeys=['소통협업','리더십경험','배려책임감'];
+      const gongLegacyKeys=['협력성','나눔·배려','리더십','출결·성실성'];
       const sc2=parseScores(commSrc.content);
-      const gongScore=calcAvg(sc2,['협력성','나눔·배려','리더십','출결·성실성'])||commScore;
+      const subKeys=gongNewKeys.some(k=>sc2[k]>0)?gongNewKeys:gongLegacyKeys;
+      const gongScore=calcAvg(sc2,subKeys)||commScore;
       const col=scoreColor(gongScore);
       const subScores=subKeys.filter(k=>sc2[k]>0);
       const bars=subScores.map(k=>{const v=sc2[k];const bc=scoreColor(v);return`<div style="margin-bottom:7px"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span style="color:var(--muted)">${k}</span><span style="font-weight:700;color:${bc};font-family:'JetBrains Mono',monospace">${v}</span></div><div style="height:6px;background:var(--s4);border-radius:3px"><div style="height:100%;width:${v}%;background:${bc};border-radius:3px;transition:.5s"></div></div></div>`;}).join('');
@@ -1892,9 +1903,9 @@ function renderAdmissionPage(){
     const _gongSrc=['community','dashboard','admission'].map(k=>MEM.analyses[k]).find(a=>a?.content);
     const _gongSc=_gongSrc?parseScores(_gongSrc.content):{};
     const radarData=[
-      {label:'학업역량', value:calcAvg(_hakSc,['탐구심','학업발전도','과목세특질','학습태도'])||getScore('학업역량',['academic','dashboard'])},
-      {label:'진로역량',  value:calcAvg(_jinSc,['진로일관성','전공적합성','진로탐색활동','발전가능성'])||getScore('진로역량',['career','dashboard'])},
-      {label:'공동체역량',value:calcAvg(_gongSc,['협력성','나눔·배려','리더십','출결·성실성'])||getScore('공동체역량',['community','dashboard'])},
+      {label:'학업역량', value:(()=>{const nk=['학업성취도','탐구역량','학업태도'];const lk=['탐구심','학업발전도','과목세특질','학습태도'];return calcAvg(_hakSc,nk.some(k=>_hakSc[k]>0)?nk:lk)||getScore('학업역량',['academic','dashboard']);})()},
+      {label:'진로역량',  value:(()=>{const nk=['전공연계교과선택','전공연계성취도','진로탐색활동','기록충실성','자기주도탐색'];const lk=['진로일관성','전공적합성','진로탐색활동','발전가능성'];return calcAvg(_jinSc,nk.some(k=>_jinSc[k]>0)?nk:lk)||getScore('진로역량',['career','dashboard']);})()},
+      {label:'공동체역량',value:(()=>{const nk=['소통협업','리더십경험','배려책임감'];const lk=['협력성','나눔·배려','리더십','출결·성실성'];return calcAvg(_gongSc,nk.some(k=>_gongSc[k]>0)?nk:lk)||getScore('공동체역량',['community','dashboard']);})()},
       {label:'전공적합성',value:getScore('전공적합성',['career','academic'])},
       {label:'발전가능성',value:getScore('발전가능성',['career','academic'])},
       {label:'인성공동체',value:getScore('인성공동체',['community','dashboard'])},
@@ -2529,12 +2540,12 @@ const PROMPTS={
   academic:`당신은 대입 세특 전문가입니다. 2027 수시카드 마스터플랜 평가 기준표에 따라 학생의 생기부를 심층 분석하고 학업역량을 100점으로 수치화하세요. 생기부 내용을 반드시 직접 인용하며 분석하세요.
 
 【2027 수시카드 마스터플랜 — 학업역량 3대 세부 평가 항목】
-① 학업성취도: 주요 과목의 등급·성취도·표준편차 등은 적절한가?
-② 탐구역량: 수업 참여·발표·과제 수행 등에서의 적극성과 꾸준함이 드러나는가?
-③ 학업태도: 교과 기반 심화 탐구(보고서·실험·발표 등)가 존재하고 주도성이 드러나는가?
+① 학업성취도 (40%): 주요 과목의 등급·성취도·표준편차 등은 적절한가?
+② 탐구역량 (35%): 수업 참여·발표·과제 수행 등에서의 적극성과 꾸준함이 드러나는가?
+③ 학업태도 (25%): 교과 기반 심화 탐구(보고서·실험·발표 등)가 존재하고 주도성이 드러나는가?
 
 【5점 척도 → 100점 환산 기준 (각 항목 엄격 적용)】
-5점 (90~95점) — 우수: 주요 과목 상위권 성취 + 세특에 깊이 있는 탐구 + 참여·태도 구체적 언급 모두 존재
+5점 (90~95점) — 우수: 주요 과목 1~2등급 + 세특에 깊이 있는 탐구 + 참여·태도 구체적 언급 모두 존재
 4점 (75~89점) — 양호: 일부 과목 높은 성취 + 탐구 흔적 있으나 일관성·강점 불명확
 3점 (55~74점) — 보통: 전반적 참여는 있으나 깊이 부족, 일관성 약함
 2점 (35~54점) — 미흡: 성취 들쭉날쭉, 세특 수동적·관찰적 중심
@@ -2542,11 +2553,10 @@ const PROMPTS={
 ⚠ 일반고 학생 평균 50~65점. 90점 이상/30점 이하는 생기부에 명확한 근거가 있을 때만 부여.
 
 반드시 응답 맨 앞에 다음 형식으로 점수를 출력하세요 (각 항목 0~100 정수):
-[SCORE:학업역량] 숫자  ← 3개 항목 가중 평균 (학업성취도 40% + 탐구역량 35% + 학업태도 25%)
-[SCORE:탐구심] 숫자    ← ②탐구역량: 수업참여·발표·과제 수행 적극성
-[SCORE:학업발전도] 숫자 ← ①학업성취도: 교과 등급·성취도·성장 궤적
-[SCORE:과목세특질] 숫자 ← ③학업태도: 심화탐구·보고서·실험 주도성
-[SCORE:학습태도] 숫자   ← 전반적 학업 일관성 및 성실성
+[SCORE:학업역량] 숫자       ← 3개 항목 가중 평균 (학업성취도×40% + 탐구역량×35% + 학업태도×25%)
+[SCORE:학업성취도] 숫자     ← ①주요과목 등급·성취도·표준편차 (5점 척도 × 20)
+[SCORE:탐구역량] 숫자       ← ②수업참여·발표·과제수행 적극성·꾸준함 (5점 척도 × 20)
+[SCORE:학업태도] 숫자       ← ③교과 기반 심화탐구 주도성·일관성 (5점 척도 × 20)
 
 이후 다음 형식으로 상세 분석하세요:
 
@@ -2554,13 +2564,14 @@ const PROMPTS={
 (3~4문장, 생기부 세특 구체적 내용 인용하며 종합 평가)
 
 ### 세부 항목별 평가
-| 평가 항목 | 점수 | 수시카드 기준 수준 | 근거 (생기부 인용) |
-| 학업성취도 | xx점 | 우수/양호/보통/미흡 | ... |
-| 탐구역량 | xx점 | 우수/양호/보통/미흡 | ... |
-| 학업태도 | xx점 | 우수/양호/보통/미흡 | ... |
+| 평가 항목 | 점수 | 5점 환산 | 수준 | 근거 (생기부 직접 인용) |
+|-----------|------|---------|------|----------------------|
+| 학업성취도 | xx점 | x/5점 | 우수/양호/보통/미흡 | ... |
+| 탐구역량 | xx점 | x/5점 | 우수/양호/보통/미흡 | ... |
+| 학업태도 | xx점 | x/5점 | 우수/양호/보통/미흡 | ... |
 
 ### 강점 분석
-(생기부에서 발견된 학업 강점 3가지 이상, 구체적 근거 포함)
+(생기부에서 발견된 학업 강점 3가지 이상, 구체적 세특 인용 포함)
 
 ### 보완 필요 항목
 (부족한 부분과 구체적 개선 방향)
@@ -2577,11 +2588,11 @@ const PROMPTS={
   career:`당신은 대입 진로역량 전문가입니다. 2027 수시카드 마스터플랜 평가 기준표에 따라 학생의 생기부를 심층 분석하고 진로역량을 100점으로 수치화하세요. 생기부 내용을 반드시 직접 인용하며 분석하세요.
 
 【2027 수시카드 마스터플랜 — 진로역량 5대 세부 평가 항목】
-① 전공연계교과선택(진로정합성): 진로와 관련된 과목을 스스로 선택하고 연계 학습을 시도했는가?
-② 전공연계성취도(진로정합성): 진로 관련 교과목에서의 성취 수준과 태도가 일정하거나 우수한가?
-③ 진로탐색활동: 관련 직업군 탐색·인터뷰·자율주제 탐구·진로독서 등 활동이 구체적으로 나타나는가?
-④ 기록충실성(자기주도): 창의적 체험활동·자율활동의 기록이 구체적이고 실제 활동 내용이 드러나는가?
-⑤ 자기주도탐색: 자발적으로 계획·실행한 활동(자율동아리, 소논문 등)이 존재하는가?
+① 전공연계교과선택 (20%): 진로와 관련된 과목을 스스로 선택하고 연계 학습을 시도했는가?
+② 전공연계성취도 (25%): 진로 관련 교과목에서의 성취 수준과 태도가 일정하거나 우수한가?
+③ 진로탐색활동 (20%): 관련 직업군 탐색·인터뷰·자율주제 탐구·진로독서 등 활동이 구체적으로 나타나는가?
+④ 기록충실성 (20%): 창의적 체험활동·자율활동의 기록이 구체적이고 실제 활동 내용이 드러나는가?
+⑤ 자기주도탐색 (15%): 자발적으로 계획·실행한 활동(자율동아리, 소논문 등)이 존재하는가?
 
 【5점 척도 → 100점 환산 기준 (각 항목 엄격 적용)】
 5점 (90~95점) — 우수: 진로 관련 과목 선택·연계 활동 명확히 연결 + 진로탐색 활동 깊이 있게 기재 + 자율적 기획 활동 명확히 드러남
@@ -2590,13 +2601,15 @@ const PROMPTS={
 2점 (35~54점) — 미흡: 단순 참여 중심, 진로 관련 활동이 간략하거나 단발적
 1점 (15~34점) — 부족: 진로 관련 활동 거의 없거나 과목·진로 연결성 없음
 ⚠ 일반고 학생 평균 50~65점. 90점 이상/30점 이하는 생기부에 명확한 근거가 있을 때만 부여.
+⚠ 자기주도탐색(⑤)은 가중치(15%)가 낮으므로 없어도 다른 항목이 우수하면 진로역량 전체는 높을 수 있음.
 
 반드시 응답 맨 앞에 다음 형식으로 점수를 출력하세요 (각 항목 0~100 정수):
-[SCORE:진로역량] 숫자    ← 5개 항목 가중 평균 (전공연계선택20%+성취도25%+탐색활동20%+기록충실15%+자기주도20%)
-[SCORE:진로일관성] 숫자  ← ①전공연계교과선택: 진로 방향과 과목 선택의 일관성
-[SCORE:전공적합성] 숫자  ← ②전공연계성취도: 진로 관련 과목에서의 성취 수준
-[SCORE:진로탐색활동] 숫자 ← ③진로탐색활동: 독서·인터뷰·자율탐구 구체성
-[SCORE:발전가능성] 숫자  ← ⑤자기주도탐색: 자발적 계획·실행 활동 (소논문·자율동아리 등)
+[SCORE:진로역량] 숫자           ← 5개 항목 가중 평균 (①20%+②25%+③20%+④20%+⑤15%)
+[SCORE:전공연계교과선택] 숫자   ← ①진로 방향과 과목 선택의 일관성 (5점 척도 × 20)
+[SCORE:전공연계성취도] 숫자     ← ②진로 관련 과목에서의 성취 수준 (5점 척도 × 20)
+[SCORE:진로탐색활동] 숫자       ← ③독서·인터뷰·자율탐구·직업군탐색 구체성 (5점 척도 × 20)
+[SCORE:기록충실성] 숫자         ← ④창체·자율활동 기록 구체성·충실성 (5점 척도 × 20)
+[SCORE:자기주도탐색] 숫자       ← ⑤자율동아리·소논문 등 자발적 계획실행 (5점 척도 × 20)
 
 이후 다음 형식으로 상세 분석하세요:
 
@@ -2604,12 +2617,13 @@ const PROMPTS={
 (3~4문장, 진로 스토리의 일관성·깊이를 생기부 인용하며 평가)
 
 ### 세부 항목별 평가
-| 평가 항목 | 점수 | 수시카드 기준 수준 | 근거 (생기부 인용) |
-| 전공연계교과선택 | xx점 | 우수/양호/보통/미흡 | ... |
-| 전공연계성취도 | xx점 | 우수/양호/보통/미흡 | ... |
-| 진로탐색활동 | xx점 | 우수/양호/보통/미흡 | ... |
-| 기록충실성 | xx점 | 우수/양호/보통/미흡 | ... |
-| 자기주도탐색 | xx점 | 우수/양호/보통/미흡 | ... |
+| 평가 항목 | 점수 | 5점 환산 | 수준 | 근거 (생기부 직접 인용) |
+|-----------|------|---------|------|----------------------|
+| 전공연계교과선택 | xx점 | x/5점 | 우수/양호/보통/미흡 | ... |
+| 전공연계성취도 | xx점 | x/5점 | 우수/양호/보통/미흡 | ... |
+| 진로탐색활동 | xx점 | x/5점 | 우수/양호/보통/미흡 | ... |
+| 기록충실성 | xx점 | x/5점 | 우수/양호/보통/미흡 | ... |
+| 자기주도탐색 | xx점 | x/5점 | 우수/양호/보통/미흡 | ... |
 
 ### 진로 스토리 흐름 분석
 (1학년→2학년→3학년 진로 발전 궤적을 시간 순서로 분석, 각 학년별 핵심 활동 인용)
@@ -2774,9 +2788,9 @@ const PROMPTS={
   community:`당신은 대입 전문 컨설턴트입니다. 2027 수시카드 마스터플랜 평가 기준표에 따라 학생의 생기부를 심층 분석하고 공동체역량을 100점으로 수치화하세요. 생기부의 자율활동·동아리·봉사·진로 활동을 반드시 직접 인용하며 분석하세요.
 
 【2027 수시카드 마스터플랜 — 공동체역량 3대 세부 평가 항목】
-① 소통·협업: 공동 프로젝트·모둠활동·행사 기획 등에서 협업 태도가 드러나는가?
-② 리더십경험: 역할 수행·모임 운영 등에서 리더십이 드러나는 경험이 존재하는가?
-③ 배려·책임감: 공동체 규칙 준수·갈등 조정·배려적 행동의 구체 사례가 생기부에 드러나는가?
+① 소통협업 (40%): 공동 프로젝트·모둠활동·행사 기획 등에서 협업 태도가 드러나는가?
+② 리더십경험 (35%): 역할 수행·모임 운영 등에서 리더십이 드러나는 경험이 존재하는가?
+③ 배려책임감 (25%): 공동체 규칙 준수·갈등 조정·배려적 행동의 구체 사례가 생기부에 드러나는가?
 
 【5점 척도 → 100점 환산 기준 (각 항목 엄격 적용)】
 5점 (90~95점) — 우수: 소통·협업·리더십·배려 관련 활동에서 구체적 사례와 역할 뚜렷 + 팀 중심 활동 주도·협조 기록 명확히 있음
@@ -2787,11 +2801,10 @@ const PROMPTS={
 ⚠ 일반고 학생 평균 50~65점. 90점 이상/30점 이하는 생기부에 명확한 근거가 있을 때만 부여.
 
 반드시 응답 맨 앞에 다음 형식으로 점수를 출력하세요 (0~100 정수):
-[SCORE:공동체역량] 숫자   ← 3개 항목 가중 평균 (소통협업 40% + 리더십 35% + 배려책임 25%)
-[SCORE:협력성] 숫자       ← ①소통·협업: 공동 프로젝트·모둠활동 협업 태도
-[SCORE:리더십] 숫자       ← ②리더십경험: 역할 수행·모임 운영 리더십
-[SCORE:나눔·배려] 숫자    ← ③배려·책임감: 규칙 준수·갈등 조정·배려적 행동
-[SCORE:출결·성실성] 숫자  ← 생기부 전반의 성실성·꾸준함 (출결 포함)
+[SCORE:공동체역량] 숫자    ← 3개 항목 가중 평균 (소통협업×40% + 리더십경험×35% + 배려책임감×25%)
+[SCORE:소통협업] 숫자      ← ①공동 프로젝트·모둠활동·협업 태도 (5점 척도 × 20)
+[SCORE:리더십경험] 숫자    ← ②역할 수행·모임 운영 리더십 (5점 척도 × 20)
+[SCORE:배려책임감] 숫자    ← ③공동체 규칙·갈등 조정·배려적 행동 (5점 척도 × 20)
 
 이후 다음 형식으로 상세 분석하세요:
 
@@ -2799,10 +2812,11 @@ const PROMPTS={
 (3~4문장, 공동체 활동의 질·다양성·일관성을 생기부 인용하며 평가)
 
 ### 세부 항목별 평가
-| 평가 항목 | 점수 | 수시카드 기준 수준 | 근거 (생기부 인용) |
-| 소통·협업 | xx점 | 우수/양호/보통/미흡 | ... |
-| 리더십경험 | xx점 | 우수/양호/보통/미흡 | ... |
-| 배려·책임감 | xx점 | 우수/양호/보통/미흡 | ... |
+| 평가 항목 | 점수 | 5점 환산 | 수준 | 근거 (생기부 직접 인용) |
+|-----------|------|---------|------|----------------------|
+| 소통협업 | xx점 | x/5점 | 우수/양호/보통/미흡 | ... |
+| 리더십경험 | xx점 | x/5점 | 우수/양호/보통/미흡 | ... |
+| 배려책임감 | xx점 | x/5점 | 우수/양호/보통/미흡 | ... |
 
 ### 활동 영역별 분석
 | 활동 영역 | 주요 활동 내용 | 역량 발현 수준 | 개선 포인트 |
@@ -2975,40 +2989,95 @@ async function handleGbFile(inp){
     notice.innerHTML='<div class="ntc ntc-b" style="margin-top:8px"><span>·</span>PDF 텍스트 추출 중...</div>';
     try{
       const buf=await f.arrayBuffer();
-      const pdf=await pdfjsLib.getDocument({data:buf,cMapUrl:'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',cMapPacked:true}).promise;
+      const pdf=await pdfjsLib.getDocument({
+        data:buf,
+        cMapUrl:'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
+        cMapPacked:true,
+        useSystemFonts:true,
+      }).promise;
       let text='';
       for(let i=1;i<=pdf.numPages;i++){
         const page=await pdf.getPage(i);
-        const content=await page.getTextContent({includeMarkedContent:false});
-        const items=content.items;
-        // y좌표 기준으로 줄 그룹핑 (같은 줄 = y차이 3pt 이내)
+        const content=await page.getTextContent({
+          includeMarkedContent:false,
+          disableNormalization:false,
+        });
+        const items=content.items.filter(it=>it.str!=null&&it.str.length>0);
+        if(!items.length)continue;
+
+        // ── y좌표 기준 줄 그룹핑 ──────────────────────────
+        // 같은 줄 = y차이 5pt 이내 (한글 폰트 변동 허용)
         const lineMap=new Map();
         for(const it of items){
-          if(!it.str)continue;
-          const y=Math.round(it.transform[5]);
-          let key=y;
-          // 근접한 y값 찾기
-          for(const k of lineMap.keys()){if(Math.abs(k-y)<=3){key=k;break;}}
-          if(!lineMap.has(key))lineMap.set(key,[]);
-          lineMap.get(key).push({x:it.transform[4],str:it.str,eol:it.hasEOL});
+          const y=it.transform[5]; // raw float for precision
+          let key=null;
+          for(const k of lineMap.keys()){if(Math.abs(k-y)<=5){key=k;break;}}
+          if(key===null){key=y;lineMap.set(key,[]);}
+          lineMap.get(key).push({
+            x:it.transform[4],
+            str:it.str,
+            width:it.width||0,
+            fontName:it.fontName||'',
+            eol:it.hasEOL||false,
+          });
         }
-        // y 내림차순 정렬 (위에서 아래로)
+
+        // ── y 내림차순 정렬 (위→아래) ────────────────────
         const sortedY=[...lineMap.keys()].sort((a,b)=>b-a);
         let prevY=null;
         for(const y of sortedY){
-          // 큰 y 간격 = 단락 구분
-          if(prevY!==null&&Math.abs(prevY-y)>15)text+='\n';
+          // 20pt 이상 gap = 단락 구분 (섹션 구분)
+          if(prevY!==null&&prevY-y>20)text+='\n';
+
           const lineItems=lineMap.get(y).sort((a,b)=>a.x-b.x);
-          text+=lineItems.map(it=>it.str).join('')+'\n';
+          let lineStr='';
+          for(let j=0;j<lineItems.length;j++){
+            const cur=lineItems[j];
+            if(j>0){
+              const prev=lineItems[j-1];
+              // 이전 아이템 끝 위치와 현재 아이템 시작 위치 비교
+              const prevEnd=prev.x+(prev.width||0);
+              const gap=cur.x-prevEnd;
+              // gap > 1pt 이고 공백으로 끝나지 않으면 공백 삽입
+              if(gap>1&&!prev.str.endsWith(' ')&&!cur.str.startsWith(' ')){
+                lineStr+=' ';
+              }
+            }
+            lineStr+=cur.str;
+          }
+          text+=lineStr.trimEnd()+'\n';
           prevY=y;
         }
         text+='\n';
       }
-      text=text.replace(/[ \t]{2,}/g,' ').replace(/\n{3,}/g,'\n\n').trim();
+
+      // ── 후처리: 연속 공백·빈줄 정리 ─────────────────────
+      text=text
+        .replace(/[ \t]{2,}/g,' ')      // 연속 공백
+        .replace(/\n{4,}/g,'\n\n\n')    // 3줄 이상 빈줄 → 2줄로
+        .replace(/([가-힣a-zA-Z0-9])(\n)([가-힣a-zA-Z])/g,'$1 $3') // 한글 줄바꿈 접합
+        .trim();
+
       q('gb-in').value=text;
-      notice.innerHTML=`<div class="ntc ntc-g" style="margin-top:8px"><span>✓</span>PDF 추출 완료 — ${pdf.numPages}페이지 / ${text.length.toLocaleString()}자 추출. 내용을 확인 후 AI 분석을 시작하세요.</div>`;
+      const charCount=text.length.toLocaleString();
+      notice.innerHTML=`<div class="ntc ntc-g" style="margin-top:8px"><span>✓</span>PDF 추출 완료 — ${pdf.numPages}페이지 / ${charCount}자 추출. 내용을 확인 후 AI 분석을 시작하세요.</div>`;
     }catch(e){
-      notice.innerHTML=`<div class="ntc ntc-r" style="margin-top:8px"><span>✗</span>PDF 추출 실패: ${e.message}. 내용을 직접 복사하여 붙여넣어 주세요.</div>`;
+      // 폴백: 단순 순차 추출
+      try{
+        const buf2=await f.arrayBuffer();
+        const pdf2=await pdfjsLib.getDocument({data:buf2,cMapUrl:'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',cMapPacked:true}).promise;
+        let text2='';
+        for(let i=1;i<=pdf2.numPages;i++){
+          const pg=await pdf2.getPage(i);
+          const ct=await pg.getTextContent();
+          text2+=ct.items.map(it=>it.str).join(' ')+'\n\n';
+        }
+        text2=text2.replace(/[ \t]{2,}/g,' ').replace(/\n{3,}/g,'\n\n').trim();
+        q('gb-in').value=text2;
+        notice.innerHTML=`<div class="ntc ntc-y" style="margin-top:8px"><span>⚠</span>PDF 레이아웃 분석 실패 — 단순 추출 모드로 전환했습니다 (${text2.length.toLocaleString()}자). 내용을 직접 확인하세요.</div>`;
+      }catch(e2){
+        notice.innerHTML=`<div class="ntc ntc-r" style="margin-top:8px"><span>✗</span>PDF 추출 실패: ${e2.message}. 내용을 직접 복사하여 붙여넣어 주세요.</div>`;
+      }
     }
   }else{
     const r=new FileReader();
