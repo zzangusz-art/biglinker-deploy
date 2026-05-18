@@ -2214,5 +2214,11 @@ async function loadPerformance() {
 // INIT on page load
 // ══════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
+  // localStorage 세션 복구
+  token       = localStorage.getItem('tl_token');
+  currentUser = JSON.parse(localStorage.getItem('tl_user') || 'null');
+  routeByRole();
+});
+</script>
 </body>
 </html>
