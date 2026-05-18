@@ -1,0 +1,35 @@
+# Git
+.git
+.gitignore
+
+# Claude worktrees / IDE
+.claude
+.vscode
+.idea
+
+# Node
+node_modules
+npm-debug.log*
+yarn-error.log*
+
+# 환경변수 (절대 이미지에 포함 금지)
+.env
+.env.*
+!.env.example
+
+# 로컬 DB / 업로드 파일
+*.db
+*.db-shm
+*.db-wal
+uploads/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 테스트 / 문서
+*.test.js
+*.spec.js
+coverage/
+*.md
+!README.md
