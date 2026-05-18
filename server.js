@@ -1581,12 +1581,7 @@ app.use((err, req, res, _next) => {
   res.status(status).json({ error: err.message || '서버 오류가 발생했습니다' });
 });
 
-// ── SPA 폴백 ──────────────────────────────────────────
-app.get('*', (req, res) => {
-  const idx = path.join(__dirname, 'public', 'index.html');
-  if (fs.existsSync(idx)) res.sendFile(idx);
-  else res.status(404).send('BigLinker — public/index.html을 배포해주세요.');
-});
+// ── SPA 폴백 (편입 LMS 라우트 등록 후 맨 마지막에 위치해야 함 → server.js 하단으로 이동됨) ──
 
 // ═══════════════════════════════════════════════════════════════════════
 // ██████╗ ██╗ ██████╗ ██╗     ██╗███╗   ██╗██╗  ██╗███████╗██████╗
@@ -2683,6 +2678,13 @@ app.get('/api/tl/today', tlAuth, (req, res) => {
 // 편입 LMS 프론트엔드 라우팅
 app.get('/transfer', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'transfer.html')));
 app.get('/transfer/*', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'transfer.html')));
+
+// ── SPA 폴백 (반드시 모든 라우트 등록 후 마지막에 위치) ──────────
+app.get('*', (req, res) => {
+  const idx = path.join(__dirname, 'public', 'index.html');
+  if (fs.existsSync(idx)) res.sendFile(idx);
+  else res.status(404).send('BigLinker — public/index.html을 배포해주세요.');
+});
 
 // ═══════════════════════════════════════════════════════
 // START
