@@ -1,0 +1,2218 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>BigLinker 편입 LMS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ══════════ VARIABLES ══════════ */
+:root{
+  --bg:#07090f;--s1:#0c0e18;--s2:#111422;--s3:#171b30;--s4:#1e233d;--s5:#252a45;
+  --border:rgba(255,255,255,0.055);--border2:rgba(255,255,255,0.10);--border3:rgba(255,255,255,0.16);
+  --text:#dde1f5;--muted:#5a5e80;--dim:#282d50;--sub:#8890b8;
+  --blue:#4f7dff;--blue2:rgba(79,125,255,.14);--blue3:rgba(79,125,255,.07);
+  --orange:#ff6b35;--orange2:rgba(255,107,53,.13);
+  --green:#2dd4a0;--green2:rgba(45,212,160,.13);
+  --purple:#a78bfa;--purple2:rgba(167,139,250,.13);
+  --yellow:#fbbf24;--yellow2:rgba(251,191,36,.13);
+  --red:#f87171;--red2:rgba(248,113,113,.13);
+  --teal:#22d3ee;--teal2:rgba(34,211,238,.13);
+  --r4:4px;--r6:6px;--r8:8px;--r12:12px;--r16:16px;--r20:20px;
+  --sidebar:220px;
+  --shadow:0 4px 24px rgba(0,0,0,.45);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text);font-size:13px;line-height:1.6;overflow-x:hidden}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--s4);border-radius:3px}
+a{color:inherit;text-decoration:none}
+button{cursor:pointer;font-family:'Noto Sans KR',sans-serif}
+input,textarea,select{font-family:'Noto Sans KR',sans-serif}
+
+/* ══════════ SCREENS ══════════ */
+.scr{display:none;min-height:100vh}
+.scr.on{display:flex}
+
+/* ══════════ APP LAYOUT ══════════ */
+.app-layout{display:flex;min-height:100vh;width:100%}
+
+/* ══════════ SIDEBAR ══════════ */
+.sidebar{
+  width:var(--sidebar);min-width:var(--sidebar);
+  background:var(--s1);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100;
+  transition:transform .25s;
+}
+.sidebar-brand{padding:20px 18px 16px;border-bottom:1px solid var(--border)}
+.brand-logo{font-family:'JetBrains Mono',monospace;font-size:17px;font-weight:500}
+.brand-logo .bl{color:var(--text)}.brand-logo .link{color:var(--blue)}.brand-logo .er{color:var(--orange)}
+.brand-sub{font-size:10px;color:var(--muted);margin-top:3px;letter-spacing:.5px}
+.sidebar-user{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.user-avatar{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0}
+.user-info{overflow:hidden}
+.user-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.user-role{font-size:10px;color:var(--muted)}
+.sidebar-nav{flex:1;overflow-y:auto;padding:10px 0}
+.nav-section{padding:8px 18px 4px;font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 18px;font-size:12px;font-weight:500;color:var(--sub);cursor:pointer;border-left:2px solid transparent;transition:all .15s;user-select:none}
+.nav-item:hover{background:var(--s2);color:var(--text)}
+.nav-item.on{background:var(--blue3);color:var(--blue);border-left-color:var(--blue)}
+.nav-item .ni{font-size:15px;width:18px;text-align:center}
+.sidebar-footer{padding:14px 18px;border-top:1px solid var(--border)}
+.logout-btn{width:100%;padding:8px;background:transparent;border:1px solid var(--border2);border-radius:var(--r8);color:var(--muted);font-size:11px;font-weight:600;transition:all .15s}
+.logout-btn:hover{border-color:var(--red);color:var(--red);background:var(--red2)}
+
+/* ══════════ MAIN CONTENT ══════════ */
+.main-content{flex:1;margin-left:var(--sidebar);min-height:100vh;background:var(--bg);overflow-y:auto}
+.page{display:none;padding:28px 32px;max-width:1200px}
+.page.on{display:block}
+.page-header{margin-bottom:24px}
+.page-title{font-size:20px;font-weight:700;margin-bottom:4px}
+.page-desc{font-size:12px;color:var(--muted)}
+
+/* ══════════ CARDS ══════════ */
+.card{background:var(--s1);border:1px solid var(--border);border-radius:var(--r16);padding:20px}
+.card-title{font-size:13px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.card-title .ct-icon{font-size:16px}
+
+/* ══════════ STAT CARDS ══════════ */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px}
+.stat-card{background:var(--s1);border:1px solid var(--border);border-radius:var(--r12);padding:16px 18px}
+.stat-label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.stat-value{font-size:26px;font-weight:700;line-height:1}
+.stat-sub{font-size:10px;color:var(--muted);margin-top:4px}
+
+/* ══════════ BADGES ══════════ */
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700}
+.badge-A{background:rgba(79,125,255,.15);color:var(--blue);border:1px solid rgba(79,125,255,.3)}
+.badge-B{background:rgba(167,139,250,.15);color:var(--purple);border:1px solid rgba(167,139,250,.3)}
+.badge-C{background:rgba(45,212,160,.15);color:var(--green);border:1px solid rgba(45,212,160,.3)}
+.badge-un{background:var(--s3);color:var(--muted);border:1px solid var(--border)}
+.badge-sky{background:rgba(251,191,36,.15);color:var(--yellow);border:1px solid rgba(251,191,36,.3)}
+.badge-seoul{background:rgba(255,107,53,.15);color:var(--orange);border:1px solid rgba(255,107,53,.3)}
+.badge-common{background:var(--s3);color:var(--sub)}
+.badge-green{background:var(--green2);color:var(--green)}
+.badge-red{background:var(--red2);color:var(--red)}
+.badge-yellow{background:var(--yellow2);color:var(--yellow)}
+
+/* ══════════ BUTTONS ══════════ */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--r8);font-size:12px;font-weight:600;border:none;transition:all .15s;white-space:nowrap}
+.btn-primary{background:var(--blue);color:#fff}.btn-primary:hover{background:#6b93ff}
+.btn-success{background:var(--green);color:#07090f}.btn-success:hover{filter:brightness(1.1)}
+.btn-danger{background:transparent;border:1px solid var(--border2);color:var(--red)}.btn-danger:hover{background:var(--red2);border-color:var(--red)}
+.btn-ghost{background:transparent;border:1px solid var(--border2);color:var(--sub)}.btn-ghost:hover{background:var(--s3);color:var(--text)}
+.btn-sm{padding:5px 10px;font-size:11px}
+.btn-lg{padding:12px 24px;font-size:14px;border-radius:var(--r12)}
+.btn-full{width:100%;justify-content:center}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* ══════════ FORM ELEMENTS ══════════ */
+.form-group{margin-bottom:14px}
+.form-label{display:block;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px}
+.form-input,.form-select,.form-textarea{
+  width:100%;background:var(--s2);border:1px solid var(--border2);border-radius:var(--r8);
+  padding:9px 12px;color:var(--text);font-size:12px;outline:none;transition:border-color .15s
+}
+.form-input:focus,.form-select:focus,.form-textarea:focus{border-color:var(--blue)}
+.form-select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%235a5e80' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+.form-textarea{resize:vertical;min-height:80px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+
+/* ══════════ TABLE ══════════ */
+.table-wrap{overflow-x:auto;border-radius:var(--r12);border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse}
+thead tr{background:var(--s2);border-bottom:1px solid var(--border)}
+th{padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+td{padding:11px 14px;font-size:12px;border-bottom:1px solid var(--border);vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:var(--s2)}
+.td-actions{display:flex;gap:6px;align-items:center}
+
+/* ══════════ MODALS ══════════ */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.on{display:flex}
+.modal{background:var(--s1);border:1px solid var(--border2);border-radius:var(--r20);padding:28px;width:100%;max-width:500px;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow)}
+.modal-title{font-size:16px;font-weight:700;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between}
+.modal-close{background:transparent;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:2px 6px;border-radius:4px}
+.modal-close:hover{color:var(--text);background:var(--s3)}
+.modal-footer{margin-top:20px;display:flex;gap:8px;justify-content:flex-end}
+
+/* ══════════ TOAST ══════════ */
+#toast-container{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px}
+.toast{padding:12px 18px;border-radius:var(--r12);font-size:12px;font-weight:500;min-width:220px;box-shadow:var(--shadow);animation:slideIn .25s ease;display:flex;align-items:center;gap:8px}
+.toast-success{background:#1a2e24;border:1px solid var(--green);color:var(--green)}
+.toast-error{background:#2e1a1a;border:1px solid var(--red);color:var(--red)}
+.toast-info{background:var(--s3);border:1px solid var(--border2);color:var(--text)}
+@keyframes slideIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+
+/* ══════════ PROGRESS BAR ══════════ */
+.progress-bar-wrap{background:var(--s3);border-radius:20px;height:6px;overflow:hidden}
+.progress-bar-fill{height:100%;border-radius:20px;transition:width .4s ease}
+.fill-blue{background:var(--blue)}.fill-green{background:var(--green)}.fill-orange{background:var(--orange)}.fill-red{background:var(--red)}.fill-yellow{background:var(--yellow)}
+
+/* ══════════ PERIOD CARDS ══════════ */
+.period-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}
+.period-card{background:var(--s2);border:1px solid var(--border);border-radius:var(--r12);padding:16px;transition:border-color .2s}
+.period-card:hover{border-color:var(--border2)}
+.period-badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;margin-bottom:10px}
+.p1{background:rgba(79,125,255,.15);color:var(--blue)}.p2{background:rgba(167,139,250,.15);color:var(--purple)}.p3{background:rgba(45,212,160,.15);color:var(--green)}
+.period-subject{font-size:14px;font-weight:700;margin-bottom:4px}
+.period-time{font-size:11px;color:var(--muted);margin-bottom:4px}
+.period-instructor{font-size:11px;color:var(--sub)}
+.period-actions{margin-top:12px}
+
+/* ══════════ STATUS DOTS ══════════ */
+.status-dot{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:600}
+.dot{width:7px;height:7px;border-radius:50%}
+.dot-green{background:var(--green);box-shadow:0 0 6px var(--green)}
+.dot-yellow{background:var(--yellow);box-shadow:0 0 6px var(--yellow)}
+.dot-muted{background:var(--muted)}
+
+/* ══════════ TEST UI ══════════ */
+.test-container{max-width:720px;margin:0 auto}
+.test-progress-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.test-counter{font-size:12px;color:var(--muted);font-weight:500}
+.test-section-badge{font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px}
+.question-card{background:var(--s1);border:1px solid var(--border2);border-radius:var(--r16);padding:24px;margin-bottom:16px}
+.question-passage{background:var(--s3);border-left:3px solid var(--blue);border-radius:var(--r8);padding:14px;font-size:12px;line-height:1.8;color:var(--sub);margin-bottom:16px;white-space:pre-wrap}
+.question-text{font-size:14px;font-weight:600;line-height:1.7;margin-bottom:18px;white-space:pre-wrap}
+.options-list{display:flex;flex-direction:column;gap:8px}
+.option-item{display:flex;align-items:flex-start;gap:10px;padding:11px 14px;border:1px solid var(--border2);border-radius:var(--r8);cursor:pointer;transition:all .15s;font-size:12px}
+.option-item:hover{border-color:var(--blue);background:var(--blue3)}
+.option-item.selected{border-color:var(--blue);background:var(--blue2)}
+.option-item.correct{border-color:var(--green)!important;background:var(--green2)!important}
+.option-item.wrong{border-color:var(--red)!important;background:var(--red2)!important}
+.option-key{width:22px;height:22px;border-radius:50%;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;margin-top:1px}
+.option-item.selected .option-key{background:var(--blue);color:#fff}
+.test-nav{display:flex;justify-content:space-between;align-items:center;margin-top:16px}
+.result-card{background:var(--s1);border:1px solid var(--border2);border-radius:var(--r20);padding:32px;text-align:center;margin-bottom:20px}
+.result-score-big{font-size:56px;font-weight:900;line-height:1}
+.result-class-badge{display:inline-flex;align-items:center;justify-content:center;width:80px;height:80px;border-radius:50%;font-size:32px;font-weight:900;margin:20px auto;border:3px solid}
+.class-A-badge{background:var(--blue2);color:var(--blue);border-color:var(--blue)}
+.class-B-badge{background:var(--purple2);color:var(--purple);border-color:var(--purple)}
+.class-C-badge{background:var(--green2);color:var(--green);border-color:var(--green)}
+.section-score-row{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.section-label{width:40px;font-size:11px;font-weight:600}
+.section-pct{font-size:11px;font-weight:700;width:38px;text-align:right}
+
+/* ══════════ RECORDING CARDS ══════════ */
+.rec-card{background:var(--s2);border:1px solid var(--border);border-radius:var(--r12);padding:16px;margin-bottom:10px;display:flex;align-items:center;gap:14px;transition:border-color .2s}
+.rec-card:hover{border-color:var(--border2)}
+.rec-icon{width:42px;height:42px;border-radius:var(--r8);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.rec-info{flex:1}
+.rec-title{font-size:13px;font-weight:600;margin-bottom:3px}
+.rec-meta{font-size:11px;color:var(--muted)}
+.rec-actions{display:flex;gap:8px;align-items:center;flex-shrink:0}
+
+/* ══════════ ANALYTICS ══════════ */
+.analytics-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:20px}
+.analytics-card{background:var(--s2);border:1px solid var(--border);border-radius:var(--r12);padding:18px}
+.analytics-section-name{font-size:13px;font-weight:700;margin-bottom:4px}
+.analytics-level{font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;display:inline-flex;margin-bottom:10px}
+.level-excellent{background:var(--green2);color:var(--green)}
+.level-normal{background:var(--yellow2);color:var(--yellow)}
+.level-weak{background:var(--red2);color:var(--red)}
+.analytics-feedback{font-size:11px;color:var(--sub);line-height:1.6}
+
+/* ══════════ TABS ══════════ */
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:20px;overflow-x:auto;padding-bottom:1px}
+.tab-btn{padding:8px 14px;font-size:12px;font-weight:600;color:var(--muted);background:transparent;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;transition:all .15s}
+.tab-btn:hover{color:var(--text)}
+.tab-btn.on{color:var(--blue);border-bottom-color:var(--blue)}
+.tab-content{display:none}.tab-content.on{display:block}
+
+/* ══════════ NOTES (자습) ══════════ */
+.notes-area{width:100%;min-height:160px;background:var(--s2);border:1px solid var(--border2);border-radius:var(--r12);padding:14px;color:var(--text);font-size:12px;resize:vertical;line-height:1.7}
+.notes-area:focus{outline:none;border-color:var(--blue)}
+
+/* ══════════ EMPTY STATE ══════════ */
+.empty-state{text-align:center;padding:48px 20px;color:var(--muted)}
+.empty-icon{font-size:40px;margin-bottom:12px;opacity:.5}
+.empty-text{font-size:13px;font-weight:500;margin-bottom:6px;color:var(--sub)}
+.empty-sub{font-size:11px}
+
+/* ══════════ CHIPS ══════════ */
+.chip{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:600;background:var(--s3);color:var(--sub);border:1px solid var(--border);margin:2px}
+
+/* ══════════ DIVIDER ══════════ */
+.divider{height:1px;background:var(--border);margin:20px 0}
+
+/* ══════════ GRID HELPERS ══════════ */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.flex{display:flex}.flex-col{flex-direction:column}
+.items-center{align-items:center}.justify-between{justify-content:space-between}.justify-end{justify-content:flex-end}
+.gap-8{gap:8px}.gap-12{gap:12px}.gap-16{gap:16px}
+.mt-8{margin-top:8px}.mt-12{margin-top:12px}.mt-16{margin-top:16px}.mt-24{margin-top:24px}
+.mb-8{margin-bottom:8px}.mb-12{margin-bottom:12px}.mb-16{margin-bottom:16px}
+.text-muted{color:var(--muted)}.text-sub{color:var(--sub)}
+.text-sm{font-size:11px}.text-xs{font-size:10px}
+.font-bold{font-weight:700}.font-600{font-weight:600}
+.w-full{width:100%}
+
+/* ══════════ LOGIN ══════════ */
+#scr-login{align-items:center;justify-content:center;background:radial-gradient(ellipse at 30% 20%,rgba(79,125,255,.07) 0%,transparent 60%),var(--bg);padding:20px;flex-direction:column}
+.login-wrap{width:100%;max-width:440px}
+.login-brand{text-align:center;margin-bottom:28px}
+.login-logo{font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:500}
+.login-logo .bl{color:var(--text)}.login-logo .link{color:var(--blue)}.login-logo .er{color:var(--orange)}
+.login-tagline{font-size:12px;color:var(--muted);margin-top:4px;letter-spacing:.5px}
+.login-sub{font-size:11px;color:var(--purple);margin-top:4px;font-weight:600}
+.login-card{background:var(--s1);border:1px solid var(--border2);border-radius:var(--r20);overflow:hidden}
+.login-head{padding:24px 32px 18px;border-bottom:1px solid var(--border)}
+.login-head h2{font-size:15px;font-weight:700;margin-bottom:2px}
+.login-head p{font-size:11px;color:var(--muted)}
+.role-sel{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;padding:16px 32px;border-bottom:1px solid var(--border)}
+.role-btn{padding:9px 6px;text-align:center;border-radius:var(--r8);cursor:pointer;font-size:11px;font-weight:700;color:var(--muted);transition:all .15s;border:1px solid transparent}
+.role-btn:hover{background:var(--s3);color:var(--text)}
+.role-btn.on.r-admin{background:var(--blue3);border-color:rgba(79,125,255,.25);color:var(--blue)}
+.role-btn.on.r-instructor{background:var(--purple2);border-color:rgba(167,139,250,.25);color:var(--purple)}
+.role-btn.on.r-student{background:var(--orange2);border-color:rgba(255,107,53,.25);color:var(--orange)}
+.login-form{padding:20px 32px 28px}
+.login-err{color:var(--red);font-size:11px;text-align:center;margin-top:8px;min-height:16px}
+.login-hint{font-size:10px;color:var(--dim);text-align:center;margin-top:14px;line-height:1.9;padding:0 10px}
+.login-hint b{color:var(--muted)}
+
+/* ══════════ MOBILE ══════════ */
+.menu-toggle{display:none;position:fixed;top:14px;left:14px;z-index:200;background:var(--s2);border:1px solid var(--border2);border-radius:var(--r8);padding:8px 10px;color:var(--text);font-size:16px;cursor:pointer}
+@media(max-width:768px){
+  .sidebar{transform:translateX(-100%)}.sidebar.open{transform:translateX(0)}
+  .main-content{margin-left:0}
+  .menu-toggle{display:flex}
+  .period-grid{grid-template-columns:1fr}
+  .analytics-grid{grid-template-columns:1fr}
+  .form-row,.form-row-3{grid-template-columns:1fr}
+  .grid-2,.grid-3{grid-template-columns:1fr}
+  .page{padding:16px}
+}
+
+/* ══════════ LOADING SPINNER ══════════ */
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--border2);border-top-color:var(--blue);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-overlay{display:flex;align-items:center;justify-content:center;padding:48px;color:var(--muted);gap:12px;font-size:12px}
+
+/* ══════════ SECTION HEADER ══════════ */
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.section-title{font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px}
+
+/* ══════════ INFO BOX ══════════ */
+.info-box{background:var(--blue3);border:1px solid rgba(79,125,255,.2);border-radius:var(--r12);padding:14px 16px;font-size:12px;color:var(--sub);margin-bottom:16px;line-height:1.7}
+.info-box .info-title{font-size:13px;font-weight:700;color:var(--blue);margin-bottom:6px}
+.warn-box{background:var(--orange2);border:1px solid rgba(255,107,53,.2);border-radius:var(--r12);padding:14px 16px;font-size:12px;color:var(--sub);margin-bottom:16px}
+
+/* ══════════ QUESTION FEEDBACK ══════════ */
+.feedback-item{background:var(--s2);border-radius:var(--r8);padding:12px;margin-bottom:8px;border-left:3px solid var(--border)}
+.feedback-item.fb-correct{border-left-color:var(--green)}
+.feedback-item.fb-wrong{border-left-color:var(--red)}
+.feedback-q{font-size:11px;color:var(--sub);margin-bottom:6px;white-space:pre-wrap;line-height:1.5}
+.feedback-explanation{font-size:11px;color:var(--muted);margin-top:6px;padding-top:6px;border-top:1px solid var(--border)}
+
+/* ══════════ SCHEDULE FORM ══════════ */
+.schedule-period-section{background:var(--s2);border:1px solid var(--border);border-radius:var(--r12);padding:16px;margin-bottom:12px}
+.schedule-period-header{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+
+/* ══════════ STUDENT CARD ══════════ */
+.student-card{background:var(--s2);border:1px solid var(--border);border-radius:var(--r12);padding:16px;transition:border-color .2s;cursor:pointer}
+.student-card:hover{border-color:var(--border2)}
+.student-card-name{font-size:13px;font-weight:700;margin-bottom:4px}
+.student-card-meta{font-size:11px;color:var(--muted)}
+
+/* ══════════ COUNTDOWN ══════════ */
+.countdown{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--yellow);font-weight:500}
+</style>
+</head>
+<body>
+
+<!-- ═══════════ TOAST CONTAINER ═══════════ -->
+<div id="toast-container"></div>
+
+<!-- ═══════════ MOBILE MENU TOGGLE ═══════════ -->
+<button class="menu-toggle" onclick="toggleSidebar()" id="menu-toggle">☰</button>
+
+<!-- ══════════════════════════════════════════
+     LOGIN SCREEN
+══════════════════════════════════════════ -->
+<div id="scr-login" class="scr on">
+  <div class="login-wrap">
+    <div class="login-brand">
+      <div class="login-logo"><span class="bl">Big</span><span class="link">Link</span><span class="er">er</span></div>
+      <div class="login-tagline">편입 하이브리드 LMS</div>
+      <div class="login-sub">온·오프라인 통합 학습 플랫폼</div>
+    </div>
+    <div class="login-card">
+      <div class="login-head">
+        <h2>로그인</h2>
+        <p>역할을 선택하고 계정으로 로그인하세요</p>
+      </div>
+      <div class="role-sel">
+        <div class="role-btn r-admin on" onclick="selectRole('admin',this)">👑 관리자</div>
+        <div class="role-btn r-instructor" onclick="selectRole('instructor',this)">📚 강사</div>
+        <div class="role-btn r-student" onclick="selectRole('student',this)">🎓 학생</div>
+      </div>
+      <div class="login-form">
+        <div class="form-group">
+          <label class="form-label">아이디</label>
+          <input type="text" id="login-id" class="form-input" placeholder="아이디를 입력하세요" autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label class="form-label">비밀번호</label>
+          <input type="password" id="login-pw" class="form-input" placeholder="비밀번호를 입력하세요" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+        </div>
+        <button class="btn btn-primary btn-full btn-lg" onclick="doLogin()" id="login-btn">로그인</button>
+        <div id="login-err" class="login-err"></div>
+      </div>
+    </div>
+    <div class="login-hint">
+      <b>데모 계정</b><br>
+      관리자: transfer_admin / admin1234<br>
+      강사: instructor01 / 1234 &nbsp;|&nbsp; instructor02 / 1234<br>
+      학생: s_choi / 1234 &nbsp;|&nbsp; s_park / 1234 &nbsp;|&nbsp; s_kim / 1234
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     ADMIN APP
+══════════════════════════════════════════ -->
+<div id="scr-admin" class="scr">
+  <div class="app-layout">
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar-admin">
+      <div class="sidebar-brand">
+        <div class="brand-logo"><span class="bl">Big</span><span class="link">Link</span><span class="er">er</span></div>
+        <div class="brand-sub">편입 LMS · 관리자</div>
+      </div>
+      <div class="sidebar-user">
+        <div class="user-avatar" style="background:var(--blue2);color:var(--blue)">👑</div>
+        <div class="user-info">
+          <div class="user-name" id="admin-user-name">관리자</div>
+          <div class="user-role">Administrator</div>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section">메인</div>
+        <div class="nav-item on" onclick="showAdminPage('admin-dashboard',this)"><span class="ni">📊</span>대시보드</div>
+        <div class="nav-section">관리</div>
+        <div class="nav-item" onclick="showAdminPage('admin-students',this)"><span class="ni">🎓</span>학생 관리</div>
+        <div class="nav-item" onclick="showAdminPage('admin-instructors',this)"><span class="ni">📚</span>강사 관리</div>
+        <div class="nav-item" onclick="showAdminPage('admin-schedule',this)"><span class="ni">📅</span>스케줄 관리</div>
+        <div class="nav-section">분석</div>
+        <div class="nav-item" onclick="showAdminPage('admin-level-results',this)"><span class="ni">📋</span>레벨테스트 결과</div>
+        <div class="nav-item" onclick="showAdminPage('admin-analytics',this)"><span class="ni">📈</span>전체 분석</div>
+      </nav>
+      <div class="sidebar-footer">
+        <button class="logout-btn" onclick="doLogout()">← 로그아웃</button>
+      </div>
+    </aside>
+    <!-- MAIN -->
+    <main class="main-content">
+      <!-- 대시보드 -->
+      <div id="admin-dashboard" class="page on">
+        <div class="page-header">
+          <div class="page-title">📊 관리자 대시보드</div>
+          <div class="page-desc" id="admin-today-date"></div>
+        </div>
+        <div class="stats-grid" id="admin-stats-grid">
+          <div class="stat-card"><div class="stat-label">전체 학생</div><div class="stat-value" id="stat-students">—</div><div class="stat-sub">등록된 수강생</div></div>
+          <div class="stat-card"><div class="stat-label">A반 (SKY)</div><div class="stat-value" style="color:var(--blue)" id="stat-A">—</div><div class="stat-sub">서울대·연세대·고려대 수준</div></div>
+          <div class="stat-card"><div class="stat-label">B반 (서울권)</div><div class="stat-value" style="color:var(--purple)" id="stat-B">—</div><div class="stat-sub">서울권 상위대학</div></div>
+          <div class="stat-card"><div class="stat-label">C반 (일반)</div><div class="stat-value" style="color:var(--green)" id="stat-C">—</div><div class="stat-sub">일반대학 목표</div></div>
+          <div class="stat-card"><div class="stat-label">강사</div><div class="stat-value" style="color:var(--orange)" id="stat-instructors">—</div><div class="stat-sub">등록 강사 수</div></div>
+          <div class="stat-card"><div class="stat-label">오늘 테스트</div><div class="stat-value" style="color:var(--yellow)" id="stat-todaytests">—</div><div class="stat-sub">금일 완료 세션</div></div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title"><span class="ct-icon">🎯</span> 반별 학생 분포</div>
+            <div id="admin-class-chart"></div>
+          </div>
+          <div class="card">
+            <div class="card-title"><span class="ct-icon">📅</span> 오늘 스케줄</div>
+            <div id="admin-today-schedule"></div>
+          </div>
+        </div>
+        <div class="card mt-16">
+          <div class="card-title"><span class="ct-icon">🏆</span> 최근 레벨테스트 결과</div>
+          <div id="admin-recent-level"></div>
+        </div>
+      </div>
+
+      <!-- 학생 관리 -->
+      <div id="admin-students" class="page">
+        <div class="page-header">
+          <div class="page-title">🎓 학생 관리</div>
+          <div class="page-desc">수강생 목록, 반 배정, 강사 연결을 관리합니다</div>
+        </div>
+        <div class="flex justify-between items-center mb-16">
+          <div class="flex gap-8">
+            <select class="form-select" style="width:110px" id="student-filter-class" onchange="loadAdminStudents()">
+              <option value="">전체 반</option>
+              <option value="A">A반 (SKY)</option>
+              <option value="B">B반 (서울권)</option>
+              <option value="C">C반 (일반)</option>
+              <option value="unassigned">미배정</option>
+            </select>
+            <input type="text" class="form-input" style="width:180px" id="student-search" placeholder="이름/아이디 검색" oninput="renderStudentTable()">
+          </div>
+          <button class="btn btn-primary" onclick="openAddStudentModal()">+ 학생 추가</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>이름</th><th>아이디</th><th>반</th><th>담당강사</th><th>등록일</th><th>관리</th></tr></thead>
+            <tbody id="student-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 강사 관리 -->
+      <div id="admin-instructors" class="page">
+        <div class="page-header">
+          <div class="page-title">📚 강사 관리</div>
+          <div class="page-desc">강사 계정을 등록하고 관리합니다</div>
+        </div>
+        <div class="flex justify-end mb-16">
+          <button class="btn btn-primary" onclick="openAddInstructorModal()">+ 강사 추가</button>
+        </div>
+        <div class="grid-2" id="instructor-cards-grid"></div>
+      </div>
+
+      <!-- 스케줄 관리 -->
+      <div id="admin-schedule" class="page">
+        <div class="page-header">
+          <div class="page-title">📅 스케줄 관리</div>
+          <div class="page-desc">일별 라이브 Zoom 강의 링크와 시간을 설정합니다</div>
+        </div>
+        <div class="flex items-center gap-12 mb-20">
+          <div>
+            <label class="form-label">날짜 선택</label>
+            <input type="date" id="admin-schedule-date" class="form-input" style="width:160px" onchange="loadAdminSchedule()">
+          </div>
+          <div style="margin-top:18px">
+            <button class="btn btn-ghost btn-sm" onclick="setScheduleToday()">오늘</button>
+          </div>
+        </div>
+        <div id="admin-schedule-form"></div>
+        <div class="flex justify-end mt-16">
+          <button class="btn btn-primary btn-lg" onclick="saveAdminSchedule()">📅 스케줄 저장</button>
+        </div>
+      </div>
+
+      <!-- 레벨테스트 결과 -->
+      <div id="admin-level-results" class="page">
+        <div class="page-header">
+          <div class="page-title">📋 레벨테스트 결과</div>
+          <div class="page-desc">신규 학생 레벨 배정 결과를 확인합니다</div>
+        </div>
+        <div class="info-box">
+          <div class="info-title">반 배정 기준</div>
+          🔵 <b>A반</b> (서울대·연세대·고려대): 정답률 80% 이상 &nbsp;|&nbsp;
+          🟣 <b>B반</b> (서울권 상위): 정답률 60~79% &nbsp;|&nbsp;
+          🟢 <b>C반</b> (일반 대학): 정답률 60% 미만
+        </div>
+        <div class="flex gap-8 mb-16">
+          <select class="form-select" style="width:120px" id="level-filter-class" onchange="loadLevelResults()">
+            <option value="">전체</option>
+            <option value="A">A반</option>
+            <option value="B">B반</option>
+            <option value="C">C반</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>이름</th><th>점수</th><th>정답률</th><th>배정 반</th><th>어휘</th><th>문법</th><th>독해</th><th>논리</th><th>응시일</th></tr></thead>
+            <tbody id="level-results-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 전체 분석 -->
+      <div id="admin-analytics" class="page">
+        <div class="page-header">
+          <div class="page-title">📈 전체 분석</div>
+          <div class="page-desc">전체 학생 테스트 성취도 현황입니다</div>
+        </div>
+        <div id="admin-analytics-content">
+          <div class="loading-overlay"><div class="spinner"></div> 데이터 로딩 중...</div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     ADMIN MODALS
+══════════════════════════════════════════ -->
+<!-- 학생 추가/수정 모달 -->
+<div id="modal-student" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-title">
+      <span id="modal-student-title">학생 추가</span>
+      <button class="modal-close" onclick="closeModal('modal-student')">✕</button>
+    </div>
+    <input type="hidden" id="modal-student-id">
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">이름 *</label><input type="text" id="ms-name" class="form-input" placeholder="홍길동"></div>
+      <div class="form-group"><label class="form-label">아이디 *</label><input type="text" id="ms-username" class="form-input" placeholder="student01"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">비밀번호 *</label><input type="password" id="ms-password" class="form-input" placeholder="비밀번호"></div>
+      <div class="form-group">
+        <label class="form-label">반 배정</label>
+        <select id="ms-class" class="form-select">
+          <option value="unassigned">미배정 (레벨테스트 후)</option>
+          <option value="A">A반 — SKY 수준</option>
+          <option value="B">B반 — 서울권</option>
+          <option value="C">C반 — 일반</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">이메일</label><input type="email" id="ms-email" class="form-input" placeholder="email@example.com"></div>
+      <div class="form-group"><label class="form-label">연락처</label><input type="text" id="ms-phone" class="form-input" placeholder="010-0000-0000"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">담당 강사</label>
+      <select id="ms-instructor" class="form-select"><option value="">강사 선택</option></select>
+    </div>
+    <div class="form-group"><label class="form-label">메모</label><textarea id="ms-memo" class="form-textarea" placeholder="특이사항 등"></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-student')">취소</button>
+      <button class="btn btn-primary" onclick="saveStudent()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 강사 추가 모달 -->
+<div id="modal-instructor" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-title">
+      <span>강사 추가</span>
+      <button class="modal-close" onclick="closeModal('modal-instructor')">✕</button>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">이름 *</label><input type="text" id="mi-name" class="form-input" placeholder="김강사"></div>
+      <div class="form-group"><label class="form-label">아이디 *</label><input type="text" id="mi-username" class="form-input" placeholder="instructor03"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">비밀번호 *</label><input type="password" id="mi-password" class="form-input" placeholder="비밀번호"></div>
+      <div class="form-group"><label class="form-label">이메일</label><input type="email" id="mi-email" class="form-input" placeholder="email@biglinker.kr"></div>
+    </div>
+    <div class="form-group"><label class="form-label">연락처</label><input type="text" id="mi-phone" class="form-input" placeholder="010-0000-0000"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-instructor')">취소</button>
+      <button class="btn btn-primary" onclick="saveInstructor()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 학생 상세 모달 -->
+<div id="modal-student-detail" class="modal-overlay">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-title">
+      <span id="msd-title">학생 상세</span>
+      <button class="modal-close" onclick="closeModal('modal-student-detail')">✕</button>
+    </div>
+    <div id="msd-content"></div>
+    <div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal('modal-student-detail')">닫기</button></div>
+  </div>
+</div>
+<!-- ══════════════════════════════════════════
+     INSTRUCTOR APP
+══════════════════════════════════════════ -->
+<div id="scr-instructor" class="scr">
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar-instructor">
+      <div class="sidebar-brand">
+        <div class="brand-logo"><span class="bl">Big</span><span class="link">Link</span><span class="er">er</span></div>
+        <div class="brand-sub">편입 LMS · 강사</div>
+      </div>
+      <div class="sidebar-user">
+        <div class="user-avatar" style="background:var(--purple2);color:var(--purple)">📚</div>
+        <div class="user-info">
+          <div class="user-name" id="inst-user-name">강사</div>
+          <div class="user-role">Instructor</div>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section">메인</div>
+        <div class="nav-item on" onclick="showInstPage('inst-dashboard',this)"><span class="ni">📊</span>대시보드</div>
+        <div class="nav-section">강의 관리</div>
+        <div class="nav-item" onclick="showInstPage('inst-recording',this)"><span class="ni">🎥</span>녹화본 등록</div>
+        <div class="nav-item" onclick="showInstPage('inst-schedule',this)"><span class="ni">📅</span>스케줄 관리</div>
+        <div class="nav-section">학생 관리</div>
+        <div class="nav-item" onclick="showInstPage('inst-students',this)"><span class="ni">🎓</span>내 학생</div>
+        <div class="nav-section">문제 관리</div>
+        <div class="nav-item" onclick="showInstPage('inst-questions',this)"><span class="ni">✏️</span>문제 관리</div>
+      </nav>
+      <div class="sidebar-footer">
+        <button class="logout-btn" onclick="doLogout()">← 로그아웃</button>
+      </div>
+    </aside>
+    <main class="main-content">
+      <div id="inst-dashboard" class="page on">
+        <div class="page-header">
+          <div class="page-title">📊 강사 대시보드</div>
+          <div class="page-desc" id="inst-today-date"></div>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-label">내 학생</div><div class="stat-value" style="color:var(--blue)" id="inst-stat-students">—</div></div>
+          <div class="stat-card"><div class="stat-label">오늘 수업</div><div class="stat-value" style="color:var(--purple)">3</div><div class="stat-sub">교시</div></div>
+          <div class="stat-card"><div class="stat-label">등록 녹화본</div><div class="stat-value" style="color:var(--green)" id="inst-stat-recs">—</div></div>
+        </div>
+        <div class="card mb-16">
+          <div class="card-title"><span class="ct-icon">📅</span> 오늘 수업 일정</div>
+          <div id="inst-today-schedule-cards"></div>
+          <div class="mt-12">
+            <button class="btn btn-primary" onclick="showInstPage('inst-recording',document.querySelectorAll('#sidebar-instructor .nav-item')[1])">🎥 수업 후 녹화본 등록하기</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="ct-icon">📊</span> 최근 등록한 녹화본</div>
+          <div id="inst-recent-recs"></div>
+        </div>
+      </div>
+
+      <div id="inst-recording" class="page">
+        <div class="page-header">
+          <div class="page-title">🎥 녹화본 등록</div>
+          <div class="page-desc">수업 종료 후 Zoom 녹화 링크를 등록하면 학생들이 오후에 복습할 수 있습니다</div>
+        </div>
+        <div class="info-box">
+          <div class="info-title">📌 등록 안내</div>
+          수업 종료 후 Zoom에서 녹화본 링크를 복사하여 교시별로 등록해 주세요. 학생들은 <b>점심 이후(13:00~)</b>부터 복습 가능합니다.
+        </div>
+        <div class="flex items-center gap-12 mb-20">
+          <div><label class="form-label">날짜</label>
+            <input type="date" id="rec-upload-date" class="form-input" style="width:160px" onchange="loadInstRecordingForm()"></div>
+          <div style="margin-top:18px"><button class="btn btn-ghost btn-sm" onclick="setRecDateToday()">오늘</button></div>
+        </div>
+        <div id="rec-form-container"></div>
+        <div class="card mt-16">
+          <div class="card-title"><span class="ct-icon">✅</span> 등록 완료된 녹화본</div>
+          <div id="rec-uploaded-list"></div>
+        </div>
+      </div>
+
+      <div id="inst-schedule" class="page">
+        <div class="page-header">
+          <div class="page-title">📅 스케줄 관리</div>
+          <div class="page-desc">오전 라이브 강의 Zoom 링크를 등록합니다</div>
+        </div>
+        <div class="flex items-center gap-12 mb-20">
+          <div><label class="form-label">날짜 선택</label>
+            <input type="date" id="inst-schedule-date" class="form-input" style="width:160px" onchange="loadInstScheduleForm()"></div>
+          <div style="margin-top:18px"><button class="btn btn-ghost btn-sm" onclick="setInstSchedToday()">오늘</button></div>
+        </div>
+        <div id="inst-schedule-form"></div>
+        <div class="flex justify-end mt-16">
+          <button class="btn btn-primary btn-lg" onclick="saveInstSchedule()">📅 스케줄 저장</button>
+        </div>
+      </div>
+
+      <div id="inst-students" class="page">
+        <div class="page-header">
+          <div class="page-title">🎓 내 학생</div>
+          <div class="page-desc">담당 학생 현황 및 성적을 확인합니다</div>
+        </div>
+        <div class="grid-2" id="inst-student-cards"></div>
+      </div>
+
+      <div id="inst-questions" class="page">
+        <div class="page-header">
+          <div class="page-title">✏️ 문제 관리</div>
+          <div class="page-desc">테스트 문제를 추가하고 관리합니다</div>
+        </div>
+        <div class="flex justify-between items-center mb-16">
+          <div class="flex gap-8">
+            <select class="form-select" style="width:110px" id="q-filter-section" onchange="loadQuestionsAdmin()">
+              <option value="">전체 섹션</option>
+              <option value="어휘">어휘</option><option value="문법">문법</option>
+              <option value="독해">독해</option><option value="논리">논리</option>
+            </select>
+            <select class="form-select" style="width:110px" id="q-filter-univ" onchange="loadQuestionsAdmin()">
+              <option value="">전체 유형</option>
+              <option value="SKY">SKY</option><option value="SEOUL">서울권</option><option value="COMMON">공통</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" onclick="openAddQuestionModal()">+ 문제 추가</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>섹션</th><th>유형</th><th>난이도</th><th>문제</th><th>관리</th></tr></thead>
+            <tbody id="questions-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- 문제 추가 모달 -->
+<div id="modal-question" class="modal-overlay">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-title"><span>문제 추가</span><button class="modal-close" onclick="closeModal('modal-question')">✕</button></div>
+    <div class="form-row-3">
+      <div class="form-group"><label class="form-label">섹션 *</label>
+        <select id="mq-section" class="form-select"><option value="어휘">어휘</option><option value="문법">문법</option><option value="독해">독해</option><option value="논리">논리</option></select></div>
+      <div class="form-group"><label class="form-label">학교 유형</label>
+        <select id="mq-univ" class="form-select"><option value="COMMON">공통</option><option value="SKY">SKY</option><option value="SEOUL">서울권</option></select></div>
+      <div class="form-group"><label class="form-label">난이도</label>
+        <select id="mq-diff" class="form-select"><option value="1">쉬움</option><option value="2" selected>보통</option><option value="3">어려움</option></select></div>
+    </div>
+    <div class="form-group"><label class="form-label">지문 (선택)</label><textarea id="mq-passage" class="form-textarea" placeholder="독해 지문 등"></textarea></div>
+    <div class="form-group"><label class="form-label">문제 *</label><textarea id="mq-question" class="form-textarea" placeholder="문제를 입력하세요"></textarea></div>
+    <div class="form-group"><label class="form-label">보기 A *</label><input type="text" id="mq-a" class="form-input"></div>
+    <div class="form-group"><label class="form-label">보기 B *</label><input type="text" id="mq-b" class="form-input"></div>
+    <div class="form-group"><label class="form-label">보기 C *</label><input type="text" id="mq-c" class="form-input"></div>
+    <div class="form-group"><label class="form-label">보기 D *</label><input type="text" id="mq-d" class="form-input"></div>
+    <div class="form-group"><label class="form-label">정답 *</label>
+      <select id="mq-correct" class="form-select"><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option></select></div>
+    <div class="form-group"><label class="form-label">해설</label><textarea id="mq-explanation" class="form-textarea"></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-question')">취소</button>
+      <button class="btn btn-primary" onclick="saveQuestion()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 강사용 학생 상세 모달 -->
+<div id="modal-inst-student" class="modal-overlay">
+  <div class="modal" style="max-width:620px">
+    <div class="modal-title"><span id="mis-title">학생 분석</span><button class="modal-close" onclick="closeModal('modal-inst-student')">✕</button></div>
+    <div id="mis-content"></div>
+    <div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal('modal-inst-student')">닫기</button></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     STUDENT APP
+══════════════════════════════════════════ -->
+<div id="scr-student" class="scr">
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar-student">
+      <div class="sidebar-brand">
+        <div class="brand-logo"><span class="bl">Big</span><span class="link">Link</span><span class="er">er</span></div>
+        <div class="brand-sub">편입 LMS · 학생</div>
+      </div>
+      <div class="sidebar-user">
+        <div class="user-avatar" style="background:var(--orange2);color:var(--orange)">🎓</div>
+        <div class="user-info">
+          <div class="user-name" id="stu-user-name">학생</div>
+          <div class="user-role" id="stu-user-class">반 미배정</div>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section">학습</div>
+        <div class="nav-item on" onclick="showStuPage('stu-dashboard',this)"><span class="ni">🏠</span>홈</div>
+        <div class="nav-item" onclick="showStuPage('stu-morning',this)"><span class="ni">☀️</span>오전 수업</div>
+        <div class="nav-item" onclick="showStuPage('stu-afternoon',this)"><span class="ni">🌤️</span>오후 복습</div>
+        <div class="nav-section">테스트</div>
+        <div class="nav-item" onclick="showStuPage('stu-level',this)"><span class="ni">🎯</span>레벨테스트</div>
+        <div class="nav-item" onclick="showStuPage('stu-test',this)"><span class="ni">📝</span>테스트 센터</div>
+        <div class="nav-section">분석</div>
+        <div class="nav-item" onclick="showStuPage('stu-performance',this)"><span class="ni">📈</span>내 성적</div>
+      </nav>
+      <div class="sidebar-footer">
+        <button class="logout-btn" onclick="doLogout()">← 로그아웃</button>
+      </div>
+    </aside>
+    <main class="main-content">
+
+      <!-- 홈 대시보드 -->
+      <div id="stu-dashboard" class="page on">
+        <div class="page-header">
+          <div class="page-title" id="stu-greeting">안녕하세요! 👋</div>
+          <div class="page-desc" id="stu-today-label"></div>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-label">내 반</div><div class="stat-value" id="stu-stat-class" style="color:var(--blue)">—</div><div class="stat-sub">현재 배정 반</div></div>
+          <div class="stat-card"><div class="stat-label">오늘 수업</div><div class="stat-value" style="color:var(--purple)">3</div><div class="stat-sub">교시 (오전)</div></div>
+          <div class="stat-card"><div class="stat-label">오늘 테스트</div><div class="stat-value" style="color:var(--green)" id="stu-stat-tests">0</div><div class="stat-sub">완료 세션</div></div>
+        </div>
+        <!-- 오전 수업 미리보기 -->
+        <div class="card mb-16">
+          <div class="card-title"><span class="ct-icon">☀️</span> 오늘 오전 수업
+            <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="showStuPage('stu-morning',document.querySelectorAll('#sidebar-student .nav-item')[1])">전체보기 →</button>
+          </div>
+          <div id="stu-home-morning"></div>
+        </div>
+        <!-- 오후 복습 미리보기 -->
+        <div class="card mb-16">
+          <div class="card-title"><span class="ct-icon">🌤️</span> 오후 복습 자료
+            <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="showStuPage('stu-afternoon',document.querySelectorAll('#sidebar-student .nav-item')[2])">전체보기 →</button>
+          </div>
+          <div id="stu-home-afternoon"></div>
+        </div>
+        <!-- 빠른 테스트 -->
+        <div class="card">
+          <div class="card-title"><span class="ct-icon">⚡</span> 빠른 테스트</div>
+          <div class="flex gap-8 flex-wrap">
+            <button class="btn btn-ghost" onclick="quickStartTest('vocab')">📖 단어테스트 (10개)</button>
+            <button class="btn btn-ghost" onclick="quickStartTest('grammar')">✏️ 문법 테스트</button>
+            <button class="btn btn-ghost" onclick="quickStartTest('reading')">📄 독해 테스트</button>
+            <button class="btn btn-ghost" onclick="quickStartTest('logic')">🧠 논리 테스트</button>
+            <button class="btn btn-primary" onclick="showStuPage('stu-level',document.querySelectorAll('#sidebar-student .nav-item')[3])">🎯 레벨테스트 응시</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 오전 수업 (MORNING) -->
+      <div id="stu-morning" class="page">
+        <div class="page-header">
+          <div class="page-title">☀️ 오전 수업</div>
+          <div class="page-desc">오전 9시~14시 40분 라이브 Zoom 강의입니다. 수업 시작 전 입장 버튼을 클릭하세요.</div>
+        </div>
+        <div class="info-box">
+          <div class="info-title">📅 오늘 수업 일정</div>
+          1교시 09:00~10:30 &nbsp;|&nbsp; 2교시 10:40~12:10 &nbsp;|&nbsp; 3교시 13:10~14:40
+        </div>
+        <div class="flex items-center gap-12 mb-16">
+          <input type="date" id="morning-date" class="form-input" style="width:160px" onchange="loadMorningSchedule()">
+          <button class="btn btn-ghost btn-sm" onclick="setMorningToday()">오늘</button>
+        </div>
+        <div id="morning-schedule-cards">
+          <div class="loading-overlay"><div class="spinner"></div> 수업 일정 로딩 중...</div>
+        </div>
+      </div>
+
+      <!-- 오후 복습 (AFTERNOON) -->
+      <div id="stu-afternoon" class="page">
+        <div class="page-header">
+          <div class="page-title">🌤️ 오후 복습</div>
+          <div class="page-desc">오전 강의 녹화본을 다시 보며 복습하고 자유롭게 자습하세요.</div>
+        </div>
+        <div class="info-box">
+          <div class="info-title">💡 복습 안내</div>
+          강사가 등록한 녹화본 링크를 클릭하면 Zoom 녹화 영상으로 이동합니다. 아래 메모장에 학습 내용을 정리하세요.
+        </div>
+        <div class="flex items-center gap-12 mb-16">
+          <input type="date" id="afternoon-date" class="form-input" style="width:160px" onchange="loadAfternoonRecordings()">
+          <button class="btn btn-ghost btn-sm" onclick="setAfternoonToday()">오늘</button>
+        </div>
+        <div id="afternoon-recordings-list"></div>
+        <!-- 이전 녹화본 -->
+        <div class="divider"></div>
+        <div class="section-header">
+          <div class="section-title">📚 이전 강의 녹화본</div>
+        </div>
+        <div id="past-recordings-list"></div>
+        <!-- 자습 메모장 -->
+        <div class="divider"></div>
+        <div class="section-header">
+          <div class="section-title">📝 자습 메모장</div>
+          <button class="btn btn-ghost btn-sm" onclick="saveStuNotes()">💾 저장</button>
+        </div>
+        <textarea class="notes-area w-full" id="stu-notes" placeholder="오늘 학습한 내용, 모르는 단어, 질문 등을 자유롭게 정리하세요..."></textarea>
+      </div>
+
+      <!-- 레벨테스트 -->
+      <div id="stu-level" class="page">
+        <div class="page-header">
+          <div class="page-title">🎯 레벨테스트</div>
+          <div class="page-desc">40문제를 풀고 나의 수준에 맞는 반(A/B/C)을 배정받습니다</div>
+        </div>
+        <div id="level-test-area">
+          <!-- intro / test / result 상태에 따라 전환 -->
+          <div id="level-intro">
+            <div class="grid-3 mb-20">
+              <div class="card" style="border-color:rgba(79,125,255,.3);text-align:center;padding:24px">
+                <div style="font-size:32px;margin-bottom:10px">🔵</div>
+                <div style="font-size:16px;font-weight:700;color:var(--blue);margin-bottom:8px">A반</div>
+                <div style="font-size:12px;color:var(--muted);line-height:1.6">서울대·연세대·고려대<br>목표 수준<br><b style="color:var(--blue)">정답률 80% 이상</b></div>
+              </div>
+              <div class="card" style="border-color:rgba(167,139,250,.3);text-align:center;padding:24px">
+                <div style="font-size:32px;margin-bottom:10px">🟣</div>
+                <div style="font-size:16px;font-weight:700;color:var(--purple);margin-bottom:8px">B반</div>
+                <div style="font-size:12px;color:var(--muted);line-height:1.6">서울권 상위대학<br>목표 수준<br><b style="color:var(--purple)">정답률 60~79%</b></div>
+              </div>
+              <div class="card" style="border-color:rgba(45,212,160,.3);text-align:center;padding:24px">
+                <div style="font-size:32px;margin-bottom:10px">🟢</div>
+                <div style="font-size:16px;font-weight:700;color:var(--green);margin-bottom:8px">C반</div>
+                <div style="font-size:12px;color:var(--muted);line-height:1.6">일반 대학<br>목표 수준<br><b style="color:var(--green)">정답률 60% 미만</b></div>
+              </div>
+            </div>
+            <div class="card" style="max-width:600px;margin:0 auto">
+              <div style="text-align:center;padding:20px 0">
+                <div style="font-size:24px;margin-bottom:12px">📝</div>
+                <div style="font-size:16px;font-weight:700;margin-bottom:8px">레벨테스트 안내</div>
+                <div style="font-size:12px;color:var(--sub);line-height:1.8;margin-bottom:20px">
+                  어휘·문법·독해·논리 4개 영역에서 각 10문제<br>
+                  총 40문제 · 제한시간 없음 · 즉시 결과 확인<br>
+                  결과에 따라 반이 자동 배정됩니다
+                </div>
+                <div id="level-prev-result-box" style="margin-bottom:16px"></div>
+                <button class="btn btn-primary btn-lg" onclick="startLevelTest()">🎯 레벨테스트 시작</button>
+              </div>
+            </div>
+          </div>
+          <!-- 레벨테스트 진행 -->
+          <div id="level-test-running" style="display:none">
+            <div class="test-container">
+              <div class="test-progress-top">
+                <span class="test-counter" id="lt-counter">1 / 40</span>
+                <span class="test-section-badge" id="lt-section-badge" style="background:var(--blue2);color:var(--blue)">어휘</span>
+              </div>
+              <div class="progress-bar-wrap mb-16">
+                <div class="progress-bar-fill fill-blue" id="lt-progress-bar" style="width:0%"></div>
+              </div>
+              <div class="question-card">
+                <div id="lt-passage" class="question-passage" style="display:none"></div>
+                <div class="question-text" id="lt-question-text"></div>
+                <div class="options-list" id="lt-options"></div>
+              </div>
+              <div class="test-nav">
+                <button class="btn btn-ghost" onclick="ltPrev()" id="lt-prev-btn">← 이전</button>
+                <div style="font-size:11px;color:var(--muted)" id="lt-answered-count"></div>
+                <button class="btn btn-primary" onclick="ltNext()" id="lt-next-btn">다음 →</button>
+              </div>
+            </div>
+          </div>
+          <!-- 레벨테스트 결과 -->
+          <div id="level-test-result" style="display:none">
+            <div class="test-container">
+              <div class="result-card">
+                <div style="font-size:13px;color:var(--muted);margin-bottom:12px">레벨테스트 결과</div>
+                <div class="result-class-badge" id="lt-result-badge">A</div>
+                <div style="font-size:14px;color:var(--muted);margin-bottom:6px" id="lt-result-class-name"></div>
+                <div class="result-score-big" id="lt-result-score"></div>
+                <div style="font-size:13px;color:var(--muted);margin-top:6px" id="lt-result-pct"></div>
+              </div>
+              <div class="card mb-16">
+                <div class="card-title"><span class="ct-icon">📊</span> 영역별 점수</div>
+                <div id="lt-section-scores"></div>
+              </div>
+              <div class="card mb-16">
+                <div class="card-title"><span class="ct-icon">💬</span> 문항별 피드백</div>
+                <div id="lt-feedback-list"></div>
+              </div>
+              <div class="flex gap-8 justify-center">
+                <button class="btn btn-ghost" onclick="resetLevelTest()">🔄 다시 응시</button>
+                <button class="btn btn-primary" onclick="showStuPage('stu-test',document.querySelectorAll('#sidebar-student .nav-item')[4])">📝 테스트 센터 가기</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 테스트 센터 -->
+      <div id="stu-test" class="page">
+        <div class="page-header">
+          <div class="page-title">📝 테스트 센터</div>
+          <div class="page-desc">단어·섹션별·학교별 테스트를 무제한으로 연습하세요</div>
+        </div>
+        <div id="test-center-home">
+          <!-- 테스트 유형 선택 -->
+          <div class="tabs" id="test-type-tabs">
+            <button class="tab-btn on" onclick="switchTestTab('vocab',this)">📖 단어테스트</button>
+            <button class="tab-btn" onclick="switchTestTab('section',this)">📚 섹션별</button>
+            <button class="tab-btn" onclick="switchTestTab('university',this)">🏫 학교별</button>
+            <button class="tab-btn" onclick="switchTestTab('mixed',this)">🎲 종합</button>
+          </div>
+          <!-- 단어테스트 설정 -->
+          <div id="tab-vocab" class="tab-content on">
+            <div class="card" style="max-width:500px">
+              <div class="card-title"><span class="ct-icon">📖</span> 단어 테스트</div>
+              <div class="form-group"><label class="form-label">문제 수</label>
+                <select id="vocab-count" class="form-select"><option value="10" selected>10개</option><option value="20">20개</option><option value="30">30개</option></select></div>
+              <div class="form-group"><label class="form-label">난이도</label>
+                <select id="vocab-diff" class="form-select"><option value="">전체</option><option value="1">쉬움</option><option value="2">보통</option><option value="3">어려움</option></select></div>
+              <button class="btn btn-primary btn-full mt-12" onclick="startVocabTest()">단어테스트 시작 →</button>
+            </div>
+          </div>
+          <!-- 섹션별 설정 -->
+          <div id="tab-section" class="tab-content">
+            <div class="card" style="max-width:500px">
+              <div class="card-title"><span class="ct-icon">📚</span> 섹션별 테스트</div>
+              <div class="form-group"><label class="form-label">섹션 선택</label>
+                <select id="sec-section" class="form-select"><option value="어휘">어휘 (Vocabulary)</option><option value="문법">문법 (Grammar)</option><option value="독해">독해 (Reading)</option><option value="논리">논리 (Logic)</option></select></div>
+              <div class="form-group"><label class="form-label">문제 수</label>
+                <select id="sec-count" class="form-select"><option value="5">5문제</option><option value="10" selected>10문제</option><option value="15">15문제</option></select></div>
+              <button class="btn btn-primary btn-full mt-12" onclick="startSectionTest()">섹션 테스트 시작 →</button>
+            </div>
+          </div>
+          <!-- 학교별 설정 -->
+          <div id="tab-university" class="tab-content">
+            <div class="card" style="max-width:500px">
+              <div class="card-title"><span class="ct-icon">🏫</span> 학교별 유형 테스트</div>
+              <div class="info-box" style="margin-bottom:14px">
+                학교별로 자주 출제되는 문제 유형을 집중 연습합니다.
+              </div>
+              <div class="form-group"><label class="form-label">목표 대학 유형</label>
+                <select id="univ-type" class="form-select">
+                  <option value="SKY">🔵 SKY (서울대·연세대·고려대)</option>
+                  <option value="SEOUL">🟣 서울권 (중상위)</option>
+                  <option value="COMMON">🟢 공통 (전 대학)</option>
+                </select></div>
+              <div class="form-group"><label class="form-label">문제 수</label>
+                <select id="univ-count" class="form-select"><option value="5">5문제</option><option value="10" selected>10문제</option><option value="15">15문제</option></select></div>
+              <button class="btn btn-primary btn-full mt-12" onclick="startUniversityTest()">학교별 테스트 시작 →</button>
+            </div>
+          </div>
+          <!-- 종합 설정 -->
+          <div id="tab-mixed" class="tab-content">
+            <div class="card" style="max-width:500px">
+              <div class="card-title"><span class="ct-icon">🎲</span> 종합 테스트</div>
+              <div class="form-group"><label class="form-label">총 문제 수</label>
+                <select id="mixed-count" class="form-select"><option value="12">12문제 (각 3개)</option><option value="20" selected>20문제 (각 5개)</option><option value="40">40문제 (각 10개)</option></select></div>
+              <button class="btn btn-primary btn-full mt-12" onclick="startMixedTest()">종합 테스트 시작 →</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 테스트 진행 화면 -->
+        <div id="test-running" style="display:none">
+          <div class="test-container">
+            <div class="test-progress-top">
+              <span class="test-counter" id="tc-counter">1 / 10</span>
+              <span class="test-section-badge" id="tc-section-badge" style="background:var(--blue2);color:var(--blue)">어휘</span>
+            </div>
+            <div class="progress-bar-wrap mb-16">
+              <div class="progress-bar-fill fill-blue" id="tc-progress-bar" style="width:0%"></div>
+            </div>
+            <div class="question-card" id="tc-question-card">
+              <div id="tc-passage" class="question-passage" style="display:none"></div>
+              <div class="question-text" id="tc-question-text"></div>
+              <div class="options-list" id="tc-options"></div>
+            </div>
+            <div class="test-nav">
+              <button class="btn btn-ghost" onclick="tcPrev()" id="tc-prev-btn">← 이전</button>
+              <span style="font-size:11px;color:var(--muted)" id="tc-answered-count"></span>
+              <button class="btn btn-primary" onclick="tcNext()" id="tc-next-btn">다음 →</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 단어 테스트 진행 화면 -->
+        <div id="vocab-running" style="display:none">
+          <div class="test-container">
+            <div class="test-progress-top">
+              <span class="test-counter" id="vt-counter">1 / 10</span>
+              <span class="test-section-badge" style="background:var(--orange2);color:var(--orange)">단어테스트</span>
+            </div>
+            <div class="progress-bar-wrap mb-16">
+              <div class="progress-bar-fill fill-orange" id="vt-progress-bar" style="width:0%"></div>
+            </div>
+            <div class="question-card">
+              <div style="text-align:center;padding:12px 0">
+                <div style="font-size:28px;font-weight:700;color:var(--text);margin-bottom:8px" id="vt-word"></div>
+                <div style="font-size:12px;color:var(--muted);margin-bottom:16px" id="vt-example"></div>
+                <div class="form-group" style="text-align:left">
+                  <label class="form-label">이 단어의 뜻을 입력하세요</label>
+                  <input type="text" id="vt-answer-input" class="form-input" placeholder="한국어 뜻 입력..." onkeydown="if(event.key==='Enter')vtNext()">
+                </div>
+              </div>
+            </div>
+            <div class="test-nav">
+              <button class="btn btn-ghost" onclick="vtPrev()" id="vt-prev-btn">← 이전</button>
+              <span></span>
+              <button class="btn btn-primary" onclick="vtNext()" id="vt-next-btn">다음 →</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 테스트 결과 -->
+        <div id="test-result" style="display:none">
+          <div class="test-container">
+            <div class="result-card">
+              <div style="font-size:13px;color:var(--muted);margin-bottom:10px" id="tr-type-label">테스트 결과</div>
+              <div class="result-score-big" id="tr-score"></div>
+              <div style="font-size:13px;color:var(--muted);margin-top:6px" id="tr-pct"></div>
+            </div>
+            <div class="card mb-16" id="tr-section-card" style="display:none">
+              <div class="card-title"><span class="ct-icon">📊</span> 영역별 점수</div>
+              <div id="tr-section-scores"></div>
+            </div>
+            <div class="card mb-16">
+              <div class="card-title"><span class="ct-icon">💬</span> 문항별 피드백</div>
+              <div id="tr-feedback-list"></div>
+            </div>
+            <div class="flex gap-8 justify-center">
+              <button class="btn btn-ghost" onclick="resetTestCenter()">🔄 다시 테스트</button>
+              <button class="btn btn-primary" onclick="showStuPage('stu-performance',document.querySelectorAll('#sidebar-student .nav-item')[5])">📈 내 성적 보기</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 내 성적 -->
+      <div id="stu-performance" class="page">
+        <div class="page-header">
+          <div class="page-title">📈 내 성적</div>
+          <div class="page-desc">전체 테스트 성과와 강약점 분석입니다</div>
+        </div>
+        <div id="perf-content">
+          <div class="loading-overlay"><div class="spinner"></div> 데이터 로딩 중...</div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script>
+'use strict';
+// ══════════════════════════════════════════════
+// GLOBAL STATE
+// ══════════════════════════════════════════════
+const API = '/api/tl';
+let token = localStorage.getItem('tl_token');
+let currentUser = (() => { try { return JSON.parse(localStorage.getItem('tl_user') || 'null'); } catch { return null; } })();
+let _selectedRole = 'admin';
+
+// ══════════════════════════════════════════════
+// API HELPER
+// ══════════════════════════════════════════════
+async function api(method, path, body) {
+  const opts = {
+    method,
+    headers: { 'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': 'Bearer ' + token } : {}) }
+  };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  const r = await fetch(API + path, opts);
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.error || '서버 오류');
+  return data;
+}
+
+// ══════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════
+function toast(msg, type = 'info', duration = 3000) {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  const icons = { success: '✅', error: '❌', info: 'ℹ️' };
+  t.className = `toast toast-${type}`;
+  t.innerHTML = `<span>${icons[type] || '💬'}</span><span>${msg}</span>`;
+  c.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity .3s'; setTimeout(() => t.remove(), 300); }, duration);
+}
+
+// ══════════════════════════════════════════════
+// SCREEN / PAGE ROUTING
+// ══════════════════════════════════════════════
+function showScreen(id) {
+  document.querySelectorAll('.scr').forEach(s => s.classList.remove('on'));
+  const el = document.getElementById(id);
+  if (el) el.classList.add('on');
+}
+
+function showAdminPage(pageId, navEl) {
+  document.querySelectorAll('#scr-admin .page').forEach(p => p.classList.remove('on'));
+  const p = document.getElementById(pageId);
+  if (p) p.classList.add('on');
+  if (navEl) {
+    document.querySelectorAll('#sidebar-admin .nav-item').forEach(n => n.classList.remove('on'));
+    navEl.classList.add('on');
+  }
+  loadAdminPageData(pageId);
+}
+
+function showInstPage(pageId, navEl) {
+  document.querySelectorAll('#scr-instructor .page').forEach(p => p.classList.remove('on'));
+  const p = document.getElementById(pageId);
+  if (p) p.classList.add('on');
+  if (navEl) {
+    document.querySelectorAll('#sidebar-instructor .nav-item').forEach(n => n.classList.remove('on'));
+    navEl.classList.add('on');
+  }
+  loadInstPageData(pageId);
+}
+
+function showStuPage(pageId, navEl) {
+  document.querySelectorAll('#scr-student .page').forEach(p => p.classList.remove('on'));
+  const p = document.getElementById(pageId);
+  if (p) p.classList.add('on');
+  if (navEl) {
+    document.querySelectorAll('#sidebar-student .nav-item').forEach(n => n.classList.remove('on'));
+    navEl.classList.add('on');
+  }
+  loadStuPageData(pageId);
+}
+
+function toggleSidebar() {
+  const sidebars = document.querySelectorAll('.sidebar');
+  sidebars.forEach(s => s.classList.toggle('open'));
+}
+
+// ══════════════════════════════════════════════
+// MODAL HELPERS
+// ══════════════════════════════════════════════
+function openModal(id) { document.getElementById(id).classList.add('on'); }
+function closeModal(id) { document.getElementById(id).classList.remove('on'); }
+document.addEventListener('click', e => {
+  if (e.target.classList.contains('modal-overlay')) e.target.classList.remove('on');
+});
+
+// ══════════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════════
+function selectRole(role, el) {
+  _selectedRole = role;
+  document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('on'));
+  el.classList.add('on');
+}
+
+async function doLogin() {
+  const id = document.getElementById('login-id').value.trim();
+  const pw = document.getElementById('login-pw').value;
+  const errEl = document.getElementById('login-err');
+  const btn = document.getElementById('login-btn');
+  if (!id || !pw) { errEl.textContent = '아이디와 비밀번호를 입력하세요'; return; }
+  errEl.textContent = '';
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 로그인 중...';
+  try {
+    const data = await api('POST', '/login', { username: id, password: pw });
+    token = data.token;
+    currentUser = data.user;
+    localStorage.setItem('tl_token', token);
+    localStorage.setItem('tl_user', JSON.stringify(currentUser));
+    routeByRole();
+  } catch (e) {
+    errEl.textContent = e.message;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '로그인';
+  }
+}
+
+function doLogout() {
+  token = null; currentUser = null;
+  localStorage.removeItem('tl_token');
+  localStorage.removeItem('tl_user');
+  showScreen('scr-login');
+  document.getElementById('login-id').value = '';
+  document.getElementById('login-pw').value = '';
+  document.getElementById('login-err').textContent = '';
+}
+
+function routeByRole() {
+  if (!currentUser) return showScreen('scr-login');
+  const r = currentUser.role;
+  if (r === 'admin') {
+    showScreen('scr-admin');
+    document.getElementById('admin-user-name').textContent = currentUser.name;
+    loadAdminPageData('admin-dashboard');
+    const today = new Date();
+    document.getElementById('admin-today-date').textContent = formatDate(today);
+    initAdminScheduleDate();
+  } else if (r === 'instructor') {
+    showScreen('scr-instructor');
+    document.getElementById('inst-user-name').textContent = currentUser.name;
+    loadInstPageData('inst-dashboard');
+    const today = new Date();
+    document.getElementById('inst-today-date').textContent = formatDate(today);
+    initInstDates();
+  } else {
+    showScreen('scr-student');
+    document.getElementById('stu-user-name').textContent = currentUser.name;
+    const cl = currentUser.class_level;
+    document.getElementById('stu-user-class').textContent =
+      cl === 'A' ? 'A반 (SKY)' : cl === 'B' ? 'B반 (서울권)' : cl === 'C' ? 'C반 (일반)' : '반 미배정';
+    document.getElementById('stu-stat-class').textContent = cl === 'unassigned' ? '미배정' : (cl || '미배정');
+    document.getElementById('stu-greeting').textContent = currentUser.name + '님, 안녕하세요! 👋';
+    document.getElementById('stu-today-label').textContent = formatDate(new Date());
+    loadStuPageData('stu-dashboard');
+    initStuDates();
+  }
+}
+
+// ══════════════════════════════════════════════
+// DATE HELPERS
+// ══════════════════════════════════════════════
+function todayStr() { return new Date().toISOString().slice(0, 10); }
+function formatDate(d) {
+  const days = ['일','월','화','수','목','금','토'];
+  return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 (${days[d.getDay()]})`;
+}
+function formatTs(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts * 1000);
+  return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+function classBadgeHtml(cl) {
+  const map = { A:'badge-A', B:'badge-B', C:'badge-C', unassigned:'badge-un' };
+  const label = { A:'A반', B:'B반', C:'C반', unassigned:'미배정' };
+  return `<span class="badge ${map[cl]||'badge-un'}">${label[cl]||cl}</span>`;
+}
+function diffLabel(d) { return d===1?'쉬움':d===3?'어려움':'보통'; }
+function univBadgeHtml(u) {
+  const map = { SKY:'badge-sky', SEOUL:'badge-seoul', COMMON:'badge-common' };
+  const label = { SKY:'SKY', SEOUL:'서울권', COMMON:'공통' };
+  return `<span class="badge ${map[u]||'badge-common'}">${label[u]||u}</span>`;
+}
+function sectionColor(s) {
+  return s==='어휘'?'var(--blue)':s==='문법'?'var(--purple)':s==='독해'?'var(--orange)':s==='논리'?'var(--green)':'var(--muted)';
+}
+
+// ══════════════════════════════════════════════
+// ADMIN — Page Data Loader
+// ══════════════════════════════════════════════
+async function loadAdminPageData(pageId) {
+  if (pageId === 'admin-dashboard') await loadAdminDashboard();
+  else if (pageId === 'admin-students') await loadAdminStudents();
+  else if (pageId === 'admin-instructors') await loadAdminInstructors();
+  else if (pageId === 'admin-schedule') loadAdminSchedule();
+  else if (pageId === 'admin-level-results') await loadLevelResults();
+  else if (pageId === 'admin-analytics') await loadAdminAnalytics();
+}
+
+async function loadAdminDashboard() {
+  try {
+    const [stats, sched] = await Promise.all([
+      api('GET', '/admin/stats'),
+      api('GET', '/schedule?date=' + todayStr())
+    ]);
+    document.getElementById('stat-students').textContent = stats.students;
+    document.getElementById('stat-A').textContent = stats.classA;
+    document.getElementById('stat-B').textContent = stats.classB;
+    document.getElementById('stat-C').textContent = stats.classC;
+    document.getElementById('stat-instructors').textContent = stats.instructors;
+    document.getElementById('stat-todaytests').textContent = stats.todayTests;
+    const total = stats.classA + stats.classB + stats.classC + stats.unassigned || 1;
+    document.getElementById('admin-class-chart').innerHTML = [['A반','var(--blue)',stats.classA],['B반','var(--purple)',stats.classB],['C반','var(--green)',stats.classC],['미배정','var(--muted)',stats.unassigned]]
+      .map(([label,color,val]) => `<div style="margin-bottom:10px"><div class="flex justify-between mb-8"><span style="font-size:11px;font-weight:600">${label}</span><span style="font-size:11px;color:var(--muted)">${val}명 (${Math.round(val/total*100)}%)</span></div><div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${Math.round(val/total*100)}%;background:${color}"></div></div></div>`).join('');
+    const schedHtml = sched.length ? sched.map(s => `<div class="flex items-center gap-10 mb-8" style="padding:8px;background:var(--s2);border-radius:var(--r8)"><span class="period-badge p${s.period}">${s.period}교시</span><div style="flex:1"><div style="font-size:12px;font-weight:600">${s.subject}</div><div style="font-size:10px;color:var(--muted)">${s.start_time}~${s.end_time} · ${s.instructor_name||'미정'}</div></div></div>`).join('') : '<div class="empty-state" style="padding:16px"><div class="empty-text">오늘 스케줄 없음</div></div>';
+    document.getElementById('admin-today-schedule').innerHTML = schedHtml;
+    const lvl = await api('GET', '/level-test/results');
+    document.getElementById('admin-recent-level').innerHTML = lvl.slice(0,5).length
+      ? `<div class="table-wrap"><table><thead><tr><th>이름</th><th>점수</th><th>정답률</th><th>배정 반</th></tr></thead><tbody>${lvl.slice(0,5).map(r=>`<tr><td>${r.student_name}</td><td>${r.total_score}/${r.total_questions}</td><td>${Math.round(r.total_score/r.total_questions*100)}%</td><td>${classBadgeHtml(r.assigned_class)}</td></tr>`).join('')}</tbody></table></div>`
+      : '<div class="empty-state" style="padding:16px"><div class="empty-text">레벨테스트 응시 기록 없음</div></div>';
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+let _allStudents = [];
+async function loadAdminStudents() {
+  try {
+    _allStudents = await api('GET', '/students');
+    const insts = await api('GET', '/instructors');
+    const sel = document.getElementById('ms-instructor');
+    sel.innerHTML = '<option value="">강사 선택</option>' + insts.map(i => `<option value="${i.id}">${i.name}</option>`).join('');
+    renderStudentTable();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function renderStudentTable() {
+  const filter = document.getElementById('student-filter-class')?.value || '';
+  const search = (document.getElementById('student-search')?.value || '').toLowerCase();
+  const rows = _allStudents.filter(s => {
+    if (filter && s.class_level !== filter) return false;
+    if (search && !s.name.toLowerCase().includes(search) && !s.username.toLowerCase().includes(search)) return false;
+    return true;
+  });
+  document.getElementById('student-table-body').innerHTML = rows.length
+    ? rows.map(s => `<tr><td><b>${s.name}</b></td><td style="color:var(--muted)">${s.username}</td><td>${classBadgeHtml(s.class_level)}</td><td>${s.instructor_name||'<span style="color:var(--muted)">미배정</span>'}</td><td style="color:var(--muted);font-size:11px">${formatTs(s.created_at)}</td><td><div class="td-actions"><button class="btn btn-ghost btn-sm" onclick='editStudent(${JSON.stringify(s)})'>수정</button><button class="btn btn-danger btn-sm" onclick="deleteStudent('${s.id}','${s.name}')">삭제</button></div></td></tr>`).join('')
+    : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">학생이 없습니다</td></tr>';
+}
+
+function openAddStudentModal() {
+  document.getElementById('modal-student-title').textContent = '학생 추가';
+  document.getElementById('modal-student-id').value = '';
+  ['ms-name','ms-username','ms-password','ms-email','ms-phone','ms-memo'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('ms-class').value = 'unassigned';
+  document.getElementById('ms-instructor').value = '';
+  openModal('modal-student');
+}
+
+function editStudent(s) {
+  document.getElementById('modal-student-title').textContent = '학생 수정';
+  document.getElementById('modal-student-id').value = s.id;
+  document.getElementById('ms-name').value = s.name||'';
+  document.getElementById('ms-username').value = s.username||'';
+  document.getElementById('ms-password').value = '';
+  document.getElementById('ms-email').value = s.email||'';
+  document.getElementById('ms-phone').value = s.phone||'';
+  document.getElementById('ms-class').value = s.class_level||'unassigned';
+  document.getElementById('ms-instructor').value = s.instructor_id||'';
+  document.getElementById('ms-memo').value = s.memo||'';
+  openModal('modal-student');
+}
+
+async function saveStudent() {
+  const id = document.getElementById('modal-student-id').value;
+  const body = { name: document.getElementById('ms-name').value.trim(), username: document.getElementById('ms-username').value.trim(), password: document.getElementById('ms-password').value, email: document.getElementById('ms-email').value.trim(), phone: document.getElementById('ms-phone').value.trim(), class_level: document.getElementById('ms-class').value, instructor_id: document.getElementById('ms-instructor').value, memo: document.getElementById('ms-memo').value.trim() };
+  if (!body.name || !body.username) { toast('이름과 아이디는 필수입니다', 'error'); return; }
+  try {
+    if (id) { await api('PUT', '/students/'+id, body); toast('수정되었습니다', 'success'); }
+    else { if (!body.password) { toast('비밀번호를 입력하세요', 'error'); return; } await api('POST', '/students', body); toast('학생이 추가되었습니다', 'success'); }
+    closeModal('modal-student'); await loadAdminStudents();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function deleteStudent(id, name) {
+  if (!confirm(`"${name}" 학생을 삭제하시겠습니까?`)) return;
+  try { await api('DELETE', '/students/'+id); toast('삭제되었습니다', 'success'); await loadAdminStudents(); }
+  catch (e) { toast(e.message, 'error'); }
+}
+
+async function loadAdminInstructors() {
+  try {
+    const insts = await api('GET', '/instructors');
+    document.getElementById('instructor-cards-grid').innerHTML = insts.length
+      ? insts.map(i => `<div class="card"><div class="flex items-center gap-12 mb-12"><div class="user-avatar" style="background:var(--purple2);color:var(--purple);width:40px;height:40px;font-size:16px">📚</div><div><div style="font-weight:700;font-size:14px">${i.name}</div><div style="font-size:11px;color:var(--muted)">${i.username}</div></div></div><div style="font-size:11px;color:var(--muted);margin-bottom:12px">${i.email||'이메일 없음'} | ${i.phone||'연락처 없음'}</div><button class="btn btn-danger btn-sm" onclick="deleteInstructor('${i.id}','${i.name}')">삭제</button></div>`).join('')
+      : '<div class="empty-state"><div class="empty-icon">📚</div><div class="empty-text">등록된 강사 없음</div></div>';
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function openAddInstructorModal() {
+  ['mi-name','mi-username','mi-password','mi-email','mi-phone'].forEach(id => document.getElementById(id).value = '');
+  openModal('modal-instructor');
+}
+
+async function saveInstructor() {
+  const body = { name: document.getElementById('mi-name').value.trim(), username: document.getElementById('mi-username').value.trim(), password: document.getElementById('mi-password').value, email: document.getElementById('mi-email').value.trim(), phone: document.getElementById('mi-phone').value.trim() };
+  if (!body.name||!body.username||!body.password) { toast('이름, 아이디, 비밀번호는 필수입니다', 'error'); return; }
+  try { await api('POST', '/instructors', body); toast('강사가 추가되었습니다', 'success'); closeModal('modal-instructor'); await loadAdminInstructors(); }
+  catch (e) { toast(e.message, 'error'); }
+}
+
+async function deleteInstructor(id, name) {
+  if (!confirm(`"${name}" 강사를 삭제하시겠습니까?`)) return;
+  try { await api('DELETE', '/instructors/'+id); toast('삭제되었습니다', 'success'); await loadAdminInstructors(); }
+  catch (e) { toast(e.message, 'error'); }
+}
+
+const PERIODS = [{n:1,label:'1교시',start:'09:00',end:'10:30',color:'p1'},{n:2,label:'2교시',start:'10:40',end:'12:10',color:'p2'},{n:3,label:'3교시',start:'13:10',end:'14:40',color:'p3'}];
+
+function initAdminScheduleDate() { const el = document.getElementById('admin-schedule-date'); if (el) { el.value = todayStr(); loadAdminSchedule(); } }
+
+async function loadAdminSchedule() {
+  const date = document.getElementById('admin-schedule-date').value || todayStr();
+  let insts = []; try { insts = await api('GET', '/instructors'); } catch {}
+  let sched = []; try { sched = await api('GET', '/schedule?date='+date); } catch {}
+  const schedMap = Object.fromEntries(sched.map(s=>[s.period,s]));
+  const instOpts = insts.map(i=>`<option value="${i.id}">${i.name}</option>`).join('');
+  document.getElementById('admin-schedule-form').innerHTML = PERIODS.map(p => {
+    const ex = schedMap[p.n]||{};
+    return `<div class="schedule-period-section"><div class="schedule-period-header"><span class="period-badge ${p.color}">${p.label}</span><span style="font-size:11px;color:var(--muted)">${p.start} ~ ${p.end}</span></div><div class="form-row"><div class="form-group"><label class="form-label">과목명</label><input type="text" id="sched-subj-${p.n}" class="form-input" placeholder="예: 영어 어휘·독해" value="${ex.subject||''}"></div><div class="form-group"><label class="form-label">담당 강사</label><select id="sched-inst-${p.n}" class="form-select"><option value="">선택</option>${instOpts}</select></div></div><div class="form-group"><label class="form-label">라이브 Zoom 링크</label><input type="text" id="sched-zoom-${p.n}" class="form-input" placeholder="https://zoom.us/j/..." value="${ex.zoom_url||''}"></div></div>`;
+  }).join('');
+  PERIODS.forEach(p => { const sel=document.getElementById(`sched-inst-${p.n}`); if(sel&&schedMap[p.n]?.instructor_id) sel.value=schedMap[p.n].instructor_id; });
+}
+
+async function saveAdminSchedule() {
+  const date = document.getElementById('admin-schedule-date').value || todayStr();
+  let saved = 0;
+  for (const p of PERIODS) {
+    const subj = document.getElementById(`sched-subj-${p.n}`)?.value.trim();
+    const zoom = document.getElementById(`sched-zoom-${p.n}`)?.value.trim();
+    const inst = document.getElementById(`sched-inst-${p.n}`)?.value;
+    if (!subj||!zoom) continue;
+    try { await api('POST','/schedule',{class_date:date,period:p.n,subject:subj,zoom_url:zoom,instructor_id:inst||undefined,start_time:p.start,end_time:p.end}); saved++; }
+    catch (e) { toast(`${p.label} 저장 실패: ${e.message}`, 'error'); }
+  }
+  if (saved>0) toast(`${saved}개 교시 스케줄 저장 완료`, 'success');
+}
+
+function setScheduleToday() { document.getElementById('admin-schedule-date').value = todayStr(); loadAdminSchedule(); }
+
+async function loadLevelResults() {
+  try {
+    const results = await api('GET', '/level-test/results');
+    const filter = document.getElementById('level-filter-class')?.value || '';
+    const filtered = filter ? results.filter(r=>r.assigned_class===filter) : results;
+    document.getElementById('level-results-body').innerHTML = filtered.length
+      ? filtered.map(r => { const ss=r.section_scores||{}; return `<tr><td><b>${r.student_name}</b></td><td>${r.total_score}/${r.total_questions}</td><td><b>${Math.round(r.total_score/r.total_questions*100)}%</b></td><td>${classBadgeHtml(r.assigned_class)}</td>${['어휘','문법','독해','논리'].map(s=>`<td style="font-size:11px">${ss[s]?ss[s].pct+'%':'—'}</td>`).join('')}<td style="font-size:11px;color:var(--muted)">${formatTs(r.completed_at)}</td></tr>`; }).join('')
+      : '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">결과 없음</td></tr>';
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function loadAdminAnalytics() {
+  const el = document.getElementById('admin-analytics-content');
+  try {
+    const students = await api('GET', '/students');
+    el.innerHTML = students.length
+      ? `<div class="table-wrap"><table><thead><tr><th>이름</th><th>반</th><th>담당강사</th><th>성적</th></tr></thead><tbody>${students.map(s=>`<tr><td><b>${s.name}</b></td><td>${classBadgeHtml(s.class_level)}</td><td>${s.instructor_name||'—'}</td><td><button class="btn btn-ghost btn-sm" onclick="showStudentDetail('${s.id}','${s.name}')">📊 성적 보기</button></td></tr>`).join('')}</tbody></table></div>`
+      : '<div class="empty-state"><div class="empty-icon">📊</div><div class="empty-text">학생 없음</div></div>';
+  } catch (e) { el.innerHTML = `<div class="empty-state"><div class="empty-text">오류: ${e.message}</div></div>`; }
+}
+
+async function showStudentDetail(id, name) {
+  document.getElementById('msd-title').textContent = name + ' — 성적 상세';
+  document.getElementById('msd-content').innerHTML = '<div class="loading-overlay"><div class="spinner"></div></div>';
+  openModal('modal-student-detail');
+  try {
+    const data = await api('GET', '/students/'+id+'/stats');
+    const ss = data.sessions||[];
+    document.getElementById('msd-content').innerHTML = `<div class="flex gap-8 mb-12">${classBadgeHtml(data.user.class_level)}<span style="font-size:11px;color:var(--muted)">${data.user.username}</span></div>${data.levelResult?`<div class="info-box" style="margin-bottom:12px"><b>레벨테스트:</b> ${data.levelResult.total_score}/${data.levelResult.total_questions} (${Math.round(data.levelResult.total_score/data.levelResult.total_questions*100)}%) → ${classBadgeHtml(data.levelResult.assigned_class)}</div>`:''}<div class="card-title mb-8">최근 테스트 (${ss.length}회)</div>${ss.length?`<div class="table-wrap"><table><thead><tr><th>유형</th><th>점수</th><th>정답률</th><th>일시</th></tr></thead><tbody>${ss.slice(0,10).map(s=>`<tr><td><span class="chip">${s.session_type}</span></td><td>${s.score}/${s.total}</td><td><b>${s.pct}%</b></td><td style="font-size:11px;color:var(--muted)">${formatTs(s.completed_at)}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty-state" style="padding:16px"><div class="empty-text">테스트 기록 없음</div></div>'}`;
+  } catch (e) { document.getElementById('msd-content').innerHTML = `<div class="empty-state"><div class="empty-text">오류: ${e.message}</div></div>`; }
+}
+
+// ══════════════════════════════════════════════
+// INSTRUCTOR JS
+// ══════════════════════════════════════════════
+async function loadInstPageData(pageId) {
+  if (pageId==='inst-dashboard') await loadInstDashboard();
+  else if (pageId==='inst-recording') loadInstRecordingForm();
+  else if (pageId==='inst-schedule') loadInstScheduleForm();
+  else if (pageId==='inst-students') await loadInstStudents();
+  else if (pageId==='inst-questions') await loadQuestionsAdmin();
+}
+
+function initInstDates() {
+  const rd = document.getElementById('rec-upload-date'); if (rd) { rd.value = todayStr(); }
+  const sd = document.getElementById('inst-schedule-date'); if (sd) { sd.value = todayStr(); }
+}
+
+async function loadInstDashboard() {
+  try {
+    const [students, recs, sched] = await Promise.all([
+      api('GET', '/students'),
+      api('GET', '/recordings?limit=5'),
+      api('GET', '/schedule?date='+todayStr())
+    ]);
+    document.getElementById('inst-today-date').textContent = formatDate(new Date());
+    document.getElementById('inst-stat-students').textContent = students.length;
+    document.getElementById('inst-stat-recs').textContent = recs.length;
+    // Today schedule cards
+    document.getElementById('inst-today-schedule-cards').innerHTML = sched.length
+      ? sched.map(s=>`<div class="flex items-center gap-10 mb-8" style="padding:10px;background:var(--s2);border-radius:var(--r8)"><span class="period-badge p${s.period}">${s.period}교시</span><div style="flex:1"><div style="font-size:13px;font-weight:600">${s.subject}</div><div style="font-size:10px;color:var(--muted)">${s.start_time}~${s.end_time}</div></div><a href="${s.zoom_url}" target="_blank" class="btn btn-ghost btn-sm">입장</a></div>`).join('')
+      : '<div class="empty-state" style="padding:16px"><div class="empty-text">오늘 스케줄 없음</div><div class="empty-sub">스케줄 관리에서 등록하세요</div></div>';
+    // Recent recordings
+    document.getElementById('inst-recent-recs').innerHTML = recs.length
+      ? recs.map(r=>`<div class="rec-card"><div class="rec-icon" style="background:var(--blue3);color:var(--blue)">🎥</div><div class="rec-info"><div class="rec-title">${r.subject} — ${r.period}교시</div><div class="rec-meta">${r.class_date} · ${r.views||0}회 조회</div></div><a href="${r.zoom_url}" target="_blank" class="btn btn-ghost btn-sm">보기</a></div>`).join('')
+      : '<div class="empty-state" style="padding:16px"><div class="empty-text">등록된 녹화본 없음</div></div>';
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function loadInstRecordingForm() {
+  const date = document.getElementById('rec-upload-date')?.value || todayStr();
+  let sched = []; try { sched = await api('GET', '/schedule?date='+date); } catch {}
+  const schedMap = Object.fromEntries(sched.map(s=>[s.period,s]));
+  let recs = []; try { recs = await api('GET', '/recordings?date='+date); } catch {}
+  const recMap = Object.fromEntries(recs.map(r=>[r.period,r]));
+
+  document.getElementById('rec-form-container').innerHTML = PERIODS.map(p => {
+    const s = schedMap[p.n]||{}; const hasRec = recMap[p.n];
+    return `<div class="schedule-period-section" style="${hasRec?'border-color:var(--green)':''}">
+      <div class="schedule-period-header">
+        <span class="period-badge ${p.color}">${p.label}</span>
+        <span style="font-size:11px;color:var(--muted)">${p.start} ~ ${p.end}</span>
+        ${hasRec?'<span class="badge badge-green" style="margin-left:auto">✅ 등록완료</span>':''}
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">과목명 *</label>
+          <input type="text" id="rec-subj-${p.n}" class="form-input" placeholder="예: 영어 어휘·독해" value="${s.subject||hasRec?.subject||''}"></div>
+        <div class="form-group"><label class="form-label">대상 반</label>
+          <select id="rec-class-${p.n}" class="form-select"><option value="ALL">전체</option><option value="A">A반</option><option value="B">B반</option><option value="C">C반</option></select></div>
+      </div>
+      <div class="form-group"><label class="form-label">Zoom 녹화본 링크 *</label>
+        <input type="text" id="rec-url-${p.n}" class="form-input" placeholder="https://zoom.us/rec/..." value="${hasRec?.zoom_url||''}"></div>
+      <div class="form-group"><label class="form-label">설명 (선택)</label>
+        <input type="text" id="rec-desc-${p.n}" class="form-input" placeholder="예: 오늘 수업 요약 및 주요 포인트" value="${hasRec?.description||''}"></div>
+      <div class="flex justify-end">
+        <button class="btn btn-primary btn-sm" onclick="uploadRecording(${p.n},'${date}')">🎥 ${hasRec?'업데이트':'등록'}하기</button>
+        ${hasRec?`<button class="btn btn-danger btn-sm" style="margin-left:8px" onclick="deleteRecording('${hasRec.id}','${date}')">삭제</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
+
+  // Uploaded list
+  const listEl = document.getElementById('rec-uploaded-list');
+  listEl.innerHTML = recs.length
+    ? recs.map(r=>`<div class="rec-card"><div class="rec-icon" style="background:var(--green2);color:var(--green)">✅</div><div class="rec-info"><div class="rec-title">${r.subject} — ${r.period}교시</div><div class="rec-meta">${r.class_date} · 조회수 ${r.views||0} · ${r.instructor_name||''}</div>${r.description?`<div class="rec-meta" style="margin-top:2px">${r.description}</div>`:''}</div><a href="${r.zoom_url}" target="_blank" class="btn btn-ghost btn-sm">확인</a></div>`).join('')
+    : '<div class="empty-state" style="padding:16px"><div class="empty-text">오늘 등록된 녹화본 없음</div></div>';
+}
+
+async function uploadRecording(period, date) {
+  const subj = document.getElementById(`rec-subj-${period}`)?.value.trim();
+  const url  = document.getElementById(`rec-url-${period}`)?.value.trim();
+  const desc = document.getElementById(`rec-desc-${period}`)?.value.trim();
+  const cl   = document.getElementById(`rec-class-${period}`)?.value;
+  if (!subj||!url) { toast('과목명과 링크를 입력하세요', 'error'); return; }
+  try {
+    await api('POST', '/recordings', {class_date:date, period, subject:subj, zoom_url:url, description:desc, class_level:cl});
+    toast(`${period}교시 녹화본이 등록되었습니다`, 'success');
+    await loadInstRecordingForm();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function deleteRecording(id, date) {
+  if (!confirm('이 녹화본을 삭제하시겠습니까?')) return;
+  try { await api('DELETE', '/recordings/'+id); toast('삭제되었습니다','success'); await loadInstRecordingForm(); }
+  catch(e) { toast(e.message,'error'); }
+}
+
+function setRecDateToday() { document.getElementById('rec-upload-date').value = todayStr(); loadInstRecordingForm(); }
+
+async function loadInstScheduleForm() {
+  const date = document.getElementById('inst-schedule-date')?.value || todayStr();
+  let insts = []; try { insts = await api('GET', '/instructors'); } catch {}
+  let sched = []; try { sched = await api('GET', '/schedule?date='+date); } catch {}
+  const schedMap = Object.fromEntries(sched.map(s=>[s.period,s]));
+  const instOpts = insts.map(i=>`<option value="${i.id}">${i.name}</option>`).join('');
+  document.getElementById('inst-schedule-form').innerHTML = PERIODS.map(p => {
+    const ex = schedMap[p.n]||{};
+    return `<div class="schedule-period-section"><div class="schedule-period-header"><span class="period-badge ${p.color}">${p.label}</span><span style="font-size:11px;color:var(--muted)">${p.start} ~ ${p.end}</span></div><div class="form-row"><div class="form-group"><label class="form-label">과목명</label><input type="text" id="isch-subj-${p.n}" class="form-input" placeholder="예: 영어 어휘" value="${ex.subject||''}"></div><div class="form-group"><label class="form-label">담당 강사</label><select id="isch-inst-${p.n}" class="form-select"><option value="">선택</option>${instOpts}</select></div></div><div class="form-group"><label class="form-label">라이브 Zoom 링크</label><input type="text" id="isch-zoom-${p.n}" class="form-input" placeholder="https://zoom.us/j/..." value="${ex.zoom_url||''}"></div></div>`;
+  }).join('');
+  PERIODS.forEach(p=>{ const sel=document.getElementById(`isch-inst-${p.n}`); if(sel&&schedMap[p.n]?.instructor_id) sel.value=schedMap[p.n].instructor_id; });
+}
+
+async function saveInstSchedule() {
+  const date = document.getElementById('inst-schedule-date').value || todayStr();
+  let saved = 0;
+  for (const p of PERIODS) {
+    const subj = document.getElementById(`isch-subj-${p.n}`)?.value.trim();
+    const zoom = document.getElementById(`isch-zoom-${p.n}`)?.value.trim();
+    const inst = document.getElementById(`isch-inst-${p.n}`)?.value;
+    if (!subj||!zoom) continue;
+    try { await api('POST','/schedule',{class_date:date,period:p.n,subject:subj,zoom_url:zoom,instructor_id:inst||undefined,start_time:p.start,end_time:p.end}); saved++; }
+    catch(e) { toast(`${p.label} 저장 실패: ${e.message}`,'error'); }
+  }
+  if (saved>0) toast(`${saved}개 교시 저장 완료`,'success');
+}
+
+function setInstSchedToday() { document.getElementById('inst-schedule-date').value = todayStr(); loadInstScheduleForm(); }
+
+async function loadInstStudents() {
+  try {
+    const students = await api('GET', '/students');
+    document.getElementById('inst-student-cards').innerHTML = students.length
+      ? students.map(s=>`<div class="student-card" onclick="showInstStudentDetail('${s.id}','${s.name}')"><div class="flex justify-between items-center mb-8"><div class="student-card-name">${s.name}</div>${classBadgeHtml(s.class_level)}</div><div class="student-card-meta">${s.username} · ${s.email||'이메일 없음'}</div></div>`).join('')
+      : '<div class="empty-state"><div class="empty-icon">🎓</div><div class="empty-text">담당 학생 없음</div></div>';
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function showInstStudentDetail(id, name) {
+  document.getElementById('mis-title').textContent = name + ' — 성적 분석';
+  document.getElementById('mis-content').innerHTML = '<div class="loading-overlay"><div class="spinner"></div></div>';
+  openModal('modal-inst-student');
+  try {
+    const data = await api('GET', '/students/'+id+'/stats');
+    const analytics = await api('GET', '/analytics?student_id='+id);
+    const ss = data.sessions||[];
+    const sections = analytics.sections||{};
+    document.getElementById('mis-content').innerHTML = `
+      <div class="flex gap-8 mb-12">${classBadgeHtml(data.user.class_level)}<span style="font-size:11px;color:var(--muted)">테스트 ${ss.length}회 · 종합 ${analytics.overall||0}%</span></div>
+      <div class="analytics-grid mb-12">${Object.entries(sections).map(([sec,d])=>`<div class="analytics-card"><div class="analytics-section-name">${sec}</div><span class="analytics-level ${d.level==='우수'?'level-excellent':d.level==='보통'?'level-normal':'level-weak'}">${d.level}</span><div class="progress-bar-wrap mb-8"><div class="progress-bar-fill" style="width:${d.pct}%;background:${sectionColor(sec)}"></div></div><div class="analytics-feedback">${d.feedback}</div></div>`).join('')}</div>
+      ${ss.length?`<div class="card-title mb-8">최근 테스트</div><div class="table-wrap"><table><thead><tr><th>유형</th><th>점수</th><th>정답률</th><th>일시</th></tr></thead><tbody>${ss.slice(0,8).map(s=>`<tr><td><span class="chip">${s.session_type}</span></td><td>${s.score}/${s.total}</td><td><b>${s.pct}%</b></td><td style="font-size:11px;color:var(--muted)">${formatTs(s.completed_at)}</td></tr>`).join('')}</tbody></table></div>`:''}`;
+  } catch(e) { document.getElementById('mis-content').innerHTML=`<div class="empty-state"><div class="empty-text">오류: ${e.message}</div></div>`; }
+}
+
+async function loadQuestionsAdmin() {
+  try {
+    const section = document.getElementById('q-filter-section')?.value||'';
+    const univ = document.getElementById('q-filter-univ')?.value||'';
+    let url = '/questions/all';
+    const rows = await api('GET', url);
+    const filtered = rows.filter(q=>{
+      if (section && q.section!==section) return false;
+      if (univ && q.university_type!==univ) return false;
+      return true;
+    });
+    document.getElementById('questions-table-body').innerHTML = filtered.length
+      ? filtered.map(q=>`<tr><td><span class="chip" style="color:${sectionColor(q.section)}">${q.section}</span></td><td>${univBadgeHtml(q.university_type)}</td><td><span class="badge ${q.difficulty===3?'badge-red':q.difficulty===1?'badge-green':'badge-yellow'}">${diffLabel(q.difficulty)}</span></td><td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px">${q.question_text.slice(0,60)}...</td><td><button class="btn btn-danger btn-sm" onclick="deleteQuestion('${q.id}')">삭제</button></td></tr>`).join('')
+      : '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">문제 없음</td></tr>';
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function openAddQuestionModal() {
+  ['mq-passage','mq-question','mq-a','mq-b','mq-c','mq-d','mq-explanation'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('mq-section').value='어휘';
+  document.getElementById('mq-univ').value='COMMON';
+  document.getElementById('mq-diff').value='2';
+  document.getElementById('mq-correct').value='A';
+  openModal('modal-question');
+}
+
+async function saveQuestion() {
+  const body = { section:document.getElementById('mq-section').value, university_type:document.getElementById('mq-univ').value, question_text:document.getElementById('mq-question').value.trim(), passage:document.getElementById('mq-passage').value.trim(), option_a:document.getElementById('mq-a').value.trim(), option_b:document.getElementById('mq-b').value.trim(), option_c:document.getElementById('mq-c').value.trim(), option_d:document.getElementById('mq-d').value.trim(), correct_answer:document.getElementById('mq-correct').value, explanation:document.getElementById('mq-explanation').value.trim(), difficulty:parseInt(document.getElementById('mq-diff').value) };
+  if (!body.question_text||!body.option_a||!body.option_b||!body.option_c||!body.option_d) { toast('문제와 보기 4개는 필수입니다','error'); return; }
+  try { await api('POST','/questions',body); toast('문제가 추가되었습니다','success'); closeModal('modal-question'); await loadQuestionsAdmin(); }
+  catch(e) { toast(e.message,'error'); }
+}
+
+async function deleteQuestion(id) {
+  if (!confirm('이 문제를 삭제하시겠습니까?')) return;
+  try { await api('DELETE','/questions/'+id); toast('삭제되었습니다','success'); await loadQuestionsAdmin(); }
+  catch(e) { toast(e.message,'error'); }
+}
+
+// ══════════════════════════════════════════════
+// INIT on page load
+// ══════════════════════════════════════════════
+// ══════════════════════════════════════════════
+// STUDENT JS
+// ══════════════════════════════════════════════
+async function loadStuPageData(pageId) {
+  if (pageId==='stu-dashboard') await loadStuDashboard();
+  else if (pageId==='stu-morning') loadMorningSchedule();
+  else if (pageId==='stu-afternoon') { loadAfternoonRecordings(); loadPastRecordings(); loadStuNotes(); }
+  else if (pageId==='stu-level') loadLevelTestIntro();
+  else if (pageId==='stu-test') resetTestCenter();
+  else if (pageId==='stu-performance') await loadPerformance();
+}
+
+function initStuDates() {
+  const md = document.getElementById('morning-date'); if (md) md.value = todayStr();
+  const ad = document.getElementById('afternoon-date'); if (ad) ad.value = todayStr();
+}
+
+async function loadStuDashboard() {
+  try {
+    const today = await api('GET', '/today');
+    // Morning cards
+    document.getElementById('stu-home-morning').innerHTML = today.schedule.length
+      ? today.schedule.map(s=>periodCardHtml(s,false)).join('')
+      : '<div class="empty-state" style="padding:16px"><div class="empty-text">오늘 수업 일정 없음</div></div>';
+    // Afternoon recordings
+    document.getElementById('stu-home-afternoon').innerHTML = today.recordings.length
+      ? today.recordings.map(r=>recCardHtml(r)).join('')
+      : '<div class="empty-state" style="padding:16px"><div class="empty-text">오늘 등록된 녹화본 없음</div><div class="empty-sub">강사가 수업 후 등록합니다</div></div>';
+    document.getElementById('stu-stat-tests').textContent = today.todayTests.length;
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function periodCardHtml(s, large=true) {
+  const now = new Date();
+  const [sh,sm] = (s.start_time||'09:00').split(':').map(Number);
+  const [eh,em] = (s.end_time||'10:30').split(':').map(Number);
+  const nowM = now.getHours()*60+now.getMinutes();
+  const startM = sh*60+sm, endM = eh*60+em;
+  const status = nowM<startM?'예정':nowM<=endM?'진행중':'종료';
+  const statusHtml = status==='진행중'?'<span class="status-dot"><span class="dot dot-green"></span>진행중</span>':status==='예정'?'<span class="status-dot"><span class="dot dot-yellow"></span>예정</span>':'<span class="status-dot"><span class="dot dot-muted"></span>종료</span>';
+  return `<div class="period-card" style="margin-bottom:10px">
+    <div class="flex justify-between items-center mb-8">
+      <span class="period-badge p${s.period}">${s.period}교시</span>${statusHtml}
+    </div>
+    <div class="period-subject">${s.subject}</div>
+    <div class="period-time">${s.start_time||''}~${s.end_time||''}</div>
+    <div class="period-instructor">${s.instructor_name||'강사 미정'}</div>
+    <div class="period-actions">
+      ${s.zoom_url?`<a href="${s.zoom_url}" target="_blank" class="btn btn-primary btn-sm btn-full">🎥 수업 입장</a>`:'<button class="btn btn-ghost btn-sm btn-full" disabled>링크 준비중</button>'}
+    </div>
+  </div>`;
+}
+
+function recCardHtml(r) {
+  return `<div class="rec-card">
+    <div class="rec-icon" style="background:var(--blue3);color:var(--blue)">🎥</div>
+    <div class="rec-info">
+      <div class="rec-title">${r.subject} — ${r.period}교시</div>
+      <div class="rec-meta">${r.class_date} · ${r.instructor_name||''} · 조회 ${r.views||0}회</div>
+      ${r.description?`<div class="rec-meta" style="margin-top:2px;color:var(--sub)">${r.description}</div>`:''}
+    </div>
+    <div class="rec-actions">
+      <a href="${r.zoom_url}" target="_blank" onclick="markRecViewed('${r.id}')" class="btn btn-primary btn-sm">▶ 복습 보기</a>
+    </div>
+  </div>`;
+}
+
+async function markRecViewed(id) {
+  try { await api('POST', '/recordings/'+id+'/view'); } catch {}
+}
+
+async function loadMorningSchedule() {
+  const date = document.getElementById('morning-date')?.value || todayStr();
+  document.getElementById('morning-schedule-cards').innerHTML = '<div class="loading-overlay"><div class="spinner"></div></div>';
+  try {
+    const sched = await api('GET', '/schedule?date='+date);
+    if (!sched.length) {
+      document.getElementById('morning-schedule-cards').innerHTML = '<div class="empty-state"><div class="empty-icon">📅</div><div class="empty-text">해당 날짜에 수업 없음</div><div class="empty-sub">관리자/강사가 스케줄을 등록하면 나타납니다</div></div>';
+      return;
+    }
+    document.getElementById('morning-schedule-cards').innerHTML = `<div class="period-grid">${sched.map(s=>periodCardHtml(s,true)).join('')}</div>`;
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function setMorningToday() { document.getElementById('morning-date').value=todayStr(); loadMorningSchedule(); }
+
+async function loadAfternoonRecordings() {
+  const date = document.getElementById('afternoon-date')?.value || todayStr();
+  const el = document.getElementById('afternoon-recordings-list');
+  el.innerHTML = '<div class="loading-overlay"><div class="spinner"></div></div>';
+  try {
+    const recs = await api('GET', '/recordings?date='+date);
+    el.innerHTML = recs.length
+      ? recs.map(r=>recCardHtml(r)).join('')
+      : `<div class="empty-state"><div class="empty-icon">🎥</div><div class="empty-text">${date}의 녹화본 없음</div><div class="empty-sub">강사가 수업 후 등록합니다 (보통 오후 1시 이후)</div></div>`;
+  } catch(e) { el.innerHTML = `<div class="empty-state"><div class="empty-text">오류: ${e.message}</div></div>`; }
+}
+
+async function loadPastRecordings() {
+  try {
+    const recs = await api('GET', '/recordings?limit=10');
+    const today = todayStr();
+    const past = recs.filter(r=>r.class_date!==today);
+    document.getElementById('past-recordings-list').innerHTML = past.length
+      ? past.map(r=>recCardHtml(r)).join('')
+      : '<div class="empty-state" style="padding:16px"><div class="empty-text">이전 녹화본 없음</div></div>';
+  } catch {}
+}
+
+function setAfternoonToday() { document.getElementById('afternoon-date').value=todayStr(); loadAfternoonRecordings(); }
+
+function loadStuNotes() {
+  const saved = localStorage.getItem('stu_notes_'+todayStr()) || '';
+  document.getElementById('stu-notes').value = saved;
+}
+
+function saveStuNotes() {
+  const notes = document.getElementById('stu-notes').value;
+  localStorage.setItem('stu_notes_'+todayStr(), notes);
+  toast('메모가 저장되었습니다', 'success');
+}
+
+// ══════════════════════════════════════════════
+// LEVEL TEST
+// ══════════════════════════════════════════════
+let ltQuestions = [], ltAnswers = {}, ltCurrent = 0;
+
+async function loadLevelTestIntro() {
+  document.getElementById('level-intro').style.display='block';
+  document.getElementById('level-test-running').style.display='none';
+  document.getElementById('level-test-result').style.display='none';
+  // Check prev result
+  const prev = localStorage.getItem('lt_result');
+  if (prev) {
+    const r = JSON.parse(prev);
+    document.getElementById('level-prev-result-box').innerHTML = `<div class="info-box"><b>이전 결과:</b> ${r.pct}% → ${classBadgeHtml(r.assigned_class)} 배정 <span style="font-size:10px;color:var(--muted)">(다시 응시하면 반이 재배정됩니다)</span></div>`;
+  }
+}
+
+async function startLevelTest() {
+  try {
+    const qs = await api('GET', '/level-test/questions');
+    ltQuestions = qs; ltAnswers = {}; ltCurrent = 0;
+    document.getElementById('level-intro').style.display='none';
+    document.getElementById('level-test-running').style.display='block';
+    document.getElementById('level-test-result').style.display='none';
+    renderLTQuestion();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function renderLTQuestion() {
+  const q = ltQuestions[ltCurrent];
+  if (!q) return;
+  const total = ltQuestions.length;
+  document.getElementById('lt-counter').textContent = `${ltCurrent+1} / ${total}`;
+  document.getElementById('lt-progress-bar').style.width = `${Math.round((ltCurrent+1)/total*100)}%`;
+  document.getElementById('lt-section-badge').textContent = q.section;
+  document.getElementById('lt-section-badge').style.cssText = `background:${sectionColor(q.section)}22;color:${sectionColor(q.section)}`;
+  const passEl = document.getElementById('lt-passage');
+  if (q.passage) { passEl.style.display='block'; passEl.textContent=q.passage; } else { passEl.style.display='none'; }
+  document.getElementById('lt-question-text').textContent = q.question_text;
+  const sel = ltAnswers[q.id];
+  document.getElementById('lt-options').innerHTML = ['A','B','C','D'].map(k=>`
+    <div class="option-item ${sel===k?'selected':''}" onclick="ltSelect('${q.id}','${k}',this)">
+      <span class="option-key">${k}</span>
+      <span>${q['option_'+k.toLowerCase()]}</span>
+    </div>`).join('');
+  document.getElementById('lt-prev-btn').disabled = ltCurrent===0;
+  const answered = Object.keys(ltAnswers).length;
+  document.getElementById('lt-answered-count').textContent = `${answered}/${total} 답변`;
+  document.getElementById('lt-next-btn').textContent = ltCurrent===total-1 ? '제출 ✓' : '다음 →';
+}
+
+function ltSelect(qid, key, el) {
+  ltAnswers[qid] = key;
+  document.querySelectorAll('#lt-options .option-item').forEach(o=>o.classList.remove('selected'));
+  el.classList.add('selected');
+  el.querySelector('.option-key').style.cssText='background:var(--blue);color:#fff';
+  document.getElementById('lt-answered-count').textContent = `${Object.keys(ltAnswers).length}/${ltQuestions.length} 답변`;
+}
+
+function ltPrev() { if (ltCurrent>0) { ltCurrent--; renderLTQuestion(); } }
+async function ltNext() {
+  if (ltCurrent < ltQuestions.length-1) { ltCurrent++; renderLTQuestion(); }
+  else {
+    const unanswered = ltQuestions.filter(q=>!ltAnswers[q.id]).length;
+    if (unanswered>0 && !confirm(`${unanswered}문제가 미답변입니다. 그래도 제출하시겠습니까?`)) return;
+    await submitLevelTest();
+  }
+}
+
+async function submitLevelTest() {
+  try {
+    const body = { answers: ltAnswers, student_id: currentUser?.id, student_name: currentUser?.name };
+    const result = await api('POST', '/level-test/submit', body);
+    localStorage.setItem('lt_result', JSON.stringify(result));
+    // Update local user
+    if (currentUser) { currentUser.class_level = result.assigned_class; localStorage.setItem('tl_user', JSON.stringify(currentUser)); }
+    document.getElementById('stu-user-class').textContent = result.assigned_class==='A'?'A반 (SKY)':result.assigned_class==='B'?'B반 (서울권)':'C반 (일반)';
+    document.getElementById('stu-stat-class').textContent = result.assigned_class+'반';
+    renderLTResult(result);
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function renderLTResult(r) {
+  document.getElementById('level-test-running').style.display='none';
+  document.getElementById('level-test-result').style.display='block';
+  const badge = document.getElementById('lt-result-badge');
+  badge.textContent = r.assigned_class;
+  badge.className = `result-class-badge class-${r.assigned_class}-badge`;
+  const classNames = { A:'A반 — 서울대·연세대·고려대 수준', B:'B반 — 서울권 상위대학 수준', C:'C반 — 일반대학 수준' };
+  document.getElementById('lt-result-class-name').textContent = classNames[r.assigned_class]||'';
+  document.getElementById('lt-result-score').textContent = `${r.score} / ${r.total}`;
+  document.getElementById('lt-result-pct').textContent = `정답률 ${r.pct}%`;
+  // Section scores
+  const ss = r.section_scores||{};
+  document.getElementById('lt-section-scores').innerHTML = ['어휘','문법','독해','논리'].map(s=>{
+    const d=ss[s]||{correct:0,total:0,pct:0};
+    return `<div class="section-score-row"><span class="section-label" style="color:${sectionColor(s)}">${s}</span><div style="flex:1"><div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${d.pct}%;background:${sectionColor(s)}"></div></div></div><span class="section-pct">${d.pct}%</span><span style="font-size:10px;color:var(--muted)">(${d.correct}/${d.total})</span></div>`;
+  }).join('');
+  // Feedback
+  const fb = r.feedback||[];
+  document.getElementById('lt-feedback-list').innerHTML = fb.slice(0,20).map((f,i)=>`
+    <div class="feedback-item ${f.correct?'fb-correct':'fb-wrong'}">
+      <div class="flex gap-8 items-center mb-4"><span style="font-size:10px;font-weight:700;color:${f.correct?'var(--green)':'var(--red)'}">${f.correct?'✅ 정답':'❌ 오답'}</span><span class="chip" style="color:${sectionColor(f.section)}">${f.section}</span></div>
+      ${!f.correct?`<div style="font-size:11px;color:var(--muted)">정답: <b style="color:var(--green)">${f.correct_answer}</b></div>`:''}
+      ${f.explanation?`<div class="feedback-explanation">${f.explanation}</div>`:''}
+    </div>`).join('') + (fb.length>20?`<div style="text-align:center;font-size:11px;color:var(--muted);padding:8px">... 외 ${fb.length-20}문항</div>`:'');
+}
+
+function resetLevelTest() {
+  document.getElementById('level-intro').style.display='block';
+  document.getElementById('level-test-running').style.display='none';
+  document.getElementById('level-test-result').style.display='none';
+}
+
+// ══════════════════════════════════════════════
+// TEST CENTER
+// ══════════════════════════════════════════════
+let tcSession = null, tcQuestions = [], tcAnswers = {}, tcCurrent = 0, tcType = '';
+let vtWords = [], vtAnswers = {}, vtCurrent = 0;
+
+function switchTestTab(tab, el) {
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('on'));
+  document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('on'));
+  el.classList.add('on');
+  document.getElementById('tab-'+tab).classList.add('on');
+}
+
+function resetTestCenter() {
+  document.getElementById('test-center-home').style.display='block';
+  document.getElementById('test-running').style.display='none';
+  document.getElementById('vocab-running').style.display='none';
+  document.getElementById('test-result').style.display='none';
+}
+
+async function startVocabTest() {
+  const count = document.getElementById('vocab-count').value;
+  const diff = document.getElementById('vocab-diff').value;
+  let url = `/vocab?limit=${count}`;
+  if (diff) url += `&difficulty=${diff}`;
+  try {
+    const words = await api('GET', url);
+    if (!words.length) { toast('단어 없음', 'error'); return; }
+    vtWords = words; vtAnswers = {}; vtCurrent = 0; tcType = 'vocab';
+    document.getElementById('test-center-home').style.display='none';
+    document.getElementById('vocab-running').style.display='block';
+    renderVTQuestion();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function renderVTQuestion() {
+  const w = vtWords[vtCurrent];
+  if (!w) return;
+  document.getElementById('vt-counter').textContent = `${vtCurrent+1} / ${vtWords.length}`;
+  document.getElementById('vt-progress-bar').style.width = `${Math.round((vtCurrent+1)/vtWords.length*100)}%`;
+  document.getElementById('vt-word').textContent = w.word;
+  document.getElementById('vt-example').textContent = w.example ? `"${w.example}"` : '';
+  const input = document.getElementById('vt-answer-input');
+  input.value = vtAnswers[w.id] || '';
+  input.focus();
+  document.getElementById('vt-prev-btn').disabled = vtCurrent===0;
+  document.getElementById('vt-next-btn').textContent = vtCurrent===vtWords.length-1 ? '제출 ✓' : '다음 →';
+}
+
+function vtPrev() { if (vtCurrent>0) { vtAnswers[vtWords[vtCurrent].id]=document.getElementById('vt-answer-input').value; vtCurrent--; renderVTQuestion(); } }
+async function vtNext() {
+  vtAnswers[vtWords[vtCurrent].id] = document.getElementById('vt-answer-input').value;
+  if (vtCurrent < vtWords.length-1) { vtCurrent++; renderVTQuestion(); }
+  else { await submitVocabTest(); }
+}
+
+async function submitVocabTest() {
+  try {
+    // Local scoring for vocab (client-side)
+    let correct=0; const feedback=[];
+    vtWords.forEach(w => {
+      const ans = (vtAnswers[w.id]||'').toLowerCase().trim();
+      const meaning = w.meaning.toLowerCase();
+      const isCorrect = ans.length>0 && (meaning.includes(ans) || ans.includes(meaning.split(',')[0].trim().split(' ').slice(0,2).join(' ')));
+      if (isCorrect) correct++;
+      feedback.push({ word:w.word, meaning:w.meaning, userAnswer:vtAnswers[w.id]||'(미입력)', correct:isCorrect });
+    });
+    const total = vtWords.length;
+    const pct = Math.round(correct/total*100);
+    showTestResult({ score:correct, total, pct, type:'단어테스트', feedback, isVocab:true });
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function startSectionTest() {
+  const section = document.getElementById('sec-section').value;
+  const count = document.getElementById('sec-count').value;
+  const sectionMap = { '어휘':'어휘', '문법':'문법', '독해':'독해', '논리':'논리' };
+  try {
+    const data = await api('POST', '/test/start', { session_type: section==='어휘'?'vocab_section':section==='문법'?'grammar':section==='독해'?'reading':'logic', count: parseInt(count) });
+    tcSession = data.session_id; tcQuestions = data.questions; tcAnswers = {}; tcCurrent = 0;
+    tcType = section + ' 섹션';
+    document.getElementById('test-center-home').style.display='none';
+    document.getElementById('test-running').style.display='block';
+    renderTCQuestion();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function startUniversityTest() {
+  const utype = document.getElementById('univ-type').value;
+  const count = document.getElementById('univ-count').value;
+  try {
+    const data = await api('POST', '/test/start', { session_type:'university', university_type:utype, count:parseInt(count) });
+    tcSession = data.session_id; tcQuestions = data.questions; tcAnswers = {}; tcCurrent = 0;
+    const label = { SKY:'SKY(서울대·연세대·고려대)', SEOUL:'서울권', COMMON:'공통' };
+    tcType = label[utype]||utype;
+    document.getElementById('test-center-home').style.display='none';
+    document.getElementById('test-running').style.display='block';
+    renderTCQuestion();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function startMixedTest() {
+  const count = parseInt(document.getElementById('mixed-count').value);
+  try {
+    const data = await api('POST', '/test/start', { session_type:'mixed', count });
+    tcSession = data.session_id; tcQuestions = data.questions; tcAnswers = {}; tcCurrent = 0;
+    tcType = '종합테스트';
+    document.getElementById('test-center-home').style.display='none';
+    document.getElementById('test-running').style.display='block';
+    renderTCQuestion();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function quickStartTest(type) {
+  showStuPage('stu-test', document.querySelectorAll('#sidebar-student .nav-item')[4]);
+  setTimeout(async () => {
+    const typeMap = { vocab: startVocabTest, grammar: ()=>{ document.getElementById('sec-section').value='문법'; startSectionTest(); }, reading: ()=>{ document.getElementById('sec-section').value='독해'; startSectionTest(); }, logic: ()=>{ document.getElementById('sec-section').value='논리'; startSectionTest(); } };
+    if (typeMap[type]) await typeMap[type]();
+  }, 200);
+}
+
+function renderTCQuestion() {
+  const q = tcQuestions[tcCurrent];
+  if (!q) return;
+  const total = tcQuestions.length;
+  document.getElementById('tc-counter').textContent = `${tcCurrent+1} / ${total}`;
+  document.getElementById('tc-progress-bar').style.width = `${Math.round((tcCurrent+1)/total*100)}%`;
+  const sec = q.section||tcType;
+  document.getElementById('tc-section-badge').textContent = sec;
+  document.getElementById('tc-section-badge').style.cssText = `background:${sectionColor(sec)}22;color:${sectionColor(sec)}`;
+  const passEl = document.getElementById('tc-passage');
+  if (q.passage) { passEl.style.display='block'; passEl.textContent=q.passage; } else { passEl.style.display='none'; }
+  document.getElementById('tc-question-text').textContent = q.question_text;
+  const sel = tcAnswers[q.id];
+  document.getElementById('tc-options').innerHTML = ['A','B','C','D'].map(k=>`
+    <div class="option-item ${sel===k?'selected':''}" onclick="tcSelect('${q.id}','${k}',this)">
+      <span class="option-key">${k}</span><span>${q['option_'+k.toLowerCase()]||''}</span>
+    </div>`).join('');
+  document.getElementById('tc-prev-btn').disabled = tcCurrent===0;
+  document.getElementById('tc-answered-count').textContent = `${Object.keys(tcAnswers).length}/${total} 답변`;
+  document.getElementById('tc-next-btn').textContent = tcCurrent===total-1 ? '제출 ✓' : '다음 →';
+}
+
+function tcSelect(qid, key, el) {
+  tcAnswers[qid] = key;
+  document.querySelectorAll('#tc-options .option-item').forEach(o=>{o.classList.remove('selected'); o.querySelector('.option-key').style.cssText='';});
+  el.classList.add('selected'); el.querySelector('.option-key').style.cssText='background:var(--blue);color:#fff';
+  document.getElementById('tc-answered-count').textContent = `${Object.keys(tcAnswers).length}/${tcQuestions.length} 답변`;
+}
+
+function tcPrev() { if (tcCurrent>0) { tcCurrent--; renderTCQuestion(); } }
+async function tcNext() {
+  if (tcCurrent < tcQuestions.length-1) { tcCurrent++; renderTCQuestion(); }
+  else {
+    const unanswered = tcQuestions.filter(q=>!tcAnswers[q.id]).length;
+    if (unanswered>0 && !confirm(`${unanswered}문제 미답변. 제출하시겠습니까?`)) return;
+    await submitTCTest();
+  }
+}
+
+async function submitTCTest() {
+  if (!tcSession) return;
+  try {
+    const result = await api('POST', '/test/submit', { session_id: tcSession, answers: tcAnswers });
+    showTestResult({ ...result, type: tcType, isVocab:false, feedback: result.feedback });
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function showTestResult(data) {
+  document.getElementById('test-running').style.display='none';
+  document.getElementById('vocab-running').style.display='none';
+  document.getElementById('test-result').style.display='block';
+  document.getElementById('tr-type-label').textContent = data.type + ' 결과';
+  document.getElementById('tr-score').textContent = `${data.score} / ${data.total}`;
+  document.getElementById('tr-pct').textContent = `정답률 ${data.pct}%`;
+  // Section scores
+  const ssCard = document.getElementById('tr-section-card');
+  const ss = data.section_scores||{};
+  if (Object.keys(ss).length>0 && !data.isVocab) {
+    ssCard.style.display='block';
+    document.getElementById('tr-section-scores').innerHTML = Object.entries(ss).map(([sec,d])=>`<div class="section-score-row"><span class="section-label" style="color:${sectionColor(sec)}">${sec}</span><div style="flex:1"><div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${d.pct}%;background:${sectionColor(sec)}"></div></div></div><span class="section-pct">${d.pct}%</span></div>`).join('');
+  } else { ssCard.style.display='none'; }
+  // Feedback
+  const fb = data.feedback||[];
+  document.getElementById('tr-feedback-list').innerHTML = fb.map((f,i)=>{
+    if (data.isVocab) {
+      return `<div class="feedback-item ${f.correct?'fb-correct':'fb-wrong'}"><div class="flex gap-8 items-center mb-4"><b style="color:var(--text)">${f.word}</b><span style="font-size:10px;color:${f.correct?'var(--green)':'var(--red)'}">${f.correct?'✅ 정답':'❌ 오답'}</span></div><div style="font-size:11px;color:var(--muted)">정답: <b>${f.meaning}</b></div>${!f.correct&&f.userAnswer?`<div style="font-size:11px;color:var(--red)">내 답: ${f.userAnswer}</div>`:''}</div>`;
+    } else {
+      return `<div class="feedback-item ${f.correct?'fb-correct':'fb-wrong'}"><div class="flex gap-8 items-center mb-4"><span style="font-size:10px;font-weight:700;color:${f.correct?'var(--green)':'var(--red)'}">${f.correct?'✅ 정답':'❌ 오답'}</span><span class="chip" style="color:${sectionColor(f.section)}">${f.section}</span></div>${!f.correct?`<div style="font-size:11px;color:var(--muted)">정답: <b style="color:var(--green)">${f.correct_answer}</b></div>`:''}<div class="feedback-q">${(f.question_text||'').slice(0,100)}</div>${f.explanation?`<div class="feedback-explanation">${f.explanation}</div>`:''}</div>`;
+    }
+  }).join('');
+}
+
+// ══════════════════════════════════════════════
+// PERFORMANCE PAGE
+// ══════════════════════════════════════════════
+async function loadPerformance() {
+  const el = document.getElementById('perf-content');
+  el.innerHTML = '<div class="loading-overlay"><div class="spinner"></div> 분석 중...</div>';
+  try {
+    const [analytics, history] = await Promise.all([
+      api('GET', '/analytics'),
+      api('GET', '/test/history')
+    ]);
+    if (analytics.message === '테스트 기록 없음') {
+      el.innerHTML = `<div class="empty-state"><div class="empty-icon">📊</div><div class="empty-text">아직 테스트 기록이 없습니다</div><div class="empty-sub">테스트 센터에서 테스트를 시작해보세요</div><div class="mt-12"><button class="btn btn-primary" onclick="showStuPage('stu-test',document.querySelectorAll('#sidebar-student .nav-item')[4])">테스트 센터 가기</button></div></div>`;
+      return;
+    }
+    const sections = analytics.sections||{};
+    el.innerHTML = `
+      <!-- 종합 점수 -->
+      <div class="card mb-16" style="text-align:center;padding:32px">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px">전체 정답률</div>
+        <div style="font-size:52px;font-weight:900;color:${analytics.overall>=80?'var(--green)':analytics.overall>=60?'var(--yellow)':'var(--red)'}">${analytics.overall}%</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:6px">총 ${analytics.test_count}회 테스트 완료</div>
+        ${analytics.strong.length?`<div class="mt-8"><span style="font-size:11px;color:var(--muted)">강점: </span>${analytics.strong.map(s=>`<span class="chip" style="color:${sectionColor(s)}">${s}</span>`).join('')}</div>`:''}
+        ${analytics.weak.length?`<div class="mt-8"><span style="font-size:11px;color:var(--red)">취약: </span>${analytics.weak.map(s=>`<span class="chip" style="color:var(--red)">${s}</span>`).join('')}</div>`:''}
+      </div>
+      <!-- 섹션별 분석 -->
+      <div class="analytics-grid mb-16">
+        ${Object.entries(sections).map(([sec,d])=>`
+          <div class="analytics-card">
+            <div class="analytics-section-name" style="color:${sectionColor(sec)}">${sec}</div>
+            <span class="analytics-level ${d.level==='우수'?'level-excellent':d.level==='보통'?'level-normal':'level-weak'}">${d.level}</span>
+            <div class="progress-bar-wrap mb-8 mt-8"><div class="progress-bar-fill" style="width:${d.pct}%;background:${sectionColor(sec)}"></div></div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:8px">${d.correct}/${d.total} 정답 (${d.pct}%)</div>
+            <div class="analytics-feedback">${d.feedback}</div>
+          </div>`).join('')}
+      </div>
+      <!-- AI 추천 -->
+      ${analytics.recommendations.length?`<div class="card mb-16"><div class="card-title"><span class="ct-icon">💡</span> 학습 추천</div>${analytics.recommendations.map(r=>`<div style="padding:10px 0;border-bottom:1px solid var(--border);font-size:12px;line-height:1.6"><span style="color:var(--yellow);margin-right:8px">★</span>${r}</div>`).join('')}</div>`:''}
+      <!-- 테스트 이력 -->
+      <div class="card"><div class="card-title"><span class="ct-icon">📋</span> 테스트 이력</div>
+        ${history.length?`<div class="table-wrap"><table><thead><tr><th>유형</th><th>점수</th><th>정답률</th><th>일시</th></tr></thead><tbody>
+          ${history.map(h=>`<tr><td><span class="chip">${h.session_type}</span></td><td>${h.score}/${h.total}</td><td><b style="color:${h.pct>=80?'var(--green)':h.pct>=60?'var(--yellow)':'var(--red)'}">${h.pct}%</b></td><td style="font-size:11px;color:var(--muted)">${formatTs(h.completed_at)}</td></tr>`).join('')}
+        </tbody></table></div>`:'<div class="empty-state" style="padding:16px"><div class="empty-text">테스트 기록 없음</div></div>'}
+      </div>`;
+  } catch(e) { el.innerHTML = `<div class="empty-state"><div class="empty-text">오류: ${e.message}</div></div>`; }
+}
+
+// ══════════════════════════════════════════════
+// INIT on page load
+// ══════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+</body>
+</html>
