@@ -17,7 +17,7 @@ services:
       - key: UPLOADS_DIR
         value: /data/uploads
       - key: ALLOWED_ORIGINS
-        value: https://your-domain.com
+        value: '*'
     disk:
       name: biglinker-data
       mountPath: /data

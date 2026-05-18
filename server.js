@@ -36,6 +36,10 @@ const DB_PATH  = process.env.DB_PATH    || './biglinker.db';
 const UPLOADS  = process.env.UPLOADS_DIR || './uploads';
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '*').split(',');
 
+// DB 디렉터리 자동 생성 (Railway /data 볼륨 등 경로가 없을 수 있음)
+const DB_DIR = path.dirname(path.resolve(DB_PATH));
+if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
+
 if (!fs.existsSync(UPLOADS)) fs.mkdirSync(UPLOADS, { recursive: true });
 
 // ═══════════════════════════════════════════════════════
@@ -1583,6 +1587,1102 @@ app.get('*', (req, res) => {
   if (fs.existsSync(idx)) res.sendFile(idx);
   else res.status(404).send('BigLinker — public/index.html을 배포해주세요.');
 });
+
+// ═══════════════════════════════════════════════════════════════════════
+// ██████╗ ██╗ ██████╗ ██╗     ██╗███╗   ██╗██╗  ██╗███████╗██████╗
+// ██╔══██╗██║██╔════╝ ██║     ██║████╗  ██║██║ ██╔╝██╔════╝██╔══██╗
+// ██████╔╝██║██║  ███╗██║     ██║██╔██╗ ██║█████╔╝ █████╗  ██████╔╝
+// ██╔══██╗██║██║   ██║██║     ██║██║╚██╗██║██╔═██╗ ██╔══╝  ██╔══██╗
+// ██████╔╝██║╚██████╔╝███████╗██║██║ ╚████║██║  ██╗███████╗██║  ██║
+// ╚═════╝ ╚═╝ ╚═════╝ ╚══════╝╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝
+//  편입 하이브리드 LMS — 온오프라인 통합 플랫폼
+// ═══════════════════════════════════════════════════════════════════════
+
+// ── 편입 LMS DB 스키마 ─────────────────────────────────────────────
+db.exec(`
+  /* 편입 LMS 사용자 (기존 coaching users 와 분리) */
+  CREATE TABLE IF NOT EXISTS tl_users (
+    id           TEXT PRIMARY KEY,
+    username     TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    role         TEXT NOT NULL CHECK(role IN ('admin','instructor','student')),
+    name         TEXT NOT NULL,
+    email        TEXT,
+    phone        TEXT,
+    class_level  TEXT DEFAULT 'unassigned' CHECK(class_level IN ('A','B','C','unassigned')),
+    instructor_id TEXT REFERENCES tl_users(id),
+    memo         TEXT,
+    created_at   INTEGER DEFAULT (strftime('%s','now'))
+  );
+
+  /* 일일 라이브 강의 스케줄 (오전 1~3교시) */
+  CREATE TABLE IF NOT EXISTS tl_schedule (
+    id           TEXT PRIMARY KEY,
+    class_date   TEXT NOT NULL,
+    period       INTEGER NOT NULL CHECK(period IN (1,2,3)),
+    subject      TEXT NOT NULL,
+    instructor_id TEXT REFERENCES tl_users(id),
+    zoom_url     TEXT,
+    class_level  TEXT DEFAULT 'ALL',
+    start_time   TEXT DEFAULT '09:00',
+    end_time     TEXT DEFAULT '10:00',
+    created_at   INTEGER DEFAULT (strftime('%s','now')),
+    UNIQUE(class_date, period)
+  );
+
+  /* 녹화본 링크 (강사가 수업 후 등록) */
+  CREATE TABLE IF NOT EXISTS tl_recordings (
+    id           TEXT PRIMARY KEY,
+    class_date   TEXT NOT NULL,
+    period       INTEGER NOT NULL CHECK(period IN (1,2,3)),
+    subject      TEXT NOT NULL,
+    instructor_id TEXT NOT NULL REFERENCES tl_users(id),
+    zoom_url     TEXT NOT NULL,
+    description  TEXT,
+    class_level  TEXT DEFAULT 'ALL',
+    views        INTEGER DEFAULT 0,
+    created_at   INTEGER DEFAULT (strftime('%s','now'))
+  );
+
+  /* 레벨테스트 문제은행 */
+  CREATE TABLE IF NOT EXISTS tl_level_questions (
+    id             TEXT PRIMARY KEY,
+    section        TEXT NOT NULL CHECK(section IN ('어휘','문법','독해','논리')),
+    question_text  TEXT NOT NULL,
+    passage        TEXT,
+    option_a       TEXT NOT NULL,
+    option_b       TEXT NOT NULL,
+    option_c       TEXT NOT NULL,
+    option_d       TEXT NOT NULL,
+    correct_answer TEXT NOT NULL CHECK(correct_answer IN ('A','B','C','D')),
+    explanation    TEXT,
+    difficulty     INTEGER DEFAULT 2 CHECK(difficulty IN (1,2,3)),
+    created_at     INTEGER DEFAULT (strftime('%s','now'))
+  );
+
+  /* 레벨테스트 결과 */
+  CREATE TABLE IF NOT EXISTS tl_level_results (
+    id              TEXT PRIMARY KEY,
+    student_id      TEXT,
+    student_name    TEXT,
+    total_score     INTEGER NOT NULL,
+    total_questions INTEGER NOT NULL,
+    section_scores  TEXT NOT NULL,
+    assigned_class  TEXT NOT NULL CHECK(assigned_class IN ('A','B','C')),
+    answers         TEXT NOT NULL,
+    completed_at    INTEGER DEFAULT (strftime('%s','now'))
+  );
+
+  /* 섹션별·학교별 테스트 문제은행 */
+  CREATE TABLE IF NOT EXISTS tl_test_questions (
+    id              TEXT PRIMARY KEY,
+    section         TEXT NOT NULL CHECK(section IN ('어휘','문법','독해','논리')),
+    university_type TEXT DEFAULT 'COMMON' CHECK(university_type IN ('SKY','SEOUL','COMMON')),
+    question_text   TEXT NOT NULL,
+    passage         TEXT,
+    option_a        TEXT NOT NULL,
+    option_b        TEXT NOT NULL,
+    option_c        TEXT NOT NULL,
+    option_d        TEXT NOT NULL,
+    correct_answer  TEXT NOT NULL CHECK(correct_answer IN ('A','B','C','D')),
+    explanation     TEXT,
+    difficulty      INTEGER DEFAULT 2 CHECK(difficulty IN (1,2,3)),
+    tags            TEXT,
+    created_at      INTEGER DEFAULT (strftime('%s','now'))
+  );
+
+  /* 단어 테스트 단어장 */
+  CREATE TABLE IF NOT EXISTS tl_vocab (
+    id         TEXT PRIMARY KEY,
+    word       TEXT NOT NULL,
+    meaning    TEXT NOT NULL,
+    example    TEXT,
+    difficulty INTEGER DEFAULT 2 CHECK(difficulty IN (1,2,3)),
+    category   TEXT DEFAULT 'GENERAL',
+    created_at INTEGER DEFAULT (strftime('%s','now'))
+  );
+
+  /* 테스트 세션 (학생이 치르는 테스트 기록) */
+  CREATE TABLE IF NOT EXISTS tl_test_sessions (
+    id              TEXT PRIMARY KEY,
+    student_id      TEXT NOT NULL REFERENCES tl_users(id),
+    session_type    TEXT NOT NULL CHECK(session_type IN ('vocab','grammar','reading','logic','mixed','university')),
+    university_type TEXT DEFAULT 'COMMON',
+    questions       TEXT NOT NULL,
+    answers         TEXT,
+    score           INTEGER,
+    total           INTEGER,
+    section_scores  TEXT,
+    completed_at    INTEGER,
+    created_at      INTEGER DEFAULT (strftime('%s','now'))
+  );
+
+  /* 인덱스 */
+  CREATE INDEX IF NOT EXISTS idx_tl_sched_date ON tl_schedule(class_date);
+  CREATE INDEX IF NOT EXISTS idx_tl_rec_date   ON tl_recordings(class_date);
+  CREATE INDEX IF NOT EXISTS idx_tl_sess_stu   ON tl_test_sessions(student_id, created_at DESC);
+`);
+
+// ── 편입 LMS 시드 데이터 ───────────────────────────────────────────
+function seedTransferLMS() {
+  const adminExists = db.prepare("SELECT id FROM tl_users WHERE role='admin' LIMIT 1").get();
+  if (adminExists) return;
+
+  const h = s => bcrypt.hashSync(s, 10);
+
+  // 관리자
+  db.prepare(`INSERT OR IGNORE INTO tl_users (id,username,password_hash,role,name) VALUES (?,?,?,?,?)`)
+    .run('tl_adm1','transfer_admin', h('admin1234'),'admin','편입관리자');
+
+  // 강사 2명
+  db.prepare(`INSERT OR IGNORE INTO tl_users (id,username,password_hash,role,name,email) VALUES (?,?,?,?,?,?)`)
+    .run('tl_ins1','instructor01', h('1234'),'instructor','김영어','kim@biglinker.kr');
+  db.prepare(`INSERT OR IGNORE INTO tl_users (id,username,password_hash,role,name,email) VALUES (?,?,?,?,?,?)`)
+    .run('tl_ins2','instructor02', h('1234'),'instructor','박논리','park@biglinker.kr');
+
+  // 학생 6명 (A/B/C 각 2명)
+  [
+    ['tl_st1','s_choi','최민준','A','tl_ins1'],
+    ['tl_st2','s_park','박서연','A','tl_ins1'],
+    ['tl_st3','s_kim','김지호','B','tl_ins2'],
+    ['tl_st4','s_lee','이다은','B','tl_ins2'],
+    ['tl_st5','s_jung','정현우','C','tl_ins1'],
+    ['tl_st6','s_han','한수진','C','tl_ins2'],
+  ].forEach(([id,un,nm,cl,ins]) => {
+    db.prepare(`INSERT OR IGNORE INTO tl_users (id,username,password_hash,role,name,class_level,instructor_id) VALUES (?,?,?,?,?,?,?)`)
+      .run(id, un, h('1234'), 'student', nm, cl, ins);
+  });
+
+  // 오늘 스케줄
+  const today = new Date().toISOString().slice(0,10);
+  [
+    [1,'영어 어휘·독해','tl_ins1','https://zoom.us/j/demo1','09:00','10:30'],
+    [2,'문법·작문','tl_ins2','https://zoom.us/j/demo2','10:40','12:10'],
+    [3,'논리·추론','tl_ins1','https://zoom.us/j/demo3','13:10','14:40'],
+  ].forEach(([p,subj,ins,url,st,et]) => {
+    db.prepare(`INSERT OR IGNORE INTO tl_schedule (id,class_date,period,subject,instructor_id,zoom_url,start_time,end_time)
+      VALUES (?,?,?,?,?,?,?,?)`)
+      .run(`sch_${today}_${p}`, today, p, subj, ins, url, st, et);
+  });
+
+  log('info', '[Transfer LMS] 시드 데이터 생성 완료');
+}
+
+function seedTransferQuestions() {
+  const cnt = db.prepare("SELECT COUNT(*) as c FROM tl_level_questions").get().c;
+  if (cnt > 0) return;
+
+  const lvlQ = db.prepare(`INSERT OR IGNORE INTO tl_level_questions
+    (id,section,question_text,passage,option_a,option_b,option_c,option_d,correct_answer,explanation,difficulty)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?)`);
+
+  const testQ = db.prepare(`INSERT OR IGNORE INTO tl_test_questions
+    (id,section,university_type,question_text,passage,option_a,option_b,option_c,option_d,correct_answer,explanation,difficulty,tags)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+
+  const vocab = db.prepare(`INSERT OR IGNORE INTO tl_vocab
+    (id,word,meaning,example,difficulty,category) VALUES (?,?,?,?,?,?)`);
+
+  // ── 레벨테스트 문제 (40개) ────────────────────────
+  const levelQuestions = [
+    // 어휘 10문제
+    ['lq01','어휘','밑줄 친 단어와 의미가 가장 가까운 것은?\n"The scientist\'s hypothesis was subsequently corroborated by extensive research."',null,'refuted','confirmed','questioned','proposed','B','corroborate = 확인하다, 뒷받침하다',2],
+    ['lq02','어휘','밑줄 친 단어의 의미로 가장 적절한 것은?\n"The politician\'s ambiguous statement left voters perplexed."',null,'명확한','모호한','강력한','단호한','B','ambiguous = 모호한, 애매한',1],
+    ['lq03','어휘','다음 빈칸에 들어갈 가장 적절한 단어는?\n"The new policy was designed to _____ economic inequality."',null,'exacerbate','ameliorate','perpetuate','ignore','B','ameliorate = 개선하다, 완화하다',3],
+    ['lq04','어휘','밑줄 친 단어와 반의어는?\n"The CEO made an impulsive decision without consulting the board."',null,'hasty','reckless','deliberate','spontaneous','C','impulsive의 반의어는 deliberate(신중한)',2],
+    ['lq05','어휘','다음 문맥에서 "inveterate"의 의미로 가장 적절한 것은?\n"He was an inveterate gambler who could not stop despite losing everything."',null,'occasional','habitual','reluctant','amateur','B','inveterate = 뿌리 깊은, 습관적인',3],
+    ['lq06','어휘','빈칸에 알맞은 단어는?\n"The two countries signed a _____ agreement to promote trade."',null,'bilateral','unilateral','multilateral','neutral','A','bilateral = 양자간의 (two parties)',2],
+    ['lq07','어휘','밑줄 친 표현의 의미는?\n"The company decided to cut corners to meet the deadline."',null,'일을 꼼꼼히 하다','지름길을 이용하다','비용/품질을 줄이다','시간을 절약하다','C','cut corners = 요령을 피우다, 부실하게 하다',2],
+    ['lq08','어휘',"다음 중 'pragmatic'과 가장 유사한 의미의 단어는?",null,'idealistic','practical','theoretical','philosophical','B','pragmatic = 실용적인',1],
+    ['lq09','어휘','빈칸에 가장 적절한 단어는?\n"The court found the evidence _____, so the case was dismissed."',null,'conclusive','inadmissible','compelling','relevant','B','inadmissible = 허용되지 않는 (법정 증거)',3],
+    ['lq10','어휘','밑줄 친 단어의 의미는?\n"Her laconic response surprised everyone at the meeting."',null,'lengthy','enthusiastic','brief','confusing','C','laconic = 간결한, 말수가 적은',2],
+    // 문법 10문제
+    ['lq11','문법','다음 중 어법상 올바른 문장은?',null,
+      'Neither the students nor the teacher were prepared.',
+      'Neither the students nor the teacher was prepared.',
+      'Neither the students nor the teacher are prepared.',
+      'Neither the students nor the teacher is prepared.','B',
+      'neither A nor B에서 동사는 B(teacher)에 일치 → was',2],
+    ['lq12','문법','다음 빈칸에 알맞은 것은?\n"By the time she arrived, the meeting _____."',null,
+      'already ended','had already ended','has already ended','already ending','B',
+      '과거 완료: By the time + 과거 → had p.p.',1],
+    ['lq13','문법','어법상 틀린 부분은?\n"The data ① shows ② that ③ more than half of students ④ struggles with time management."',null,'①','②','③','④','D',
+      'students는 복수 → struggles → struggle',1],
+    ['lq14','문법','빈칸에 알맞은 것은?\n"I wish I _____ more time to study last year."',null,'have had','had had','would have','had','B',
+      'wish + 가정법 과거완료 → had had',2],
+    ['lq15','문법','다음 중 어법상 올바른 것은?',null,
+      'Interesting in science, the lab was visited by the student.',
+      'Interested in science, the student visited the lab.',
+      'Being interest in science, the student visited the lab.',
+      'The student, interesting in science, visited the lab.','B',
+      '분사구문의 의미상 주어는 주절 주어와 일치해야 함',2],
+    ['lq16','문법','빈칸에 알맞은 것은?\n"It is essential that every employee _____ the new protocol."',null,'follows','follow','followed','following','B',
+      'It is essential that + 동사원형 (should 생략 가정법)',3],
+    ['lq17','문법','어법상 올바른 문장은?',null,
+      'The number of applicants have increased significantly.',
+      'A number of applicants has increased significantly.',
+      'The number of applicants has increased significantly.',
+      'A number of applicants have increases significantly.','C',
+      'the number of = 단수, a number of = 복수',2],
+    ['lq18','문법','빈칸에 알맞은 접속사는?\n"_____ he studied hard, he failed the exam."',null,'Despite','Although','Because','Therefore','B',
+      'although = 비록 ~이지만 (역접 부사절 접속사)',1],
+    ['lq19','문법','밑줄 친 부분 중 어법상 틀린 것은?\n"She suggested ① that he ② should take ③ the opportunity ④ serious."',null,'①','②','③','④','D',
+      'take + 목적어 + 부사: seriously',2],
+    ['lq20','문법','다음 중 어법상 올바른 것은?',null,
+      'Having finished his work, the office was left by him.',
+      'Having finished his work, he left the office.',
+      'His work having finished, he left the office.',
+      'Finishing his work, the office was left.','B',
+      '분사구문 주어 = 주절 주어(he)',2],
+    // 독해 10문제
+    ['lq21','독해',`다음 글의 주제로 가장 적절한 것은?
+"Neuroplasticity refers to the brain's ability to reorganize itself by forming new neural connections. This process occurs throughout life, though it is most active during childhood. Research suggests that engaging in mentally stimulating activities can enhance neuroplasticity, potentially delaying cognitive decline associated with aging."`,null,
+      '아동기 두뇌 발달의 중요성',
+      '신경가소성의 개념과 인지 건강에 미치는 영향',
+      '노화에 따른 인지 능력 감소',
+      '정신적 자극 활동의 종류','B','neuroplasticity와 cognitive health의 관계 설명',2],
+    ['lq22','독해',`다음 글의 빈칸에 들어갈 가장 적절한 것은?
+"The discovery of antibiotics in the 20th century revolutionized medicine. However, the overuse and misuse of these drugs has led to the emergence of antibiotic-resistant bacteria. This phenomenon, known as antimicrobial resistance, poses a _____ threat to global public health."`,null,
+      'minimal','temporary','significant','theoretical','C','항생제 내성이 공중보건에 미치는 심각한 위협 강조',2],
+    ['lq23','독해',`글의 흐름상 빈칸에 가장 적절한 연결어는?
+"The company invested heavily in research and development. _____, it failed to commercialize its innovations effectively."`,null,
+      'Therefore','Nevertheless','Furthermore','Similarly','B','역접 관계: 투자했음에도 상업화 실패',1],
+    ['lq24','독해',`다음 글의 내용과 일치하지 않는 것은?
+"The Mediterranean diet, characterized by high consumption of vegetables, fruits, whole grains, and olive oil, has been associated with numerous health benefits. Studies show it reduces the risk of cardiovascular disease by up to 30%. Unlike many restrictive diets, it emphasizes balance rather than elimination."`,null,
+      '지중해식 식단은 채소와 과일을 많이 포함한다.',
+      '심혈관 질환 위험을 최대 30%까지 줄인다.',
+      '엄격한 음식 제한을 강조한다.',
+      '올리브 오일이 주요 성분이다.','C','지중해식 식단은 elimination이 아닌 balance를 강조',2],
+    ['lq25','독해',`다음 글의 목적으로 가장 적절한 것은?
+"We are writing to inform you that your subscription will expire on June 30th. To continue enjoying uninterrupted access to all premium features, please renew your subscription before the expiration date. Early renewal comes with a 15% discount."`,null,
+      '새 서비스 출시 안내','구독 갱신 요청 및 할인 혜택 안내','개인정보 정책 변경 통보','기술 지원 요청','B','구독 만료 알림 + 갱신 유도 + 할인 안내',1],
+    ['lq26','독해',`글에서 필자의 주장으로 가장 적절한 것은?
+"While artificial intelligence offers tremendous potential, we must approach its development with caution. The rapid advancement of AI without adequate ethical frameworks could lead to unforeseen consequences. Therefore, governments, companies, and researchers must collaborate to establish clear guidelines before proceeding further."`,null,
+      'AI 개발을 전면 중단해야 한다.',
+      'AI는 인간을 대체할 것이다.',
+      'AI 발전에는 윤리적 프레임워크와 협력이 선행되어야 한다.',
+      '정부가 AI를 독점적으로 관리해야 한다.','C','필자는 cautious approach + ethical framework + collaboration 주장',3],
+    ['lq27','독해',`다음 글의 제목으로 가장 적절한 것은?
+"Urban green spaces, such as parks and gardens, provide more than aesthetic pleasure. They act as carbon sinks, absorbing CO2 from the atmosphere. They also reduce the urban heat island effect and improve mental well-being among city residents. Investment in green infrastructure is therefore both an environmental and public health priority."`,null,
+      'The Aesthetic Value of City Parks',
+      'Urban Green Spaces: Environmental and Health Benefits',
+      'Climate Change and Carbon Emissions',
+      'Mental Health Challenges in Urban Areas','B','도시 녹지의 환경적·건강적 혜택 전반 설명',2],
+    ['lq28','독해',`다음 글을 읽고 筆者가 가장 강조하는 것은?
+"Education is not merely the transmission of knowledge; it is the cultivation of critical thinking. Students who learn to question assumptions, evaluate evidence, and construct logical arguments are better prepared for the complexities of modern society than those who simply memorize facts."`,null,
+      '지식 암기의 중요성','비판적 사고 교육의 필요성','교사의 역할 강화','현대 사회의 복잡성',
+      'B','필자는 critical thinking > knowledge transmission 강조',2],
+    ['lq29','독해',`빈칸에 가장 적절한 것은?
+"Economists distinguish between needs and wants. Needs are essential for survival, while wants are _____ but not necessary. Understanding this distinction is fundamental to personal financial management."`,null,
+      'harmful','desirable','obligatory','irrelevant','B','wants = desirable(바람직하지만 필수가 아닌)',1],
+    ['lq30','독해',`다음 문단에서 전체 흐름과 관계없는 문장은?
+"① Renewable energy sources are becoming increasingly cost-competitive. ② Solar panel prices have dropped by over 90% in the past decade. ③ Coal remains an important source of energy in developing countries. ④ Wind energy capacity has expanded dramatically worldwide."`,null,'①','②','③','④','C',
+      '③은 재생에너지의 발전 맥락에서 벗어난 문장',3],
+    // 논리 10문제
+    ['lq31','논리','다음 논증의 오류는?\n"모든 성공한 사람들은 열심히 일한다. 그는 열심히 일한다. 따라서 그는 성공할 것이다."',null,
+      '허수아비 오류','전건 긍정의 오류','후건 긍정의 오류','미끄러운 경사면 오류','C',
+      'P→Q, Q ∴ P 형태 = 후건 긍정의 오류(affirming the consequent)',3],
+    ['lq32','논리','다음 추론의 빈칸에 들어갈 결론은?\n"독서를 많이 하는 사람은 어휘력이 높다. 어휘력이 높은 사람은 글쓰기를 잘한다. 따라서 ___."',null,
+      '글쓰기를 잘 하는 사람은 독서를 많이 한다.',
+      '독서를 많이 하는 사람은 글쓰기를 잘 한다.',
+      '어휘력이 낮은 사람은 독서를 하지 않는다.',
+      '글쓰기를 잘 하려면 어휘력을 키워야 한다.','B',
+      '삼단논법: A→B, B→C ∴ A→C',1],
+    ['lq33','논리','다음 중 논리적으로 동치인 것은?\n"비가 오면 우산을 쓴다."',null,
+      '우산을 쓰면 비가 온다.',
+      '비가 오지 않으면 우산을 쓰지 않는다.',
+      '우산을 쓰지 않으면 비가 오지 않는다.',
+      '비도 오고 우산도 쓴다.','C',
+      'P→Q의 대우: ¬Q→¬P',3],
+    ['lq34','논리','다음 주장에 대한 반론으로 가장 적절한 것은?\n"온라인 쇼핑의 증가로 전통 소매업이 쇠퇴하고 있으므로, 온라인 쇼핑을 규제해야 한다."',null,
+      '온라인 쇼핑은 편리하다.',
+      '전통 소매업 쇠퇴의 원인이 온라인 쇼핑만은 아니며, 규제가 소비자 이익을 해칠 수 있다.',
+      '전통 소매업자들을 위한 지원이 필요하다.',
+      '온라인 쇼핑몰의 수가 계속 증가하고 있다.','B',
+      '원인 단순화 오류 지적 + 규제의 부작용 반론',3],
+    ['lq35','논리','다음 퍼즐을 풀어라.\n갑, 을, 병 세 사람이 있다. 갑은 을보다 나이가 많다. 병은 갑보다 나이가 많다. 가장 나이가 많은 사람은?',null,'갑','을','병','알 수 없다','C','병 > 갑 > 을',1],
+    ['lq36','논리','다음 조건에서 항상 참인 것은?\n"X팀이 이기면 Y팀이 진다. Y팀이 지면 Z팀이 이긴다."',null,
+      'X팀이 지면 Z팀도 진다.',
+      'X팀이 이기면 Z팀이 이긴다.',
+      'Z팀이 이기면 X팀이 이긴다.',
+      'Y팀이 이기면 Z팀도 이긴다.','B',
+      'X→¬Y, ¬Y→Z 연쇄 추론: X→Z',2],
+    ['lq37','논리','다음 논증의 전제와 결론 구조를 파악할 때, 빠진 전제는?\n전제1: 모든 포유류는 온혈동물이다.\n결론: 따라서 고래는 온혈동물이다.',null,
+      '온혈동물은 모두 포유류이다.',
+      '고래는 포유류이다.',
+      '고래는 온혈동물을 먹는다.',
+      '포유류는 물속에서도 살 수 있다.','B','삼단논법의 숨은 전제: 고래∈포유류',2],
+    ['lq38','논리','다음 글의 주장을 약화시키는 것은?\n"운동을 규칙적으로 하는 사람들이 더 오래 산다. 따라서 장수하려면 운동을 해야 한다."',null,
+      '규칙적인 운동은 심혈관 건강에 좋다.',
+      '오래 사는 사람들 중 운동을 하지 않는 사람도 많다.',
+      '운동은 스트레스 해소에 도움이 된다.',
+      '건강한 사람일수록 운동을 더 많이 한다.','D',
+      '역인과관계: 건강해서 운동하는 것 → 운동이 장수 원인이라는 주장 약화',3],
+    ['lq39','논리','다음 중 귀납적 추론의 예는?',null,
+      '모든 인간은 죽는다. 소크라테스는 인간이다. 따라서 소크라테스는 죽는다.',
+      '관찰한 100마리의 까마귀가 모두 검었다. 따라서 모든 까마귀는 검다.',
+      '삼각형의 내각의 합은 180도이다. 이것은 삼각형이다. 내각의 합은 180도이다.',
+      '만약 비가 오면 땅이 젖는다. 비가 왔다. 따라서 땅이 젖었다.','B',
+      '귀납: 개별 사례 → 일반 법칙 도출',2],
+    ['lq40','논리','다음 논증에서 결론을 가장 잘 지지하는 전제는?\n결론: 소셜미디어는 청소년의 정신 건강에 해롭다.',null,
+      '많은 청소년이 소셜미디어를 사용한다.',
+      '소셜미디어 사용 시간과 우울증 발생률 사이에 강한 정적 상관관계가 있다는 연구가 있다.',
+      '소셜미디어 기업들은 막대한 수익을 올리고 있다.',
+      '성인들도 소셜미디어를 많이 사용한다.','B',
+      '결론(소셜미디어→정신건강 해로움)을 직접적으로 지지하는 증거',3],
+  ];
+
+  levelQuestions.forEach(q => lvlQ.run(...q));
+
+  // ── 섹션별 일반 테스트 문제 (각 섹션 15문제씩 = 60문제) ──
+  const sectionQ = [
+    // 어휘 — COMMON
+    ['tq01','어휘','COMMON','"Ubiquitous" means:',null,'rare','everywhere','ancient','complex','B','ubiquitous = 어디에나 있는, 편재하는',1,null],
+    ['tq02','어휘','COMMON','다음 빈칸에 알맞은 단어: "The treaty was meant to _____ tensions between the two nations."',null,'exacerbate','alleviate','intensify','provoke','B','alleviate = 완화하다, 경감하다',2,null],
+    ['tq03','어휘','COMMON','"Ephemeral"과 반의어 관계인 것은?',null,'transient','fleeting','permanent','momentary','C','ephemeral = 단명하는 ↔ permanent',2,null],
+    ['tq04','어휘','SEOUL','"The professor gave an _____ lecture that covered too many topics without depth."',null,'profound','cursory','exhaustive','meticulous','B','cursory = 피상적인, 대충 훑어보는',3,null],
+    ['tq05','어휘','SKY','"The diplomat\'s _____ remarks helped defuse the international crisis."',null,'provocative','incendiary','conciliatory','belligerent','C','conciliatory = 화해적인, 달래는',3,null],
+    ['tq06','어휘','COMMON','문맥상 "benign"의 의미로 적절한 것은?\n"The doctor assured the patient that the tumor was benign."',null,'malignant','dangerous','harmless','aggressive','C','benign = (의학) 양성의, 무해한',1,null],
+    ['tq07','어휘','COMMON','"Manifest" as a verb means:',null,'to hide','to show clearly','to deny','to question','B','manifest = 명백히 드러내다',2,null],
+    ['tq08','어휘','SEOUL','빈칸에 알맞은 단어: "The CEO\'s _____ leadership style alienated many employees."',null,'inclusive','autocratic','collaborative','empathetic','B','autocratic = 독재적인, 권위적인',3,null],
+    ['tq09','어휘','COMMON','"Diligent"과 유사한 의미의 단어는?',null,'lazy','careless','industrious','impulsive','C','diligent = industrious = 부지런한',1,null],
+    ['tq10','어휘','SKY','"The scholar\'s _____ critique challenged long-held assumptions in the field."',null,'superficial','cursory','incisive','perfunctory','C','incisive = 날카로운, 예리한',3,null],
+    // 문법 — COMMON/SEOUL/SKY
+    ['tq11','문법','COMMON','빈칸에 알맞은 것: "She _____ in Paris for three years before moving to London."',null,'lived','has lived','had lived','was living','C','for + 기간 + before 과거 → 과거완료',2,null],
+    ['tq12','문법','COMMON','어법상 올바른 문장은?',null,
+      'The committee have reached its decision.',
+      'The committee has reached their decision.',
+      'The committee has reached its decision.',
+      'The committee have reached their decisions.','C','committee는 단수 집합명사(미국식) → has/its',2,null],
+    ['tq13','문법','COMMON','빈칸에 알맞은 것: "_____ difficult the problem may be, we must find a solution."',null,'However','Whatever','Wherever','Whenever','A','however + 형용사 = 아무리 ~해도',2,null],
+    ['tq14','문법','SEOUL','틀린 부분을 찾으시오:\n"The report that was ① submitted ② by the researchers ③ contains ④ important informations."',null,'①','②','③','④','D','information = 불가산명사, informations 불가',2,null],
+    ['tq15','문법','SKY','빈칸에 알맞은 것:\n"Not until the 20th century _____ the full extent of the damage realized."',null,'was','did','had','were','A','부정어 도치: Not until ~ was + 주어',3,null],
+    ['tq16','문법','COMMON','올바른 문장은?',null,
+      'I look forward to meet you.',
+      'I look forward to meeting you.',
+      'I look forward to have met you.',
+      'I look forward meeting you.','B','look forward to + V-ing',1,null],
+    ['tq17','문법','COMMON','빈칸에 알맞은 관계대명사:\n"The author _____ book won the prize gave a speech."',null,'who','whom','whose','which','C','선행사 + whose + 명사 = 소유격 관계대명사',2,null],
+    ['tq18','문법','SEOUL','어법상 옳은 것은?',null,
+      'If I were you, I will accept the offer.',
+      'If I were you, I would accept the offer.',
+      'If I am you, I would accept the offer.',
+      'If I was you, I will accept the offer.','B','가정법 과거: If + were, would + 원형',2,null],
+    ['tq19','문법','SKY','빈칸에 알맞은 것:\n"The policy, along with several amendments, _____ approved yesterday."',null,'were','have been','was','are','C','주어 = The policy (단수) → was',3,null],
+    ['tq20','문법','COMMON','어법상 올바른 것은?',null,
+      'Despite of the rain, they continued playing.',
+      'Despite the rain, they continued playing.',
+      'Although the rain, they continued playing.',
+      'Even the rain, they continued playing.','B','despite + 명사구 (despite of X)',2,null],
+    // 독해 — COMMON
+    ['tq21','독해','COMMON',`다음 글의 요지는?
+"The placebo effect demonstrates the power of the mind over the body. When patients believe they are receiving effective treatment—even if it is an inert substance—they often experience real physiological improvements. This phenomenon highlights the importance of the doctor-patient relationship and patient expectations in medical outcomes."`,
+    null,
+    '위약 효과는 의학적으로 검증되지 않았다.',
+    '의사-환자 관계는 치료 효과에 영향을 미친다.',
+    '정신이 신체에 미치는 영향과 의사-환자 관계의 중요성이 치료 결과를 좌우한다.',
+    '위약은 진짜 약과 동일한 효과를 낸다.','C','위약 효과를 통해 mind-body connection + 의사-환자 관계 중요성 설명',2,null],
+    ['tq22','독해','SEOUL',`빈칸에 가장 적절한 것은?
+"The transition from hunter-gatherer societies to agricultural communities was not merely a change in food production; it fundamentally altered human social structures. The surplus food generated by farming allowed for _____, giving rise to cities, specialized labor, and complex governance systems."`,
+    null,'population decline','nomadic lifestyles','population growth and settlement','simpler social organization','C',
+    '농업 → 잉여식량 → 인구증가 및 정착 → 도시화',3,null],
+    ['tq23','독해','SKY',`다음 글의 논리적 구조로 가장 적절한 것은?
+"Critics argue that social media polarizes political discourse. However, research indicates that most users primarily consume content aligning with their existing beliefs—a phenomenon called confirmation bias. This suggests the problem may not be social media per se, but rather pre-existing psychological tendencies amplified by algorithmic recommendation systems."`,
+    null,
+      '주장 → 반박 → 종합',
+      '문제 제기 → 원인 분석 → 해결책 제시',
+      '통념 → 반론 → 재해석',
+      '가설 → 검증 → 결론','C',
+      'Critics(통념) → However research(반론) → This suggests(재해석)',3,null],
+    ['tq24','독해','COMMON',`내용과 일치하는 것은?
+"Ocean acidification, caused by the absorption of CO2, threatens marine ecosystems. As seawater becomes more acidic, organisms that build shells or skeletons from calcium carbonate—such as corals and mollusks—struggle to maintain their structures. This has cascading effects throughout the food web."`,
+    null,
+      '해양 산성화는 CO2 배출을 증가시킨다.',
+      '탄산칼슘 구조물을 만드는 생물들이 영향을 받는다.',
+      '산성화는 먹이사슬에 제한적인 영향만 미친다.',
+      '산호는 산성화에 영향을 받지 않는다.','B','corals and mollusks struggle → B 정답',2,null],
+    ['tq25','독해','SEOUL',`글의 흐름상 가장 어색한 문장은?
+"① The concept of emotional intelligence (EI) has gained prominence in organizational psychology. ② EI refers to the ability to perceive, understand, and manage emotions. ③ High EI is associated with better leadership effectiveness and team performance. ④ IQ tests have been criticized for cultural bias."`,
+    null,'①','②','③','④','D','④는 IQ에 관한 내용으로 EI 주제와 무관',3,null],
+    // 논리 — COMMON/SEOUL/SKY
+    ['tq26','논리','COMMON','다음 삼단논법의 결론은?\n전제1: 법을 어기는 자는 처벌을 받는다.\n전제2: 그는 법을 어겼다.',null,
+      '그는 처벌을 받아야 한다.','그는 법을 잘 안다.','그는 반성할 것이다.','그는 다시 법을 어길 것이다.','A','직접 삼단논법',1,null],
+    ['tq27','논리','COMMON','다음 논증의 오류 유형은?\n"유명 운동선수가 이 음료를 마신다. 따라서 이 음료는 건강에 좋다."',null,
+      '허수아비 오류','권위에 호소하는 오류','미끄러운 경사면 오류','논점 이탈의 오류','B','celebrity endorsement = 권위(인기)에 호소하는 오류',2,null],
+    ['tq28','논리','SEOUL','다음 조건에서 반드시 참인 것은?\n조건: 비가 오면 소풍을 취소한다. 소풍을 취소하면 박물관을 방문한다.',null,
+      '박물관을 방문하면 비가 온 것이다.',
+      '비가 오면 박물관을 방문한다.',
+      '소풍을 가면 비가 오지 않은 것이다.',
+      '박물관을 방문하지 않으면 소풍을 갔다.','B','P→Q, Q→R ∴ P→R 연쇄 삼단논법',2,null],
+    ['tq29','논리','SKY','다음 논증의 가장 치명적인 약점은?\n"A국의 총기 소지 허용 이후 범죄율이 감소했다. 따라서 총기 소지를 허용하면 범죄가 줄어든다."',null,
+      '총기 소지 허용은 위험하다.',
+      '상관관계와 인과관계를 혼동하고 있으며, 다른 요인들을 고려하지 않았다.',
+      '범죄율 감소 자료가 신뢰할 수 없다.',
+      '총기 관련 법률은 국가마다 다르다.','B','상관관계≠인과관계 + 제3변수 무시',3,null],
+    ['tq30','논리','SKY','5명(A,B,C,D,E)이 한 줄로 서 있다. 조건: A는 B보다 앞에 있다. C는 D보다 앞에 있다. B는 C 바로 뒤에 있다. E는 맨 앞이다. 맨 뒤에 서 있는 사람은?',null,'A','B','C','D','D',
+      'E-A-C-B-D 순서: E(1st),A(2nd),C(3rd),B(4th),D(5th)',3,null],
+  ];
+
+  sectionQ.forEach(q => testQ.run(...q));
+
+  // ── 단어장 ────────────────────────────────────────
+  const words = [
+    ['w01','ubiquitous','어디에나 있는, 편재하는','Smartphones have become ubiquitous in modern society.',2,'GENERAL'],
+    ['w02','ameliorate','개선하다, 완화하다','The new policy aims to ameliorate poverty.',3,'GENERAL'],
+    ['w03','ephemeral','단명하는, 덧없는','Social media trends are often ephemeral.',2,'GENERAL'],
+    ['w04','conciliate','달래다, 화해시키다','She tried to conciliate the angry customer.',3,'GENERAL'],
+    ['w05','pragmatic','실용적인','We need a pragmatic approach to this problem.',1,'GENERAL'],
+    ['w06','diligent','부지런한, 성실한','He is a diligent student who studies every day.',1,'GENERAL'],
+    ['w07','ambiguous','모호한, 불분명한','The contract contained ambiguous language.',2,'GENERAL'],
+    ['w08','corroborate','확인하다, 뒷받침하다','New evidence corroborated the original theory.',3,'GENERAL'],
+    ['w09','laconic','간결한, 말수가 적은','He gave a laconic reply: "No."',3,'GENERAL'],
+    ['w10','inveterate','습관적인, 뿌리 깊은','She is an inveterate reader of mystery novels.',3,'GENERAL'],
+    ['w11','bilateral','양자간의','The two countries signed a bilateral agreement.',2,'ACADEMIC'],
+    ['w12','inadmissible','허용되지 않는','The evidence was declared inadmissible.',3,'ACADEMIC'],
+    ['w13','exacerbate','악화시키다','Lack of sleep can exacerbate stress.',2,'ACADEMIC'],
+    ['w14','manifest','명백히 드러내다, 명백한','His talent manifested early in life.',2,'ACADEMIC'],
+    ['w15','benign','온화한, (의학) 양성의','The doctor confirmed the tumor was benign.',2,'ACADEMIC'],
+    ['w16','cursory','피상적인, 성급한','He gave only a cursory glance at the report.',3,'ACADEMIC'],
+    ['w17','incisive','예리한, 날카로운','She made an incisive observation.',3,'ACADEMIC'],
+    ['w18','autocratic','독재적인, 권위주의적인','His autocratic management style was criticized.',3,'ACADEMIC'],
+    ['w19','alleviate','완화하다, 경감하다','Exercise can alleviate symptoms of depression.',2,'GENERAL'],
+    ['w20','perpetuate','영속시키다, 지속시키다','Such policies perpetuate inequality.',3,'ACADEMIC'],
+    ['w21','substantiate','입증하다','Please substantiate your claims with evidence.',3,'ACADEMIC'],
+    ['w22','dichotomy','이분법, 양분','There is a false dichotomy between work and fun.',3,'ACADEMIC'],
+    ['w23','mitigate','완화하다, 경감하다','Measures were taken to mitigate the damage.',2,'GENERAL'],
+    ['w24','scrutinize','면밀히 조사하다','The committee scrutinized every detail.',3,'ACADEMIC'],
+    ['w25','tenacious','끈질긴, 완강한','She was tenacious in pursuing her goals.',2,'GENERAL'],
+    ['w26','coerce','강요하다','He was coerced into signing the document.',3,'GENERAL'],
+    ['w27','discrepancy','불일치, 모순','There was a discrepancy in the accounts.',2,'ACADEMIC'],
+    ['w28','unprecedented','전례 없는','The pandemic caused unprecedented disruption.',2,'GENERAL'],
+    ['w29','formidable','강력한, 만만치 않은','She faced formidable challenges.',2,'GENERAL'],
+    ['w30','articulate','명확히 표현하다; 말을 잘 하는','He articulated his ideas clearly.',2,'GENERAL'],
+  ];
+
+  words.forEach(w => vocab.run(...w));
+  log('info', '[Transfer LMS] 문제/단어 시딩 완료');
+}
+
+seedTransferLMS();
+seedTransferQuestions();
+
+// ── 편입 LMS Auth 미들웨어 ─────────────────────────────────────────
+function tlAuth(req, res, next) {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ error: '로그인이 필요합니다' });
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (!decoded.system || decoded.system !== 'transfer') {
+      return res.status(401).json({ error: '편입 LMS 토큰이 아닙니다' });
+    }
+    req.tUser = decoded;
+    next();
+  } catch {
+    res.status(401).json({ error: '세션이 만료되었습니다. 다시 로그인해주세요.' });
+  }
+}
+
+function tlAdmin(req, res, next) {
+  if (req.tUser?.role !== 'admin') return res.status(403).json({ error: '관리자 권한이 필요합니다' });
+  next();
+}
+
+function tlAdminOrInstructor(req, res, next) {
+  if (!['admin','instructor'].includes(req.tUser?.role))
+    return res.status(403).json({ error: '강사/관리자 권한이 필요합니다' });
+  next();
+}
+
+function tlUid() { return `tl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`; }
+
+// ── 편입 LMS API 라우터 ────────────────────────────────────────────
+// 로그인
+app.post('/api/tl/login', authLimiter, (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password)
+      return res.status(400).json({ error: '아이디와 비밀번호를 입력하세요' });
+
+    const user = db.prepare('SELECT * FROM tl_users WHERE username=?').get(username);
+    if (!user || !bcrypt.compareSync(password, user.password_hash))
+      return res.status(401).json({ error: '아이디 또는 비밀번호가 잘못되었습니다' });
+
+    const token = jwt.sign(
+      { id: user.id, username: user.username, role: user.role, name: user.name,
+        class_level: user.class_level, system: 'transfer' },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    const { password_hash, ...safe } = user;
+    res.json({ token, user: safe });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── 관리자: 학생 관리 ───────────────────────────────────────────────
+app.get('/api/tl/students', tlAuth, tlAdminOrInstructor, (req, res) => {
+  try {
+    let rows;
+    if (req.tUser.role === 'admin') {
+      rows = db.prepare(`SELECT u.*, i.name as instructor_name
+        FROM tl_users u LEFT JOIN tl_users i ON u.instructor_id=i.id
+        WHERE u.role='student' ORDER BY u.class_level, u.name`).all();
+    } else {
+      rows = db.prepare(`SELECT u.*, i.name as instructor_name
+        FROM tl_users u LEFT JOIN tl_users i ON u.instructor_id=i.id
+        WHERE u.role='student' AND u.instructor_id=?
+        ORDER BY u.class_level, u.name`).all(req.tUser.id);
+    }
+    res.json(rows.map(r => { const {password_hash,...s}=r; return s; }));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/tl/students', tlAuth, tlAdmin, (req, res) => {
+  try {
+    const { username, password, name, email, phone, class_level='unassigned', instructor_id='', memo='' } = req.body;
+    if (!username || !password || !name)
+      return res.status(400).json({ error: '필수 항목을 입력하세요' });
+    if (db.prepare('SELECT id FROM tl_users WHERE username=?').get(username))
+      return res.status(409).json({ error: '이미 존재하는 아이디입니다' });
+    const id = tlUid();
+    db.prepare(`INSERT INTO tl_users (id,username,password_hash,role,name,email,phone,class_level,instructor_id,memo)
+      VALUES (?,?,?,?,?,?,?,?,?,?)`)
+      .run(id, username, bcrypt.hashSync(password,10), 'student', name, email||'', phone||'',
+           class_level, instructor_id||null, memo);
+    res.json({ ok:true, id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/tl/students/:id', tlAuth, tlAdminOrInstructor, (req, res) => {
+  try {
+    const { name, email, phone, class_level, instructor_id, memo, password } = req.body;
+    const fields = [];
+    const vals = [];
+    if (name) { fields.push('name=?'); vals.push(name); }
+    if (email !== undefined) { fields.push('email=?'); vals.push(email); }
+    if (phone !== undefined) { fields.push('phone=?'); vals.push(phone); }
+    if (class_level) { fields.push('class_level=?'); vals.push(class_level); }
+    if (instructor_id !== undefined) { fields.push('instructor_id=?'); vals.push(instructor_id||null); }
+    if (memo !== undefined) { fields.push('memo=?'); vals.push(memo); }
+    if (password) { fields.push('password_hash=?'); vals.push(bcrypt.hashSync(password,10)); }
+    if (!fields.length) return res.status(400).json({ error: '수정할 항목이 없습니다' });
+    vals.push(req.params.id);
+    db.prepare(`UPDATE tl_users SET ${fields.join(',')} WHERE id=? AND role='student'`).run(...vals);
+    res.json({ ok:true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/tl/students/:id', tlAuth, tlAdmin, (req, res) => {
+  try {
+    db.prepare("DELETE FROM tl_users WHERE id=? AND role='student'").run(req.params.id);
+    res.json({ ok:true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── 강사 관리 ────────────────────────────────────────────────────
+app.get('/api/tl/instructors', tlAuth, tlAdmin, (req, res) => {
+  try {
+    const rows = db.prepare("SELECT * FROM tl_users WHERE role='instructor' ORDER BY name").all();
+    res.json(rows.map(r => { const {password_hash,...s}=r; return s; }));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/tl/instructors', tlAuth, tlAdmin, (req, res) => {
+  try {
+    const { username, password, name, email, phone } = req.body;
+    if (!username || !password || !name) return res.status(400).json({ error: '필수 항목 누락' });
+    if (db.prepare('SELECT id FROM tl_users WHERE username=?').get(username))
+      return res.status(409).json({ error: '이미 존재하는 아이디' });
+    const id = tlUid();
+    db.prepare(`INSERT INTO tl_users (id,username,password_hash,role,name,email,phone)
+      VALUES (?,?,?,?,?,?,?)`)
+      .run(id, username, bcrypt.hashSync(password,10), 'instructor', name, email||'', phone||'');
+    res.json({ ok:true, id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/tl/instructors/:id', tlAuth, tlAdmin, (req, res) => {
+  try {
+    db.prepare("DELETE FROM tl_users WHERE id=? AND role='instructor'").run(req.params.id);
+    res.json({ ok:true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── 스케줄 (오전 라이브 수업) ────────────────────────────────────
+app.get('/api/tl/schedule', tlAuth, (req, res) => {
+  try {
+    const { date } = req.query;
+    const target = date || new Date().toISOString().slice(0,10);
+    const rows = db.prepare(`
+      SELECT s.*, u.name as instructor_name
+      FROM tl_schedule s LEFT JOIN tl_users u ON s.instructor_id=u.id
+      WHERE s.class_date=? ORDER BY s.period`).all(target);
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/tl/schedule', tlAuth, tlAdminOrInstructor, (req, res) => {
+  try {
+    const { class_date, period, subject, zoom_url, class_level='ALL', start_time, end_time } = req.body;
+    if (!class_date || !period || !subject || !zoom_url)
+      return res.status(400).json({ error: '필수 항목 누락' });
+    const instructor_id = req.tUser.role === 'instructor' ? req.tUser.id : (req.body.instructor_id || req.tUser.id);
+    const id = `sch_${class_date}_${period}`;
+    db.prepare(`INSERT OR REPLACE INTO tl_schedule
+      (id,class_date,period,subject,instructor_id,zoom_url,class_level,start_time,end_time)
+      VALUES (?,?,?,?,?,?,?,?,?)`)
+      .run(id, class_date, period, subject, instructor_id, zoom_url, class_level,
+           start_time||'09:00', end_time||'10:00');
+    res.json({ ok:true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/tl/schedule/:id', tlAuth, tlAdminOrInstructor, (req, res) => {
+  try {
+    db.prepare('DELETE FROM tl_schedule WHERE id=?').run(req.params.id);
+    res.json({ ok:true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── 녹화본 링크 ────────────────────────────────────────────────────
+app.get('/api/tl/recordings', tlAuth, (req, res) => {
+  try {
+    const { date, limit=20 } = req.query;
+    let q = `SELECT r.*, u.name as instructor_name
+      FROM tl_recordings r LEFT JOIN tl_users u ON r.instructor_id=u.id`;
+    const params = [];
+    if (date) { q += ' WHERE r.class_date=?'; params.push(date); }
+    q += ' ORDER BY r.class_date DESC, r.period LIMIT ?';
+    params.push(parseInt(limit));
+    res.json(db.prepare(q).all(...params));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/tl/recordings', tlAuth, tlAdminOrInstructor, (req, res) => {
+  try {
+    const { class_date, period, subject, zoom_url, description, class_level='ALL' } = req.body;
+    if (!class_date || !period || !subject || !zoom_url)
+      return res.status(400).json({ error: '필수 항목 누락' });
+    const id = tlUid();
+    const instructor_id = req.tUser.role === 'instructor' ? req.tUser.id
+                        : (req.body.instructor_id || req.tUser.id);
+    db.prepare(`INSERT INTO tl_recordings (id,class_date,period,subject,instructor_id,zoom_url,description,class_level)
+      VALUES (?,?,?,?,?,?,?,?)`)
+      .run(id, class_date, period, subject, instructor_id, zoom_url, description||'', class_level);
+    res.json({ ok:true, id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/tl/recordings/:id', tlAuth, tlAdminOrInstructor, (req, res) => {
+  try {
+    const rec = db.prepare('SELECT instructor_id FROM tl_recordings WHERE id=?').get(req.params.id);
+    if (!rec) return res.status(404).json({ error: '없는 녹화본' });
+    if (req.tUser.role !== 'admin' && rec.instructor_id !== req.tUser.id)
+      return res.status(403).json({ error: '권한 없음' });
+    db.prepare('DELETE FROM tl_recordings WHERE id=?').run(req.params.id);
+    res.json({ ok:true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// 녹화본 조회수 증가
+app.post('/api/tl/recordings/:id/view', tlAuth, (req, res) => {
+  db.prepare('UPDATE tl_recordings SET views=views+1 WHERE id=?').run(req.params.id);
+  res.json({ ok:true });
+});
+
+// ── 레벨테스트 ─────────────────────────────────────────────────────
+app.get('/api/tl/level-test/questions', (req, res) => {
+  try {
+    // 전체 레벨테스트 문제 (랜덤 40개)
+    const rows = db.prepare(`
+      SELECT id,section,question_text,passage,option_a,option_b,option_c,option_d,difficulty
+      FROM tl_level_questions ORDER BY RANDOM() LIMIT 40`).all();
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/tl/level-test/submit', (req, res) => {
+  try {
+    const { answers, student_name, student_id } = req.body;
+    if (!answers || typeof answers !== 'object')
+      return res.status(400).json({ error: '답안 형식 오류' });
+
+    const questions = db.prepare('SELECT * FROM tl_level_questions').all();
+    const qMap = Object.fromEntries(questions.map(q => [q.id, q]));
+
+    let total = 0, correct = 0;
+    const sectionCorrect = { 어휘:0, 문법:0, 독해:0, 논리:0 };
+    const sectionTotal   = { 어휘:0, 문법:0, 독해:0, 논리:0 };
+    const feedback = [];
+
+    Object.entries(answers).forEach(([qid, ans]) => {
+      const q = qMap[qid];
+      if (!q) return;
+      total++;
+      sectionTotal[q.section] = (sectionTotal[q.section]||0) + 1;
+      const isCorrect = ans === q.correct_answer;
+      if (isCorrect) { correct++; sectionCorrect[q.section] = (sectionCorrect[q.section]||0)+1; }
+      feedback.push({ qid, correct: isCorrect, correct_answer: q.correct_answer,
+                      explanation: q.explanation||'', section: q.section });
+    });
+
+    const pct = total > 0 ? Math.round(correct/total*100) : 0;
+    const assigned_class = pct >= 80 ? 'A' : pct >= 60 ? 'B' : 'C';
+
+    const section_scores = {};
+    ['어휘','문법','독해','논리'].forEach(s => {
+      section_scores[s] = {
+        correct: sectionCorrect[s]||0,
+        total:   sectionTotal[s]||0,
+        pct: sectionTotal[s] ? Math.round((sectionCorrect[s]||0)/sectionTotal[s]*100) : 0
+      };
+    });
+
+    const id = tlUid();
+    db.prepare(`INSERT INTO tl_level_results
+      (id,student_id,student_name,total_score,total_questions,section_scores,assigned_class,answers)
+      VALUES (?,?,?,?,?,?,?,?)`)
+      .run(id, student_id||null, student_name||'미등록', correct, total,
+           JSON.stringify(section_scores), assigned_class, JSON.stringify(answers));
+
+    // 학생 반 자동 배정
+    if (student_id) {
+      db.prepare("UPDATE tl_users SET class_level=? WHERE id=?").run(assigned_class, student_id);
+    }
+
+    res.json({ result_id: id, score: correct, total, pct, assigned_class, section_scores, feedback });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/tl/level-test/results', tlAuth, tlAdminOrInstructor, (req, res) => {
+  try {
+    const rows = db.prepare('SELECT * FROM tl_level_results ORDER BY completed_at DESC LIMIT 100').all();
+    res.json(rows.map(r => ({ ...r, section_scores: JSON.parse(r.section_scores||'{}') })));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── 섹션별 테스트 문제 ─────────────────────────────────────────────
+app.get('/api/tl/questions', tlAuth, (req, res) => {
+  try {
+    const { section, university_type, limit=10 } = req.query;
+    let q = `SELECT id,section,university_type,question_text,passage,option_a,option_b,option_c,option_d,difficulty
+      FROM tl_test_questions WHERE 1=1`;
+    const p = [];
+    if (section) { q += ' AND section=?'; p.push(section); }
+    if (university_type) { q += ' AND (university_type=? OR university_type=\'COMMON\')'; p.push(university_type); }
+    q += ' ORDER BY RANDOM() LIMIT ?';
+    p.push(parseInt(limit));
+    res.json(db.prepare(q).all(...p));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/tl/questions', tlAuth, tlAdminOrInstructor, (req, res) => {
+  try {
+    const { section, university_type='COMMON', question_text, passage='',
+            option_a, option_b, option_c, option_d, correct_answer, explanation='', difficulty=2 } = req.body;
+    if (!section||!question_text||!option_a||!option_b||!option_c||!option_d||!correct_answer)
+      return res.status(400).json({ error: '필수 항목 누락' });
+    const id = tlUid();
+    db.prepare(`INSERT INTO tl_test_questions
+      (id,section,university_type,question_text,passage,option_a,option_b,option_c,option_d,correct_answer,explanation,difficulty)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .run(id,section,university_type,question_text,passage,option_a,option_b,option_c,option_d,
+           correct_answer,explanation,difficulty);
+    res.json({ ok:true, id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/tl/questions/:id', tlAuth, tlAdminOrInstructor, (req, res) => {
+  try {
+    db.prepare('DELETE FROM tl_test_questions WHERE id=?').run(req.params.id);
+    res.json({ ok:true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// 전체 문제 목록 (관리자용)
+app.get('/api/tl/questions/all', tlAuth, tlAdminOrInstructor, (req, res) => {
+  try {
+    res.json(db.prepare('SELECT * FROM tl_test_questions ORDER BY section, created_at DESC').all());
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── 단어장 ────────────────────────────────────────────────────────
+app.get('/api/tl/vocab', tlAuth, (req, res) => {
+  try {
+    const { limit=20, difficulty } = req.query;
+    let q = 'SELECT * FROM tl_vocab WHERE 1=1';
+    const p = [];
+    if (difficulty) { q += ' AND difficulty=?'; p.push(parseInt(difficulty)); }
+    q += ' ORDER BY RANDOM() LIMIT ?';
+    p.push(parseInt(limit));
+    res.json(db.prepare(q).all(...p));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/tl/vocab', tlAuth, tlAdminOrInstructor, (req, res) => {
+  try {
+    const { word, meaning, example='', difficulty=2, category='GENERAL' } = req.body;
+    if (!word||!meaning) return res.status(400).json({ error: '단어/뜻 필수' });
+    const id = tlUid();
+    db.prepare('INSERT INTO tl_vocab (id,word,meaning,example,difficulty,category) VALUES (?,?,?,?,?,?)')
+      .run(id,word,meaning,example,difficulty,category);
+    res.json({ ok:true, id });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── 테스트 세션 ────────────────────────────────────────────────────
+app.post('/api/tl/test/start', tlAuth, (req, res) => {
+  try {
+    if (req.tUser.role !== 'student') return res.status(403).json({ error: '학생만 테스트 가능' });
+    const { session_type, university_type='COMMON', count=10, sections } = req.body;
+
+    let questions = [];
+
+    if (session_type === 'vocab') {
+      questions = db.prepare('SELECT id,word,meaning,example,difficulty FROM tl_vocab ORDER BY RANDOM() LIMIT ?')
+        .all(parseInt(count));
+    } else if (session_type === 'mixed') {
+      const sects = sections || ['어휘','문법','독해','논리'];
+      const perSect = Math.max(2, Math.floor(count / sects.length));
+      sects.forEach(s => {
+        const qs = db.prepare(`SELECT id,section,question_text,passage,option_a,option_b,option_c,option_d,difficulty
+          FROM tl_test_questions WHERE section=? AND (university_type=? OR university_type='COMMON')
+          ORDER BY RANDOM() LIMIT ?`).all(s, university_type, perSect);
+        questions.push(...qs);
+      });
+    } else if (session_type === 'university') {
+      questions = db.prepare(`SELECT id,section,university_type,question_text,passage,option_a,option_b,option_c,option_d,difficulty
+        FROM tl_test_questions WHERE university_type=? ORDER BY RANDOM() LIMIT ?`)
+        .all(university_type, parseInt(count));
+    } else {
+      // grammar / reading / logic / vocab section
+      const sectionMap = { grammar:'문법', reading:'독해', logic:'논리', vocab_section:'어휘' };
+      const section = sectionMap[session_type] || session_type;
+      questions = db.prepare(`SELECT id,section,question_text,passage,option_a,option_b,option_c,option_d,difficulty
+        FROM tl_test_questions WHERE section=? AND (university_type=? OR university_type='COMMON')
+        ORDER BY RANDOM() LIMIT ?`).all(section, university_type, parseInt(count));
+    }
+
+    if (!questions.length) return res.status(404).json({ error: '문제를 찾을 수 없습니다' });
+
+    const id = tlUid();
+    db.prepare(`INSERT INTO tl_test_sessions
+      (id,student_id,session_type,university_type,questions,created_at) VALUES (?,?,?,?,?,?)`)
+      .run(id, req.tUser.id, session_type, university_type, JSON.stringify(questions.map(q=>q.id)),
+           Math.floor(Date.now()/1000));
+
+    res.json({ session_id: id, questions });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/tl/test/submit', tlAuth, (req, res) => {
+  try {
+    if (req.tUser.role !== 'student') return res.status(403).json({ error: '학생만 제출 가능' });
+    const { session_id, answers } = req.body;
+    const session = db.prepare('SELECT * FROM tl_test_sessions WHERE id=? AND student_id=?')
+      .get(session_id, req.tUser.id);
+    if (!session) return res.status(404).json({ error: '세션 없음' });
+
+    const qIds = JSON.parse(session.questions||'[]');
+    const isVocab = session.session_type === 'vocab';
+
+    let correct = 0, total = qIds.length;
+    const sectionCorrect = {}, sectionTotal = {};
+    const feedback = [];
+
+    if (isVocab) {
+      const words = db.prepare(`SELECT * FROM tl_vocab WHERE id IN (${qIds.map(()=>'?').join(',')})`)
+        .all(...qIds);
+      const wMap = Object.fromEntries(words.map(w=>[w.id,w]));
+      Object.entries(answers).forEach(([wid, userAns]) => {
+        const w = wMap[wid];
+        if (!w) return;
+        // vocab test: user types the meaning; check if it contains key words
+        const correctMeaning = w.meaning.toLowerCase();
+        const userLower = (userAns||'').toLowerCase().trim();
+        const isCorrect = userLower.length > 0 &&
+          (correctMeaning.includes(userLower) || userLower.includes(correctMeaning.split(',')[0].split(' ').slice(0,2).join(' ')));
+        if (isCorrect) correct++;
+        feedback.push({ wid, word: w.word, meaning: w.meaning, userAnswer: userAns, correct: isCorrect });
+      });
+    } else {
+      const questions = db.prepare(`SELECT * FROM tl_test_questions WHERE id IN (${qIds.map(()=>'?').join(',')})`)
+        .all(...qIds);
+      const qMap = Object.fromEntries(questions.map(q=>[q.id,q]));
+      Object.entries(answers).forEach(([qid,ans]) => {
+        const q = qMap[qid];
+        if (!q) return;
+        const s = q.section||'기타';
+        sectionTotal[s] = (sectionTotal[s]||0)+1;
+        const isCorrect = ans === q.correct_answer;
+        if (isCorrect) { correct++; sectionCorrect[s] = (sectionCorrect[s]||0)+1; }
+        feedback.push({ qid, section: s, correct: isCorrect,
+                        correct_answer: q.correct_answer, explanation: q.explanation||'',
+                        question_text: q.question_text });
+      });
+    }
+
+    const sectionScores = {};
+    Object.keys(sectionTotal).forEach(s => {
+      sectionScores[s] = { correct: sectionCorrect[s]||0, total: sectionTotal[s],
+                           pct: Math.round((sectionCorrect[s]||0)/sectionTotal[s]*100) };
+    });
+
+    const pct = total > 0 ? Math.round(correct/total*100) : 0;
+    const now = Math.floor(Date.now()/1000);
+    db.prepare(`UPDATE tl_test_sessions
+      SET answers=?, score=?, total=?, section_scores=?, completed_at=? WHERE id=?`)
+      .run(JSON.stringify(answers), correct, total, JSON.stringify(sectionScores), now, session_id);
+
+    res.json({ score: correct, total, pct, section_scores: sectionScores, feedback });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/tl/test/history', tlAuth, (req, res) => {
+  try {
+    const sid = req.tUser.role === 'student' ? req.tUser.id : req.query.student_id;
+    if (!sid) return res.status(400).json({ error: 'student_id 필요' });
+    const rows = db.prepare(`
+      SELECT id,session_type,university_type,score,total,section_scores,completed_at,created_at
+      FROM tl_test_sessions WHERE student_id=? AND completed_at IS NOT NULL
+      ORDER BY completed_at DESC LIMIT 50`).all(sid);
+    res.json(rows.map(r => ({
+      ...r,
+      section_scores: r.section_scores ? JSON.parse(r.section_scores) : {},
+      pct: r.total > 0 ? Math.round(r.score/r.total*100) : 0,
+    })));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── 강약점 분석 ────────────────────────────────────────────────────
+app.get('/api/tl/analytics', tlAuth, (req, res) => {
+  try {
+    const sid = req.tUser.role === 'student' ? req.tUser.id : req.query.student_id;
+    if (!sid) return res.status(400).json({ error: 'student_id 필요' });
+
+    const sessions = db.prepare(`
+      SELECT session_type,score,total,section_scores,completed_at FROM tl_test_sessions
+      WHERE student_id=? AND completed_at IS NOT NULL ORDER BY completed_at DESC LIMIT 100`).all(sid);
+
+    if (!sessions.length) return res.json({ message: '테스트 기록 없음', sections: {}, overall: 0 });
+
+    const sectionAgg = {};
+    sessions.forEach(s => {
+      const scores = s.section_scores ? JSON.parse(s.section_scores) : {};
+      Object.entries(scores).forEach(([sec, data]) => {
+        if (!sectionAgg[sec]) sectionAgg[sec] = { correct:0, total:0 };
+        sectionAgg[sec].correct += data.correct||0;
+        sectionAgg[sec].total   += data.total||0;
+      });
+    });
+
+    const sectionResults = {};
+    let totalCorrect=0, totalQ=0;
+    Object.entries(sectionAgg).forEach(([sec,{correct,total}]) => {
+      const pct = total>0 ? Math.round(correct/total*100) : 0;
+      sectionResults[sec] = { correct, total, pct,
+        level: pct>=80?'우수':pct>=60?'보통':'취약',
+        feedback: pct>=80
+          ? `${sec} 영역 우수! 현재 수준 유지하며 심화 문제에 도전하세요.`
+          : pct>=60
+          ? `${sec} 영역 보통 수준. 틀린 문제 유형을 집중적으로 복습하세요.`
+          : `${sec} 영역 취약! 기초 개념부터 체계적으로 다시 학습하세요.`
+      };
+      totalCorrect += correct; totalQ += total;
+    });
+
+    const overall = totalQ>0 ? Math.round(totalCorrect/totalQ*100) : 0;
+    const weak = Object.entries(sectionResults)
+      .filter(([,v])=>v.pct<60).map(([k])=>k);
+    const strong = Object.entries(sectionResults)
+      .filter(([,v])=>v.pct>=80).map(([k])=>k);
+
+    const recommendations = [];
+    if (weak.includes('어휘')) recommendations.push('매일 단어 테스트 10개씩 꾸준히 학습하세요.');
+    if (weak.includes('문법')) recommendations.push('문법 기초 강의 녹화본을 재복습하고 문법 문제를 집중적으로 풀어보세요.');
+    if (weak.includes('독해')) recommendations.push('독해 지문을 소리 내어 읽고 문단별 핵심 내용을 요약 정리해보세요.');
+    if (weak.includes('논리')) recommendations.push('논리 추론 문제 풀이 전략을 강사에게 질문하고 유형별로 정리하세요.');
+    if (!weak.length) recommendations.push('전 영역 양호! 학교 유형별 테스트로 목표 대학에 맞춘 연습을 진행하세요.');
+
+    res.json({
+      overall, sections: sectionResults, weak, strong,
+      test_count: sessions.length, recommendations,
+      last_test: sessions[0]?.completed_at
+    });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── 관리자 대시보드 통계 ──────────────────────────────────────────
+app.get('/api/tl/admin/stats', tlAuth, tlAdmin, (req, res) => {
+  try {
+    const students   = db.prepare("SELECT COUNT(*) as c FROM tl_users WHERE role='student'").get().c;
+    const instructors= db.prepare("SELECT COUNT(*) as c FROM tl_users WHERE role='instructor'").get().c;
+    const classA     = db.prepare("SELECT COUNT(*) as c FROM tl_users WHERE role='student' AND class_level='A'").get().c;
+    const classB     = db.prepare("SELECT COUNT(*) as c FROM tl_users WHERE role='student' AND class_level='B'").get().c;
+    const classC     = db.prepare("SELECT COUNT(*) as c FROM tl_users WHERE role='student' AND class_level='C'").get().c;
+    const unassigned = db.prepare("SELECT COUNT(*) as c FROM tl_users WHERE role='student' AND class_level='unassigned'").get().c;
+    const recordings = db.prepare("SELECT COUNT(*) as c FROM tl_recordings").get().c;
+    const tests      = db.prepare("SELECT COUNT(*) as c FROM tl_test_sessions WHERE completed_at IS NOT NULL").get().c;
+    const levelTests = db.prepare("SELECT COUNT(*) as c FROM tl_level_results").get().c;
+    const todayTests = db.prepare(`SELECT COUNT(*) as c FROM tl_test_sessions
+      WHERE completed_at >= strftime('%s',date('now')) AND completed_at IS NOT NULL`).get().c;
+    res.json({ students, instructors, classA, classB, classC, unassigned, recordings, tests, levelTests, todayTests });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── 내 정보 조회 ───────────────────────────────────────────────────
+app.get('/api/tl/me', tlAuth, (req, res) => {
+  try {
+    const user = db.prepare('SELECT * FROM tl_users WHERE id=?').get(req.tUser.id);
+    if (!user) return res.status(404).json({ error: '사용자 없음' });
+    const { password_hash, ...safe } = user;
+    res.json(safe);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── 학생 테스트 현황 (강사/관리자용) ──────────────────────────────
+app.get('/api/tl/students/:id/stats', tlAuth, tlAdminOrInstructor, (req, res) => {
+  try {
+    const user = db.prepare("SELECT * FROM tl_users WHERE id=? AND role='student'").get(req.params.id);
+    if (!user) return res.status(404).json({ error: '학생 없음' });
+    const { password_hash, ...safe } = user;
+    const sessions = db.prepare(`
+      SELECT session_type,score,total,pct,section_scores,completed_at FROM tl_test_sessions
+      WHERE student_id=? AND completed_at IS NOT NULL ORDER BY completed_at DESC LIMIT 20`)
+      .all(req.params.id)
+      .map(s => ({ ...s, pct: s.total>0?Math.round(s.score/s.total*100):0,
+                          section_scores: s.section_scores?JSON.parse(s.section_scores):{} }));
+    const levelResult = db.prepare(`SELECT * FROM tl_level_results WHERE student_id=? ORDER BY completed_at DESC LIMIT 1`)
+      .get(req.params.id);
+    res.json({ user: safe, sessions, levelResult });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── 오늘의 학습 현황 (학생용) ────────────────────────────────────
+app.get('/api/tl/today', tlAuth, (req, res) => {
+  try {
+    const today = new Date().toISOString().slice(0,10);
+    const schedule = db.prepare(`
+      SELECT s.*, u.name as instructor_name FROM tl_schedule s
+      LEFT JOIN tl_users u ON s.instructor_id=u.id
+      WHERE s.class_date=? ORDER BY s.period`).all(today);
+    const recordings = db.prepare(`
+      SELECT r.*, u.name as instructor_name FROM tl_recordings r
+      LEFT JOIN tl_users u ON r.instructor_id=u.id
+      WHERE r.class_date=? ORDER BY r.period`).all(today);
+    const todayTests = db.prepare(`
+      SELECT id,session_type,score,total,completed_at FROM tl_test_sessions
+      WHERE student_id=? AND completed_at >= strftime('%s',date('now')) AND completed_at IS NOT NULL`)
+      .all(req.tUser.id);
+    res.json({ schedule, recordings, todayTests, date: today });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─────────────────────────────────────────────────────────────────
+// 편입 LMS 프론트엔드 라우팅
+app.get('/transfer', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'transfer.html')));
+app.get('/transfer/*', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'transfer.html')));
 
 // ═══════════════════════════════════════════════════════
 // START
