@@ -2,39 +2,104 @@ name: BigLinker Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [main, claude/hardcore-vaughan-3ef293]
   workflow_dispatch:
+    inputs:
+      platform:
+        description: '배포 플랫폼 (railway / render / vps)'
+        required: false
+        default: ''
 
 jobs:
-  deploy:
+  # ── CI: 구문 오류 / 서버 기동 확인 ─────────────────────────────────
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      # Railway 자동 배포
-      - name: Deploy to Railway
-        if: vars.PLATFORM == 'railway'
-        uses: bervProject/railway-deploy@main
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
         with:
-          railway_token: ${{ secrets.RAILWAY_TOKEN }}
-          service: biglinker
+          node-version: '20'
+          cache: 'npm'
 
-      # Render 자동 배포
-      - name: Deploy to Render
-        if: vars.PLATFORM == 'render'
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Syntax check
+        run: node --check server.js
+
+      - name: Health smoke-test
         run: |
-          curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}
+          node server.js &
+          SERVER_PID=$!
+          sleep 4
+          STATUS=$(curl -sf http://localhost:3000/health | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('status',''))" 2>/dev/null || echo "fail")
+          kill $SERVER_PID 2>/dev/null || true
+          if [ "$STATUS" != "ok" ]; then echo "Health check failed: $STATUS"; exit 1; fi
+          echo "Health check passed ✓"
+        env:
+          JWT_SECRET: ci-test-secret-only
+          NODE_ENV: test
 
-      # VPS SSH 배포
-      - name: Deploy to VPS
-        if: vars.PLATFORM == 'vps'
+  # ── Railway 배포 ────────────────────────────────────────────────────
+  deploy-railway:
+    needs: test
+    runs-on: ubuntu-latest
+    if: |
+      (vars.PLATFORM == 'railway' || inputs.platform == 'railway') &&
+      (github.ref == 'refs/heads/main')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy to Railway
+        run: railway up --service biglinker --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+  # ── Render 배포 ─────────────────────────────────────────────────────
+  deploy-render:
+    needs: test
+    runs-on: ubuntu-latest
+    if: |
+      (vars.PLATFORM == 'render' || inputs.platform == 'render') &&
+      (github.ref == 'refs/heads/main')
+    steps:
+      - name: Trigger Render deploy hook
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK" ]; then
+            echo "RENDER_DEPLOY_HOOK secret 미설정 — Render 배포를 건너뜁니다"
+            exit 0
+          fi
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$RENDER_DEPLOY_HOOK")
+          echo "Render deploy hook response: $HTTP_CODE"
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then exit 1; fi
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+
+  # ── VPS SSH 배포 ────────────────────────────────────────────────────
+  deploy-vps:
+    needs: test
+    runs-on: ubuntu-latest
+    if: |
+      (vars.PLATFORM == 'vps' || inputs.platform == 'vps') &&
+      (github.ref == 'refs/heads/main')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to VPS via SSH
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
+            set -e
             cd /var/www/biglinker
             git pull origin main
             npm install --only=production
-            pm2 restart biglinker
+            pm2 restart biglinker || pm2 start server.js --name biglinker
+            pm2 save

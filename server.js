@@ -36,6 +36,10 @@ const DB_PATH  = process.env.DB_PATH    || './biglinker.db';
 const UPLOADS  = process.env.UPLOADS_DIR || './uploads';
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '*').split(',');
 
+// DB 디렉터리 자동 생성 (Railway /data 볼륨 등 경로가 없을 수 있음)
+const DB_DIR = path.dirname(path.resolve(DB_PATH));
+if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
+
 if (!fs.existsSync(UPLOADS)) fs.mkdirSync(UPLOADS, { recursive: true });
 
 // ═══════════════════════════════════════════════════════
