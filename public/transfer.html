@@ -401,6 +401,7 @@ tbody tr:hover{background:var(--s2)}
         <div class="nav-item" onclick="showAdminPage('admin-students',this)"><span class="ni">🎓</span>학생 관리</div>
         <div class="nav-item" onclick="showAdminPage('admin-instructors',this)"><span class="ni">📚</span>강사 관리</div>
         <div class="nav-item" onclick="showAdminPage('admin-schedule',this)"><span class="ni">📅</span>스케줄 관리</div>
+        <div class="nav-item" onclick="showAdminPage('admin-attendance',this)"><span class="ni">🗓️</span>출석 관리</div>
         <div class="nav-section">분석</div>
         <div class="nav-item" onclick="showAdminPage('admin-level-results',this)"><span class="ni">📋</span>레벨테스트 결과</div>
         <div class="nav-item" onclick="showAdminPage('admin-analytics',this)"><span class="ni">📈</span>전체 분석</div>
@@ -498,6 +499,35 @@ tbody tr:hover{background:var(--s2)}
         <div id="admin-schedule-form"></div>
         <div class="flex justify-end mt-16">
           <button class="btn btn-primary btn-lg" onclick="saveAdminSchedule()">📅 스케줄 저장</button>
+        </div>
+      </div>
+
+      <!-- 출석 관리 (관리자) — 강사 패널과 동일 컴포넌트 재사용 -->
+      <div id="admin-attendance" class="page">
+        <div class="page-header">
+          <div class="page-title">🗓️ 출석 관리</div>
+          <div class="page-desc">날짜·교시별 학생 출석을 입력하고 조회합니다</div>
+        </div>
+        <div class="card mb-16">
+          <div class="card-title"><span class="ct-icon">📅</span> 날짜 선택</div>
+          <div class="flex gap-12 flex-wrap items-end">
+            <div class="form-group" style="flex:0 0 160px;margin-bottom:0">
+              <label class="form-label">날짜</label>
+              <input type="date" id="admin-att-date" class="form-input" onchange="loadAdminAttSchedule()">
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('admin-att-date').value=todayStr();loadAdminAttSchedule()">오늘</button>
+          </div>
+          <div id="admin-att-schedule-list" style="margin-top:14px"></div>
+        </div>
+        <div id="admin-att-entry-card" class="card" style="display:none">
+          <div class="card-title"><span class="ct-icon">✅</span> 출석 입력
+            <span id="admin-att-entry-label" style="font-size:12px;color:var(--muted);margin-left:8px"></span>
+          </div>
+          <div id="admin-att-entry-form"></div>
+          <div class="flex gap-8 mt-16">
+            <button class="btn btn-primary" onclick="saveAdminAttendance()">저장</button>
+            <button class="btn btn-ghost" onclick="document.getElementById('admin-att-entry-card').style.display='none'">취소</button>
+          </div>
         </div>
       </div>
 
@@ -645,6 +675,7 @@ tbody tr:hover{background:var(--s2)}
         <div class="nav-item" onclick="showInstPage('inst-schedule',this)"><span class="ni">📅</span>스케줄 관리</div>
         <div class="nav-section">학생 관리</div>
         <div class="nav-item" onclick="showInstPage('inst-students',this)"><span class="ni">🎓</span>내 학생</div>
+        <div class="nav-item" onclick="showInstPage('inst-attendance',this)"><span class="ni">🗓️</span>출석 관리</div>
         <div class="nav-section">문제 관리</div>
         <div class="nav-item" onclick="showInstPage('inst-questions',this)"><span class="ni">✏️</span>문제 관리</div>
       </nav>
@@ -719,6 +750,36 @@ tbody tr:hover{background:var(--s2)}
           <div class="page-desc">담당 학생 현황 및 성적을 확인합니다</div>
         </div>
         <div class="grid-2" id="inst-student-cards"></div>
+      </div>
+
+      <!-- 출석 관리 페이지 (강사/관리자) -->
+      <div id="inst-attendance" class="page">
+        <div class="page-header">
+          <div class="page-title">🗓️ 출석 관리</div>
+          <div class="page-desc">날짜·교시별 학생 출석을 입력하고 조회합니다</div>
+        </div>
+        <div class="card mb-16">
+          <div class="card-title"><span class="ct-icon">📅</span> 날짜 및 교시 선택</div>
+          <div class="flex gap-12 flex-wrap items-end">
+            <div class="form-group" style="flex:0 0 160px;margin-bottom:0">
+              <label class="form-label">날짜</label>
+              <input type="date" id="att-date" class="form-input" onchange="loadAttendanceSchedule()">
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('att-date').value=todayStr();loadAttendanceSchedule()">오늘</button>
+          </div>
+          <div id="att-schedule-list" style="margin-top:14px"></div>
+        </div>
+        <!-- 출석 입력 폼 -->
+        <div id="att-entry-card" class="card" style="display:none">
+          <div class="card-title"><span class="ct-icon">✅</span> 출석 입력
+            <span id="att-entry-label" style="font-size:12px;color:var(--muted);margin-left:8px"></span>
+          </div>
+          <div id="att-entry-form"></div>
+          <div class="flex gap-8 mt-16">
+            <button class="btn btn-primary" onclick="saveAttendance()">저장</button>
+            <button class="btn btn-ghost" onclick="document.getElementById('att-entry-card').style.display='none'">취소</button>
+          </div>
+        </div>
       </div>
 
       <div id="inst-questions" class="page">
@@ -1183,6 +1244,46 @@ tbody tr:hover{background:var(--s2)}
             <div id="perf-section-bars"></div>
           </div>
         </div>
+        <!-- 출석 현황 -->
+        <div class="card mb-16" id="perf-attend-card" style="display:none">
+          <div class="card-title"><span class="ct-icon">🗓️</span> 수업 참석 현황</div>
+          <!-- 오전/오후 출석률 요약 -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px" id="perf-attend-summary">
+            <!-- 오전 -->
+            <div style="background:var(--surface2);border-radius:10px;padding:14px">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+                <span style="font-size:18px">🌅</span>
+                <span style="font-weight:700;font-size:13px">오전 수업</span>
+              </div>
+              <div style="font-size:28px;font-weight:800;color:var(--blue)" id="att-morning-rate">—</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px" id="att-morning-detail">데이터 없음</div>
+              <div style="margin-top:8px;background:var(--border);border-radius:4px;height:6px;overflow:hidden">
+                <div id="att-morning-bar" style="height:100%;background:var(--blue);border-radius:4px;width:0%;transition:width .5s"></div>
+              </div>
+            </div>
+            <!-- 오후 -->
+            <div style="background:var(--surface2);border-radius:10px;padding:14px">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+                <span style="font-size:18px">🌇</span>
+                <span style="font-weight:700;font-size:13px">오후 수업</span>
+              </div>
+              <div style="font-size:28px;font-weight:800;color:var(--purple)" id="att-afternoon-rate">—</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px" id="att-afternoon-detail">데이터 없음</div>
+              <div style="margin-top:8px;background:var(--border);border-radius:4px;height:6px;overflow:hidden">
+                <div id="att-afternoon-bar" style="height:100%;background:var(--purple);border-radius:4px;width:0%;transition:width .5s"></div>
+              </div>
+            </div>
+          </div>
+          <!-- 범례 -->
+          <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+            <span style="font-size:11px;display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block"></span>출석</span>
+            <span style="font-size:11px;display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--yellow,#f59e0b);display:inline-block"></span>지각</span>
+            <span style="font-size:11px;display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--red);display:inline-block"></span>결석</span>
+          </div>
+          <!-- 최근 출석 이력 테이블 -->
+          <div id="perf-attend-list" style="font-size:12px"></div>
+        </div>
+
         <!-- 세부요소 분석 -->
         <div class="card mb-16" id="perf-sub-card" style="display:none">
           <div class="card-title"><span class="ct-icon">🔬</span> 세부요소별 분석</div>
@@ -1418,6 +1519,7 @@ async function loadAdminPageData(pageId) {
   else if (pageId === 'admin-students') await loadAdminStudents();
   else if (pageId === 'admin-instructors') await loadAdminInstructors();
   else if (pageId === 'admin-schedule') loadAdminSchedule();
+  else if (pageId === 'admin-attendance') { const d=document.getElementById('admin-att-date'); if(d&&!d.value) d.value=todayStr(); loadAdminAttSchedule(); }
   else if (pageId === 'admin-level-results') await loadLevelResults();
   else if (pageId === 'admin-analytics') await loadAdminAnalytics();
 }
@@ -1610,6 +1712,7 @@ async function loadInstPageData(pageId) {
   else if (pageId==='inst-recording') loadInstRecordingForm();
   else if (pageId==='inst-schedule') loadInstScheduleForm();
   else if (pageId==='inst-students') await loadInstStudents();
+  else if (pageId==='inst-attendance') { const d=document.getElementById('att-date'); if(d&&!d.value) d.value=todayStr(); loadAttendanceSchedule(); }
   else if (pageId==='inst-questions') await loadQuestionsAdmin();
 }
 
@@ -1751,6 +1854,229 @@ async function showInstStudentDetail(id, name) {
       <div class="analytics-grid mb-12">${Object.entries(sections).map(([sec,d])=>`<div class="analytics-card"><div class="analytics-section-name">${sec}</div><span class="analytics-level ${d.level==='우수'?'level-excellent':d.level==='보통'?'level-normal':'level-weak'}">${d.level}</span><div class="progress-bar-wrap mb-8"><div class="progress-bar-fill" style="width:${d.pct}%;background:${sectionColor(sec)}"></div></div><div class="analytics-feedback">${d.feedback}</div></div>`).join('')}</div>
       ${ss.length?`<div class="card-title mb-8">최근 테스트</div><div class="table-wrap"><table><thead><tr><th>유형</th><th>점수</th><th>정답률</th><th>일시</th></tr></thead><tbody>${ss.slice(0,8).map(s=>`<tr><td><span class="chip">${s.session_type}</span></td><td>${s.score}/${s.total}</td><td><b>${s.pct}%</b></td><td style="font-size:11px;color:var(--muted)">${formatTs(s.completed_at)}</td></tr>`).join('')}</tbody></table></div>`:''}`;
   } catch(e) { document.getElementById('mis-content').innerHTML=`<div class="empty-state"><div class="empty-text">오류: ${e.message}</div></div>`; }
+}
+
+// ══════════════════════════════════════════════
+// ATTENDANCE MANAGEMENT (강사/관리자)
+// ══════════════════════════════════════════════
+let _attScheduleId = null;
+
+async function loadAttendanceSchedule() {
+  const date = document.getElementById('att-date')?.value || todayStr();
+  const listEl = document.getElementById('att-schedule-list');
+  listEl.innerHTML = '<div style="font-size:12px;color:var(--muted)">불러오는 중...</div>';
+  document.getElementById('att-entry-card').style.display = 'none';
+  try {
+    const sched = await api('GET', '/schedule?date=' + date);
+    if (!sched.length) {
+      listEl.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:8px 0">해당 날짜에 등록된 수업이 없습니다.</div>';
+      return;
+    }
+    // 각 교시별 출석 건수 조회
+    const attCounts = await Promise.all(
+      sched.map(s => api('GET', '/attendance/schedule/' + s.id).catch(() => []))
+    );
+    listEl.innerHTML = sched.map((s, i) => {
+      const timeSlot = (s.start_time||'09:00') < '12:00' ? '오전' : '오후';
+      const slotColor = timeSlot === '오전' ? 'var(--blue)' : 'var(--purple)';
+      const slotBg   = timeSlot === '오전' ? 'var(--blue2)' : '#f3e8ff';
+      const att = attCounts[i] || [];
+      const pCnt = att.filter(a=>a.status==='present').length;
+      const lCnt = att.filter(a=>a.status==='late').length;
+      const aCnt = att.filter(a=>a.status==='absent').length;
+      const total = att.length;
+      return `<div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--surface2);border-radius:10px;margin-bottom:8px;flex-wrap:wrap">
+        <span style="font-size:11px;font-weight:700;color:${slotColor};background:${slotBg};padding:3px 8px;border-radius:5px">${timeSlot}</span>
+        <span class="period-badge p${s.period}">${s.period}교시</span>
+        <div style="flex:1;min-width:120px">
+          <div style="font-size:13px;font-weight:600">${s.subject}</div>
+          <div style="font-size:10px;color:var(--muted)">${s.start_time}~${s.end_time}</div>
+        </div>
+        ${total > 0 ? `<div style="font-size:11px;color:var(--muted)">
+          <span style="color:var(--green)">출석 ${pCnt}</span> ·
+          <span style="color:var(--yellow,#f59e0b)">지각 ${lCnt}</span> ·
+          <span style="color:var(--red)">결석 ${aCnt}</span>
+        </div>` : `<span style="font-size:11px;color:var(--muted)">미입력</span>`}
+        <button class="btn btn-primary btn-sm" onclick="openAttendanceEntry('${s.id}','${s.subject} ${s.period}교시 (${timeSlot})')">출석 입력</button>
+      </div>`;
+    }).join('');
+  } catch(e) { listEl.innerHTML = `<div style="font-size:12px;color:var(--red)">${e.message}</div>`; }
+}
+
+async function openAttendanceEntry(scheduleId, label) {
+  _attScheduleId = scheduleId;
+  document.getElementById('att-entry-label').textContent = label;
+  const formEl = document.getElementById('att-entry-form');
+  formEl.innerHTML = '<div style="font-size:12px;color:var(--muted)">학생 목록 불러오는 중...</div>';
+  document.getElementById('att-entry-card').style.display = 'block';
+  document.getElementById('att-entry-card').scrollIntoView({ behavior:'smooth', block:'start' });
+  try {
+    const [students, existing] = await Promise.all([
+      api('GET', '/students'),
+      api('GET', '/attendance/schedule/' + scheduleId).catch(() => []),
+    ]);
+    const existMap = Object.fromEntries(existing.map(a => [a.student_id, a]));
+    formEl.innerHTML = students.length === 0
+      ? '<div style="color:var(--muted);font-size:12px">등록된 학생이 없습니다</div>'
+      : `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="border-bottom:1px solid var(--border);color:var(--muted)">
+            <th style="padding:8px 6px;text-align:left">학생</th>
+            <th style="padding:8px 6px;text-align:left">반</th>
+            <th style="padding:8px 6px;text-align:center">출석</th>
+            <th style="padding:8px 6px;text-align:center">지각</th>
+            <th style="padding:8px 6px;text-align:center">결석</th>
+            <th style="padding:8px 6px;text-align:left">비고</th>
+          </tr></thead>
+          <tbody id="att-student-rows">
+          ${students.map(s => {
+            const cur = existMap[s.id];
+            const st = cur?.status || 'present';
+            return `<tr style="border-bottom:1px solid var(--border)" data-sid="${s.id}">
+              <td style="padding:8px 6px;font-weight:600">${s.name}</td>
+              <td style="padding:8px 6px">${classBadgeHtml(s.class_level)}</td>
+              <td style="padding:8px 6px;text-align:center"><input type="radio" name="att_${s.id}" value="present" ${st==='present'?'checked':''}></td>
+              <td style="padding:8px 6px;text-align:center"><input type="radio" name="att_${s.id}" value="late" ${st==='late'?'checked':''}></td>
+              <td style="padding:8px 6px;text-align:center"><input type="radio" name="att_${s.id}" value="absent" ${st==='absent'?'checked':''}></td>
+              <td style="padding:8px 6px"><input type="text" class="form-input" id="att-note-${s.id}" style="padding:4px 8px;font-size:11px" placeholder="메모" value="${cur?.note||''}"></td>
+            </tr>`;
+          }).join('')}
+          </tbody>
+        </table></div>
+        <div style="margin-top:8px;display:flex;gap-8;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" onclick="setAllAttStatus('present')">전체 출석</button>
+          <button class="btn btn-ghost btn-sm" onclick="setAllAttStatus('absent')">전체 결석</button>
+        </div>`;
+  } catch(e) { formEl.innerHTML = `<div style="color:var(--red)">${e.message}</div>`; }
+}
+
+function setAllAttStatus(status) {
+  const rows = document.querySelectorAll('#att-student-rows tr[data-sid]');
+  rows.forEach(row => {
+    const sid = row.dataset.sid;
+    const radio = row.querySelector(`input[name="att_${sid}"][value="${status}"]`);
+    if (radio) radio.checked = true;
+  });
+}
+
+async function saveAttendance() {
+  if (!_attScheduleId) return;
+  const rows = document.querySelectorAll('#att-student-rows tr[data-sid]');
+  const entries = [];
+  rows.forEach(row => {
+    const sid = row.dataset.sid;
+    const radios = row.querySelectorAll(`input[name="att_${sid}"]`);
+    let status = 'present';
+    radios.forEach(r => { if (r.checked) status = r.value; });
+    const note = document.getElementById('att-note-'+sid)?.value || '';
+    entries.push({ student_id: sid, status, note });
+  });
+  try {
+    await api('POST', '/attendance', { schedule_id: _attScheduleId, entries });
+    toast('출석이 저장되었습니다', 'success');
+    document.getElementById('att-entry-card').style.display = 'none';
+    loadAttendanceSchedule();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// 관리자 출석 관리 — 강사 함수를 admin prefix로 래핑
+let _adminAttScheduleId = null;
+async function loadAdminAttSchedule() {
+  const date = document.getElementById('admin-att-date')?.value || todayStr();
+  const listEl = document.getElementById('admin-att-schedule-list');
+  listEl.innerHTML = '<div style="font-size:12px;color:var(--muted)">불러오는 중...</div>';
+  document.getElementById('admin-att-entry-card').style.display = 'none';
+  try {
+    const sched = await api('GET', '/schedule?date=' + date);
+    if (!sched.length) { listEl.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:8px 0">해당 날짜에 등록된 수업이 없습니다.</div>'; return; }
+    const attCounts = await Promise.all(sched.map(s => api('GET', '/attendance/schedule/' + s.id).catch(() => [])));
+    listEl.innerHTML = sched.map((s, i) => {
+      const timeSlot = (s.start_time||'09:00') < '12:00' ? '오전' : '오후';
+      const slotColor = timeSlot === '오전' ? 'var(--blue)' : 'var(--purple)';
+      const slotBg   = timeSlot === '오전' ? 'var(--blue2)' : '#f3e8ff';
+      const att = attCounts[i] || [];
+      const pCnt = att.filter(a=>a.status==='present').length;
+      const lCnt = att.filter(a=>a.status==='late').length;
+      const aCnt = att.filter(a=>a.status==='absent').length;
+      const total = att.length;
+      return `<div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--surface2);border-radius:10px;margin-bottom:8px;flex-wrap:wrap">
+        <span style="font-size:11px;font-weight:700;color:${slotColor};background:${slotBg};padding:3px 8px;border-radius:5px">${timeSlot}</span>
+        <span class="period-badge p${s.period}">${s.period}교시</span>
+        <div style="flex:1;min-width:120px"><div style="font-size:13px;font-weight:600">${s.subject}</div><div style="font-size:10px;color:var(--muted)">${s.start_time}~${s.end_time}</div></div>
+        ${total > 0 ? `<div style="font-size:11px;color:var(--muted)"><span style="color:var(--green)">출석 ${pCnt}</span> · <span style="color:var(--yellow,#f59e0b)">지각 ${lCnt}</span> · <span style="color:var(--red)">결석 ${aCnt}</span></div>` : `<span style="font-size:11px;color:var(--muted)">미입력</span>`}
+        <button class="btn btn-primary btn-sm" onclick="openAdminAttEntry('${s.id}','${s.subject} ${s.period}교시 (${timeSlot})')">출석 입력</button>
+      </div>`;
+    }).join('');
+  } catch(e) { listEl.innerHTML = `<div style="font-size:12px;color:var(--red)">${e.message}</div>`; }
+}
+
+async function openAdminAttEntry(scheduleId, label) {
+  _adminAttScheduleId = scheduleId;
+  document.getElementById('admin-att-entry-label').textContent = label;
+  const formEl = document.getElementById('admin-att-entry-form');
+  formEl.innerHTML = '<div style="font-size:12px;color:var(--muted)">불러오는 중...</div>';
+  document.getElementById('admin-att-entry-card').style.display = 'block';
+  document.getElementById('admin-att-entry-card').scrollIntoView({ behavior:'smooth', block:'start' });
+  try {
+    const [students, existing] = await Promise.all([
+      api('GET', '/students'),
+      api('GET', '/attendance/schedule/' + scheduleId).catch(() => []),
+    ]);
+    const existMap = Object.fromEntries(existing.map(a => [a.student_id, a]));
+    formEl.innerHTML = students.length === 0
+      ? '<div style="color:var(--muted);font-size:12px">등록된 학생이 없습니다</div>'
+      : `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="border-bottom:1px solid var(--border);color:var(--muted)">
+            <th style="padding:8px 6px;text-align:left">학생</th><th style="padding:8px 6px;text-align:left">반</th>
+            <th style="padding:8px 6px;text-align:center">출석</th><th style="padding:8px 6px;text-align:center">지각</th>
+            <th style="padding:8px 6px;text-align:center">결석</th><th style="padding:8px 6px;text-align:left">비고</th>
+          </tr></thead>
+          <tbody id="admin-att-student-rows">
+          ${students.map(s => {
+            const cur = existMap[s.id];
+            const st = cur?.status || 'present';
+            return `<tr style="border-bottom:1px solid var(--border)" data-sid="${s.id}">
+              <td style="padding:8px 6px;font-weight:600">${s.name}</td>
+              <td style="padding:8px 6px">${classBadgeHtml(s.class_level)}</td>
+              <td style="padding:8px 6px;text-align:center"><input type="radio" name="adm_att_${s.id}" value="present" ${st==='present'?'checked':''}></td>
+              <td style="padding:8px 6px;text-align:center"><input type="radio" name="adm_att_${s.id}" value="late" ${st==='late'?'checked':''}></td>
+              <td style="padding:8px 6px;text-align:center"><input type="radio" name="adm_att_${s.id}" value="absent" ${st==='absent'?'checked':''}></td>
+              <td style="padding:8px 6px"><input type="text" class="form-input" id="adm-att-note-${s.id}" style="padding:4px 8px;font-size:11px" placeholder="메모" value="${cur?.note||''}"></td>
+            </tr>`;
+          }).join('')}
+          </tbody></table></div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" onclick="setAllAdmAttStatus('present')">전체 출석</button>
+          <button class="btn btn-ghost btn-sm" onclick="setAllAdmAttStatus('absent')">전체 결석</button>
+        </div>`;
+  } catch(e) { formEl.innerHTML = `<div style="color:var(--red)">${e.message}</div>`; }
+}
+
+function setAllAdmAttStatus(status) {
+  document.querySelectorAll('#admin-att-student-rows tr[data-sid]').forEach(row => {
+    const sid = row.dataset.sid;
+    const radio = row.querySelector(`input[name="adm_att_${sid}"][value="${status}"]`);
+    if (radio) radio.checked = true;
+  });
+}
+
+async function saveAdminAttendance() {
+  if (!_adminAttScheduleId) return;
+  const rows = document.querySelectorAll('#admin-att-student-rows tr[data-sid]');
+  const entries = [];
+  rows.forEach(row => {
+    const sid = row.dataset.sid;
+    const radios = row.querySelectorAll(`input[name="adm_att_${sid}"]`);
+    let status = 'present';
+    radios.forEach(r => { if (r.checked) status = r.value; });
+    const note = document.getElementById('adm-att-note-'+sid)?.value || '';
+    entries.push({ student_id: sid, status, note });
+  });
+  try {
+    await api('POST', '/attendance', { schedule_id: _adminAttScheduleId, entries });
+    toast('출석이 저장되었습니다', 'success');
+    document.getElementById('admin-att-entry-card').style.display = 'none';
+    loadAdminAttSchedule();
+  } catch(e) { toast(e.message, 'error'); }
 }
 
 async function loadQuestionsAdmin() {
@@ -2293,11 +2619,73 @@ async function loadPerformance() {
   ['perf-summary','perf-chart-row','perf-sub-card','perf-rec-card','perf-history-card','perf-empty']
     .forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='none'; });
   try {
-    const [analytics, history] = await Promise.all([
+    const [analytics, history, attendance] = await Promise.all([
       api('GET', '/analytics'),
-      api('GET', '/test/history')
+      api('GET', '/test/history'),
+      api('GET', '/attendance/my').catch(() => null),
     ]);
     document.getElementById('perf-loading').style.display='none';
+
+    // ── 출석 현황 ────────────────────────────────────────────────
+    const attCard = document.getElementById('perf-attend-card');
+    if (attendance) {
+      attCard.style.display = 'block';
+      const { morning, afternoon, recent } = attendance;
+
+      function renderAttSlot(rate, detail, barId, rateId, detailId, color) {
+        const el = document.getElementById(rateId);
+        const detEl = document.getElementById(detailId);
+        const bar = document.getElementById(barId);
+        if (rate === null) {
+          el.textContent = '—';
+          detEl.textContent = '수업 기록 없음';
+          bar.style.width = '0%';
+        } else {
+          el.textContent = rate + '%';
+          el.style.color = rate >= 80 ? 'var(--green)' : rate >= 60 ? 'var(--yellow,#f59e0b)' : 'var(--red)';
+          detEl.textContent = detail;
+          bar.style.width = rate + '%';
+          bar.style.background = rate >= 80 ? 'var(--green)' : rate >= 60 ? 'var(--yellow,#f59e0b)' : 'var(--red)';
+        }
+      }
+
+      renderAttSlot(
+        morning.rate,
+        morning.total > 0 ? `출석 ${morning.present} · 지각 ${morning.late} · 결석 ${morning.absent} / 총 ${morning.total}회` : '수업 기록 없음',
+        'att-morning-bar', 'att-morning-rate', 'att-morning-detail', '--blue'
+      );
+      renderAttSlot(
+        afternoon.rate,
+        afternoon.total > 0 ? `출석 ${afternoon.present} · 지각 ${afternoon.late} · 결석 ${afternoon.absent} / 총 ${afternoon.total}회` : '수업 기록 없음',
+        'att-afternoon-bar', 'att-afternoon-rate', 'att-afternoon-detail', '--purple'
+      );
+
+      const STATUS_ICON = { present:'<span style="color:var(--green)">✅ 출석</span>', late:'<span style="color:var(--yellow,#f59e0b)">⏰ 지각</span>', absent:'<span style="color:var(--red)">❌ 결석</span>' };
+      document.getElementById('perf-attend-list').innerHTML = recent.length === 0
+        ? '<div style="text-align:center;color:var(--muted);padding:16px">아직 출석 기록이 없습니다</div>'
+        : `<table style="width:100%;border-collapse:collapse">
+            <thead><tr style="border-bottom:1px solid var(--border);font-size:11px;color:var(--muted)">
+              <th style="padding:6px 4px;text-align:left">날짜</th>
+              <th style="padding:6px 4px;text-align:left">구분</th>
+              <th style="padding:6px 4px;text-align:left">교시</th>
+              <th style="padding:6px 4px;text-align:left">과목</th>
+              <th style="padding:6px 4px;text-align:center">상태</th>
+            </tr></thead>
+            <tbody>${recent.map(r => `
+              <tr style="border-bottom:1px solid var(--border)">
+                <td style="padding:7px 4px;font-size:11px">${r.date}</td>
+                <td style="padding:7px 4px">
+                  <span style="font-size:10px;font-weight:600;color:${r.time_slot==='오전'?'var(--blue)':'var(--purple)'};background:${r.time_slot==='오전'?'var(--blue2)':'#f3e8ff'};padding:2px 6px;border-radius:4px">${r.time_slot}</span>
+                </td>
+                <td style="padding:7px 4px;font-size:11px;color:var(--muted)">${r.period}교시 (${r.start_time})</td>
+                <td style="padding:7px 4px;font-size:11px">${r.subject}</td>
+                <td style="padding:7px 4px;text-align:center;font-size:11px">${STATUS_ICON[r.status]||r.status}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>`;
+    } else {
+      attCard.style.display = 'none';
+    }
 
     if (analytics.message === '테스트 기록 없음') {
       document.getElementById('perf-empty').style.display='block'; return;

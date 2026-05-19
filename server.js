@@ -1639,6 +1639,18 @@ db.exec(`
     created_at   INTEGER DEFAULT (strftime('%s','now'))
   );
 
+  /* 출석 관리 */
+  CREATE TABLE IF NOT EXISTS tl_attendance (
+    id           TEXT PRIMARY KEY,
+    schedule_id  TEXT NOT NULL REFERENCES tl_schedule(id),
+    student_id   TEXT NOT NULL REFERENCES tl_users(id),
+    status       TEXT NOT NULL DEFAULT 'present' CHECK(status IN ('present','absent','late')),
+    note         TEXT,
+    marked_by    TEXT REFERENCES tl_users(id),
+    marked_at    INTEGER DEFAULT (strftime('%s','now')),
+    UNIQUE(schedule_id, student_id)
+  );
+
   /* 레벨테스트 문제은행 */
   CREATE TABLE IF NOT EXISTS tl_level_questions (
     id             TEXT PRIMARY KEY,
@@ -1713,9 +1725,11 @@ db.exec(`
   );
 
   /* 인덱스 */
-  CREATE INDEX IF NOT EXISTS idx_tl_sched_date ON tl_schedule(class_date);
-  CREATE INDEX IF NOT EXISTS idx_tl_rec_date   ON tl_recordings(class_date);
-  CREATE INDEX IF NOT EXISTS idx_tl_sess_stu   ON tl_test_sessions(student_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_tl_sched_date  ON tl_schedule(class_date);
+  CREATE INDEX IF NOT EXISTS idx_tl_rec_date    ON tl_recordings(class_date);
+  CREATE INDEX IF NOT EXISTS idx_tl_sess_stu    ON tl_test_sessions(student_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_tl_att_student ON tl_attendance(student_id, marked_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_tl_att_sched   ON tl_attendance(schedule_id);
 `);
 
 // ── 스키마 마이그레이션 (기존 배포 DB에 컬럼 추가) ─────────────────
@@ -2354,6 +2368,116 @@ app.delete('/api/tl/schedule/:id', tlAuth, tlAdminOrInstructor, (req, res) => {
   try {
     db.prepare('DELETE FROM tl_schedule WHERE id=?').run(req.params.id);
     res.json({ ok:true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── 출석 관리 ──────────────────────────────────────────────────────
+
+// 내 출석 통계 조회 (학생용)
+app.get('/api/tl/attendance/my', tlAuth, (req, res) => {
+  try {
+    const sid = req.tUser.id;
+    // 오전(start_time < 12:00) / 오후 구분하여 집계
+    const rows = db.prepare(`
+      SELECT a.status, s.start_time, s.period, s.subject, s.class_date, s.id as schedule_id
+      FROM tl_attendance a
+      JOIN tl_schedule s ON a.schedule_id = s.id
+      WHERE a.student_id = ?
+      ORDER BY s.class_date DESC, s.period ASC
+    `).all(sid);
+
+    const morning   = { present:0, absent:0, late:0, total:0 };
+    const afternoon = { present:0, absent:0, late:0, total:0 };
+
+    rows.forEach(r => {
+      const slot = (r.start_time||'09:00') < '12:00' ? morning : afternoon;
+      slot.total++;
+      if (r.status === 'present') slot.present++;
+      else if (r.status === 'absent') slot.absent++;
+      else if (r.status === 'late') slot.late++;
+    });
+
+    morning.rate   = morning.total   > 0 ? Math.round((morning.present + morning.late * 0.5) / morning.total * 100) : null;
+    afternoon.rate = afternoon.total > 0 ? Math.round((afternoon.present + afternoon.late * 0.5) / afternoon.total * 100) : null;
+
+    const recent = rows.slice(0, 20).map(r => ({
+      date: r.class_date, period: r.period, subject: r.subject,
+      start_time: r.start_time,
+      time_slot: (r.start_time||'09:00') < '12:00' ? '오전' : '오후',
+      status: r.status,
+    }));
+
+    res.json({ morning, afternoon, recent });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// 특정 스케줄 출석 목록 (강사/관리자)
+app.get('/api/tl/attendance/schedule/:scheduleId', tlAuth, tlAdminOrInstructor, (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT a.*, u.name as student_name, u.class_level
+      FROM tl_attendance a JOIN tl_users u ON a.student_id = u.id
+      WHERE a.schedule_id = ? ORDER BY u.name
+    `).all(req.params.scheduleId);
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// 출석 일괄 등록/수정 (강사/관리자) — 스케줄ID + 학생별 상태 배열
+app.post('/api/tl/attendance', tlAuth, tlAdminOrInstructor, (req, res) => {
+  try {
+    const { schedule_id, entries } = req.body;
+    // entries = [{ student_id, status, note }]
+    if (!schedule_id || !Array.isArray(entries))
+      return res.status(400).json({ error: 'schedule_id와 entries 필요' });
+
+    const sched = db.prepare('SELECT id FROM tl_schedule WHERE id=?').get(schedule_id);
+    if (!sched) return res.status(404).json({ error: '스케줄을 찾을 수 없습니다' });
+
+    const upsert = db.prepare(`
+      INSERT INTO tl_attendance (id, schedule_id, student_id, status, note, marked_by, marked_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(schedule_id, student_id) DO UPDATE SET
+        status=excluded.status, note=excluded.note,
+        marked_by=excluded.marked_by, marked_at=excluded.marked_at
+    `);
+    const now = Math.floor(Date.now() / 1000);
+    const insertMany = db.transaction((rows) => {
+      rows.forEach(e => {
+        const aid = `att_${schedule_id}_${e.student_id}`;
+        upsert.run(aid, schedule_id, e.student_id, e.status || 'present', e.note || null, req.tUser.id, now);
+      });
+    });
+    insertMany(entries);
+    res.json({ ok: true, count: entries.length });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// 단일 출석 수정
+app.put('/api/tl/attendance/:id', tlAuth, tlAdminOrInstructor, (req, res) => {
+  try {
+    const { status, note } = req.body;
+    db.prepare(`UPDATE tl_attendance SET status=?, note=?, marked_by=?, marked_at=? WHERE id=?`)
+      .run(status, note || null, req.tUser.id, Math.floor(Date.now()/1000), req.params.id);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// 전체 출석 현황 (관리자 — 날짜별)
+app.get('/api/tl/attendance', tlAuth, tlAdminOrInstructor, (req, res) => {
+  try {
+    const { date, schedule_id } = req.query;
+    let q = `SELECT a.*, u.name as student_name, u.class_level,
+               s.class_date, s.period, s.subject, s.start_time
+             FROM tl_attendance a
+             JOIN tl_users u ON a.student_id = u.id
+             JOIN tl_schedule s ON a.schedule_id = s.id
+             WHERE 1=1`;
+    const params = [];
+    if (date)        { q += ' AND s.class_date=?'; params.push(date); }
+    if (schedule_id) { q += ' AND a.schedule_id=?'; params.push(schedule_id); }
+    q += ' ORDER BY s.class_date DESC, s.period, u.name';
+    res.json(db.prepare(q).all(...params));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
