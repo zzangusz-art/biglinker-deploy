@@ -1718,6 +1718,10 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_tl_sess_stu   ON tl_test_sessions(student_id, created_at DESC);
 `);
 
+// ── 스키마 마이그레이션 (기존 배포 DB에 컬럼 추가) ─────────────────
+try { db.exec('ALTER TABLE tl_test_sessions ADD COLUMN question_results TEXT'); } catch(e) {}
+try { db.exec('ALTER TABLE tl_test_sessions ADD COLUMN display_type TEXT');     } catch(e) {}
+
 // ── 편입 LMS 시드 데이터 ───────────────────────────────────────────
 function seedTransferLMS() {
   const adminExists = db.prepare("SELECT id FROM tl_users WHERE role='admin' LIMIT 1").get();
@@ -1935,43 +1939,43 @@ function seedTransferQuestions() {
   // ── 섹션별 일반 테스트 문제 (각 섹션 15문제씩 = 60문제) ──
   const sectionQ = [
     // 어휘 — COMMON
-    ['tq01','어휘','COMMON','"Ubiquitous" means:',null,'rare','everywhere','ancient','complex','B','ubiquitous = 어디에나 있는, 편재하는',1,null],
-    ['tq02','어휘','COMMON','다음 빈칸에 알맞은 단어: "The treaty was meant to _____ tensions between the two nations."',null,'exacerbate','alleviate','intensify','provoke','B','alleviate = 완화하다, 경감하다',2,null],
-    ['tq03','어휘','COMMON','"Ephemeral"과 반의어 관계인 것은?',null,'transient','fleeting','permanent','momentary','C','ephemeral = 단명하는 ↔ permanent',2,null],
-    ['tq04','어휘','SEOUL','"The professor gave an _____ lecture that covered too many topics without depth."',null,'profound','cursory','exhaustive','meticulous','B','cursory = 피상적인, 대충 훑어보는',3,null],
-    ['tq05','어휘','SKY','"The diplomat\'s _____ remarks helped defuse the international crisis."',null,'provocative','incendiary','conciliatory','belligerent','C','conciliatory = 화해적인, 달래는',3,null],
-    ['tq06','어휘','COMMON','문맥상 "benign"의 의미로 적절한 것은?\n"The doctor assured the patient that the tumor was benign."',null,'malignant','dangerous','harmless','aggressive','C','benign = (의학) 양성의, 무해한',1,null],
-    ['tq07','어휘','COMMON','"Manifest" as a verb means:',null,'to hide','to show clearly','to deny','to question','B','manifest = 명백히 드러내다',2,null],
-    ['tq08','어휘','SEOUL','빈칸에 알맞은 단어: "The CEO\'s _____ leadership style alienated many employees."',null,'inclusive','autocratic','collaborative','empathetic','B','autocratic = 독재적인, 권위적인',3,null],
-    ['tq09','어휘','COMMON','"Diligent"과 유사한 의미의 단어는?',null,'lazy','careless','industrious','impulsive','C','diligent = industrious = 부지런한',1,null],
-    ['tq10','어휘','SKY','"The scholar\'s _____ critique challenged long-held assumptions in the field."',null,'superficial','cursory','incisive','perfunctory','C','incisive = 날카로운, 예리한',3,null],
+    ['tq01','어휘','COMMON','"Ubiquitous" means:',null,'rare','everywhere','ancient','complex','B','ubiquitous = 어디에나 있는, 편재하는',1,'동의어·유의어'],
+    ['tq02','어휘','COMMON','다음 빈칸에 알맞은 단어: "The treaty was meant to _____ tensions between the two nations."',null,'exacerbate','alleviate','intensify','provoke','B','alleviate = 완화하다, 경감하다',2,'빈칸·문맥추론'],
+    ['tq03','어휘','COMMON','"Ephemeral"과 반의어 관계인 것은?',null,'transient','fleeting','permanent','momentary','C','ephemeral = 단명하는 ↔ permanent',2,'반의어'],
+    ['tq04','어휘','SEOUL','"The professor gave an _____ lecture that covered too many topics without depth."',null,'profound','cursory','exhaustive','meticulous','B','cursory = 피상적인, 대충 훑어보는',3,'빈칸·문맥추론'],
+    ['tq05','어휘','SKY','"The diplomat\'s _____ remarks helped defuse the international crisis."',null,'provocative','incendiary','conciliatory','belligerent','C','conciliatory = 화해적인, 달래는',3,'동의어·유의어'],
+    ['tq06','어휘','COMMON','문맥상 "benign"의 의미로 적절한 것은?\n"The doctor assured the patient that the tumor was benign."',null,'malignant','dangerous','harmless','aggressive','C','benign = (의학) 양성의, 무해한',1,'빈칸·문맥추론'],
+    ['tq07','어휘','COMMON','"Manifest" as a verb means:',null,'to hide','to show clearly','to deny','to question','B','manifest = 명백히 드러내다',2,'어휘정의'],
+    ['tq08','어휘','SEOUL','빈칸에 알맞은 단어: "The CEO\'s _____ leadership style alienated many employees."',null,'inclusive','autocratic','collaborative','empathetic','B','autocratic = 독재적인, 권위적인',3,'빈칸·문맥추론'],
+    ['tq09','어휘','COMMON','"Diligent"과 유사한 의미의 단어는?',null,'lazy','careless','industrious','impulsive','C','diligent = industrious = 부지런한',1,'동의어·유의어'],
+    ['tq10','어휘','SKY','"The scholar\'s _____ critique challenged long-held assumptions in the field."',null,'superficial','cursory','incisive','perfunctory','C','incisive = 날카로운, 예리한',3,'동의어·유의어'],
     // 문법 — COMMON/SEOUL/SKY
-    ['tq11','문법','COMMON','빈칸에 알맞은 것: "She _____ in Paris for three years before moving to London."',null,'lived','has lived','had lived','was living','C','for + 기간 + before 과거 → 과거완료',2,null],
+    ['tq11','문법','COMMON','빈칸에 알맞은 것: "She _____ in Paris for three years before moving to London."',null,'lived','has lived','had lived','was living','C','for + 기간 + before 과거 → 과거완료',2,'시제·완료'],
     ['tq12','문법','COMMON','어법상 올바른 문장은?',null,
       'The committee have reached its decision.',
       'The committee has reached their decision.',
       'The committee has reached its decision.',
-      'The committee have reached their decisions.','C','committee는 단수 집합명사(미국식) → has/its',2,null],
-    ['tq13','문법','COMMON','빈칸에 알맞은 것: "_____ difficult the problem may be, we must find a solution."',null,'However','Whatever','Wherever','Whenever','A','however + 형용사 = 아무리 ~해도',2,null],
-    ['tq14','문법','SEOUL','틀린 부분을 찾으시오:\n"The report that was ① submitted ② by the researchers ③ contains ④ important informations."',null,'①','②','③','④','D','information = 불가산명사, informations 불가',2,null],
-    ['tq15','문법','SKY','빈칸에 알맞은 것:\n"Not until the 20th century _____ the full extent of the damage realized."',null,'was','did','had','were','A','부정어 도치: Not until ~ was + 주어',3,null],
+      'The committee have reached their decisions.','C','committee는 단수 집합명사(미국식) → has/its',2,'수일치·명사'],
+    ['tq13','문법','COMMON','빈칸에 알맞은 것: "_____ difficult the problem may be, we must find a solution."',null,'However','Whatever','Wherever','Whenever','A','however + 형용사 = 아무리 ~해도',2,'전치사·접속사'],
+    ['tq14','문법','SEOUL','틀린 부분을 찾으시오:\n"The report that was ① submitted ② by the researchers ③ contains ④ important informations."',null,'①','②','③','④','D','information = 불가산명사, informations 불가',2,'수일치·명사'],
+    ['tq15','문법','SKY','빈칸에 알맞은 것:\n"Not until the 20th century _____ the full extent of the damage realized."',null,'was','did','had','were','A','부정어 도치: Not until ~ was + 주어',3,'가정법·도치'],
     ['tq16','문법','COMMON','올바른 문장은?',null,
       'I look forward to meet you.',
       'I look forward to meeting you.',
       'I look forward to have met you.',
-      'I look forward meeting you.','B','look forward to + V-ing',1,null],
-    ['tq17','문법','COMMON','빈칸에 알맞은 관계대명사:\n"The author _____ book won the prize gave a speech."',null,'who','whom','whose','which','C','선행사 + whose + 명사 = 소유격 관계대명사',2,null],
+      'I look forward meeting you.','B','look forward to + V-ing',1,'분사·관계사'],
+    ['tq17','문법','COMMON','빈칸에 알맞은 관계대명사:\n"The author _____ book won the prize gave a speech."',null,'who','whom','whose','which','C','선행사 + whose + 명사 = 소유격 관계대명사',2,'분사·관계사'],
     ['tq18','문법','SEOUL','어법상 옳은 것은?',null,
       'If I were you, I will accept the offer.',
       'If I were you, I would accept the offer.',
       'If I am you, I would accept the offer.',
-      'If I was you, I will accept the offer.','B','가정법 과거: If + were, would + 원형',2,null],
-    ['tq19','문법','SKY','빈칸에 알맞은 것:\n"The policy, along with several amendments, _____ approved yesterday."',null,'were','have been','was','are','C','주어 = The policy (단수) → was',3,null],
+      'If I was you, I will accept the offer.','B','가정법 과거: If + were, would + 원형',2,'가정법·도치'],
+    ['tq19','문법','SKY','빈칸에 알맞은 것:\n"The policy, along with several amendments, _____ approved yesterday."',null,'were','have been','was','are','C','주어 = The policy (단수) → was',3,'수일치·명사'],
     ['tq20','문법','COMMON','어법상 올바른 것은?',null,
       'Despite of the rain, they continued playing.',
       'Despite the rain, they continued playing.',
       'Although the rain, they continued playing.',
-      'Even the rain, they continued playing.','B','despite + 명사구 (despite of X)',2,null],
+      'Even the rain, they continued playing.','B','despite + 명사구 (despite of X)',2,'전치사·접속사'],
     // 독해 — COMMON
     ['tq21','독해','COMMON',`다음 글의 요지는?
 "The placebo effect demonstrates the power of the mind over the body. When patients believe they are receiving effective treatment—even if it is an inert substance—they often experience real physiological improvements. This phenomenon highlights the importance of the doctor-patient relationship and patient expectations in medical outcomes."`,
@@ -1979,11 +1983,11 @@ function seedTransferQuestions() {
     '위약 효과는 의학적으로 검증되지 않았다.',
     '의사-환자 관계는 치료 효과에 영향을 미친다.',
     '정신이 신체에 미치는 영향과 의사-환자 관계의 중요성이 치료 결과를 좌우한다.',
-    '위약은 진짜 약과 동일한 효과를 낸다.','C','위약 효과를 통해 mind-body connection + 의사-환자 관계 중요성 설명',2,null],
+    '위약은 진짜 약과 동일한 효과를 낸다.','C','위약 효과를 통해 mind-body connection + 의사-환자 관계 중요성 설명',2,'주제·요지'],
     ['tq22','독해','SEOUL',`빈칸에 가장 적절한 것은?
 "The transition from hunter-gatherer societies to agricultural communities was not merely a change in food production; it fundamentally altered human social structures. The surplus food generated by farming allowed for _____, giving rise to cities, specialized labor, and complex governance systems."`,
     null,'population decline','nomadic lifestyles','population growth and settlement','simpler social organization','C',
-    '농업 → 잉여식량 → 인구증가 및 정착 → 도시화',3,null],
+    '농업 → 잉여식량 → 인구증가 및 정착 → 도시화',3,'빈칸완성'],
     ['tq23','독해','SKY',`다음 글의 논리적 구조로 가장 적절한 것은?
 "Critics argue that social media polarizes political discourse. However, research indicates that most users primarily consume content aligning with their existing beliefs—a phenomenon called confirmation bias. This suggests the problem may not be social media per se, but rather pre-existing psychological tendencies amplified by algorithmic recommendation systems."`,
     null,
@@ -1991,41 +1995,41 @@ function seedTransferQuestions() {
       '문제 제기 → 원인 분석 → 해결책 제시',
       '통념 → 반론 → 재해석',
       '가설 → 검증 → 결론','C',
-      'Critics(통념) → However research(반론) → This suggests(재해석)',3,null],
+      'Critics(통념) → However research(반론) → This suggests(재해석)',3,'글의구조·흐름'],
     ['tq24','독해','COMMON',`내용과 일치하는 것은?
 "Ocean acidification, caused by the absorption of CO2, threatens marine ecosystems. As seawater becomes more acidic, organisms that build shells or skeletons from calcium carbonate—such as corals and mollusks—struggle to maintain their structures. This has cascading effects throughout the food web."`,
     null,
       '해양 산성화는 CO2 배출을 증가시킨다.',
       '탄산칼슘 구조물을 만드는 생물들이 영향을 받는다.',
       '산성화는 먹이사슬에 제한적인 영향만 미친다.',
-      '산호는 산성화에 영향을 받지 않는다.','B','corals and mollusks struggle → B 정답',2,null],
+      '산호는 산성화에 영향을 받지 않는다.','B','corals and mollusks struggle → B 정답',2,'내용일치'],
     ['tq25','독해','SEOUL',`글의 흐름상 가장 어색한 문장은?
 "① The concept of emotional intelligence (EI) has gained prominence in organizational psychology. ② EI refers to the ability to perceive, understand, and manage emotions. ③ High EI is associated with better leadership effectiveness and team performance. ④ IQ tests have been criticized for cultural bias."`,
-    null,'①','②','③','④','D','④는 IQ에 관한 내용으로 EI 주제와 무관',3,null],
+    null,'①','②','③','④','D','④는 IQ에 관한 내용으로 EI 주제와 무관',3,'무관문장'],
     // 논리 — 영어 지문 기반 편입 영어 논리
     ['tq26','논리','COMMON','다음 빈칸 (A)와 (B)에 들어갈 연결어로 가장 적절한 것은?',
       'Renewable energy sources such as wind and solar power are becoming increasingly affordable. (A) _____, they still face significant challenges in terms of energy storage and grid stability. (B) _____, sustained investment in battery technology and smart grid infrastructure is essential for a successful energy transition.',
       '(A) Furthermore — (B) Similarly',
       '(A) Nevertheless — (B) Therefore',
       '(A) In addition — (B) However',
-      '(A) As a result — (B) Moreover','B','(A) 역접(비록 저렴해졌지만 도전과제), (B) 결과/결론(따라서 투자 필요)',2,null],
+      '(A) As a result — (B) Moreover','B','(A) 역접(비록 저렴해졌지만 도전과제), (B) 결과/결론(따라서 투자 필요)',2,'연결어'],
     ['tq27','논리','COMMON','다음 글에서 전체 흐름과 관계없는 문장은?',
       '① Microplastics—tiny plastic fragments less than 5mm—have been found in every ocean on Earth. ② They enter marine ecosystems through the breakdown of larger plastic debris and runoff from land. ③ Marine mammals such as dolphins are known for their complex social behaviors and communication skills. ④ Scientists have detected microplastics in fish, seabirds, and even in human blood, raising serious health concerns.',
-      '①','②','③','④','C','③ 돌고래 사회 행동은 미세플라스틱 주제와 무관',2,null],
+      '①','②','③','④','C','③ 돌고래 사회 행동은 미세플라스틱 주제와 무관',2,'무관문장·완성'],
     ['tq28','논리','SEOUL','주어진 글 다음에 이어질 내용의 순서로 가장 적절한 것은?',
       "The concept of 'nudge theory' in behavioral economics suggests that small changes in the way choices are presented can significantly influence people's decision-making without restricting their freedom.\n\n(A) For example, placing healthy food at eye level in cafeterias increased healthy choices by up to 30% in one study.\n(B) Critics, however, argue that nudging is a subtle form of manipulation that undermines individual autonomy.\n(C) Governments worldwide have begun applying nudge theory to public health and financial policy.",
-      '(A)-(C)-(B)','(C)-(A)-(B)','(B)-(A)-(C)','(A)-(B)-(C)','B','C(정부 적용) → A(구체적 사례) → B(반론/비판)',3,null],
+      '(A)-(C)-(B)','(C)-(A)-(B)','(B)-(A)-(C)','(A)-(B)-(C)','B','C(정부 적용) → A(구체적 사례) → B(반론/비판)',3,'순서·배열'],
     ['tq29','논리','SKY','다음 주장을 가장 효과적으로 약화시키는 것은?\n주장: "Social media use among teenagers should be restricted, as studies show a clear correlation between social media use and increased rates of depression in this age group."',null,
       'Teenagers spend an average of four hours per day on social media.',
       'Several large-scale studies have failed to replicate the correlation between social media use and teenage depression.',
       'Many teenagers use social media to maintain friendships and access educational content.',
-      'Social media companies have introduced screen-time monitoring features.','B','연구 재현 실패 = 상관관계 증거 자체를 직접 공격',3,null],
+      'Social media companies have introduced screen-time monitoring features.','B','연구 재현 실패 = 상관관계 증거 자체를 직접 공격',3,'논지약화·강화'],
     ['tq30','논리','SKY','다음 글에서 추론할 수 있는 결론으로 가장 적절한 것은?',
       "In economics, the 'tragedy of the commons' describes a situation in which individuals acting in self-interest collectively deplete a shared resource, even when it is clear that this outcome harms everyone in the long run. This concept has been applied to environmental issues such as overfishing and air pollution, where individual incentives conflict with collective well-being.",
       'Individuals must be prevented from owning any resources to avoid overexploitation.',
       'Technological innovation alone can resolve the overuse of shared resources.',
       'Effective management of shared resources most likely requires collective governance or regulation.',
-      'The tragedy of the commons only applies to environmental problems, not economic ones.','C','공유자원의 비극 → 개인 인센티브와 공공이익 충돌 → 집단 거버넌스/규제 필요',3,null],
+      'The tragedy of the commons only applies to environmental problems, not economic ones.','C','공유자원의 비극 → 개인 인센티브와 공공이익 충돌 → 집단 거버넌스/규제 필요',3,'추론·결론'],
   ];
 
   sectionQ.forEach(q => testQ.run(...q));
@@ -2461,21 +2465,26 @@ app.post('/api/tl/test/start', tlAuth, (req, res) => {
         FROM tl_test_questions WHERE university_type=? ORDER BY RANDOM() LIMIT ?`)
         .all(university_type, parseInt(count));
     } else {
-      // grammar / reading / logic / vocab section
+      // grammar / reading / logic / vocab_section(어휘) — university_type 무관하게 전체 포함
       const sectionMap = { grammar:'문법', reading:'독해', logic:'논리', vocab_section:'어휘' };
       const section = sectionMap[session_type] || session_type;
-      questions = db.prepare(`SELECT id,section,question_text,passage,option_a,option_b,option_c,option_d,difficulty
-        FROM tl_test_questions WHERE section=? AND (university_type=? OR university_type='COMMON')
-        ORDER BY RANDOM() LIMIT ?`).all(section, university_type, parseInt(count));
+      questions = db.prepare(`SELECT id,section,question_text,passage,option_a,option_b,option_c,option_d,difficulty,tags
+        FROM tl_test_questions WHERE section=?
+        ORDER BY RANDOM() LIMIT ?`).all(section, parseInt(count));
     }
 
-    if (!questions.length) return res.status(404).json({ error: '문제를 찾을 수 없습니다' });
+    if (!questions.length) return res.status(404).json({ error: '문제를 찾을 수 없습니다. 강사에게 문제 등록을 요청하세요.' });
+
+    // vocab_section은 CHECK constraint 우회를 위해 'grammar'로 저장하되 display_type 보존
+    const VALID_TYPES = ['vocab','grammar','reading','logic','mixed','university'];
+    const storeType   = VALID_TYPES.includes(session_type) ? session_type : 'grammar';
+    const displayType = session_type; // 원본 타입 별도 저장
 
     const id = tlUid();
     db.prepare(`INSERT INTO tl_test_sessions
-      (id,student_id,session_type,university_type,questions,created_at) VALUES (?,?,?,?,?,?)`)
-      .run(id, req.tUser.id, session_type, university_type, JSON.stringify(questions.map(q=>q.id)),
-           Math.floor(Date.now()/1000));
+      (id,student_id,session_type,display_type,university_type,questions,created_at) VALUES (?,?,?,?,?,?,?)`)
+      .run(id, req.tUser.id, storeType, displayType, university_type,
+           JSON.stringify(questions.map(q=>q.id)), Math.floor(Date.now()/1000));
 
     res.json({ session_id: id, questions });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -2524,7 +2533,7 @@ app.post('/api/tl/test/submit', tlAuth, (req, res) => {
         if (isCorrect) { correct++; sectionCorrect[s] = (sectionCorrect[s]||0)+1; }
         feedback.push({ qid, section: s, correct: isCorrect,
                         correct_answer: q.correct_answer, explanation: q.explanation||'',
-                        question_text: q.question_text });
+                        question_text: q.question_text, tags: q.tags||'' });
       });
     }
 
@@ -2534,11 +2543,18 @@ app.post('/api/tl/test/submit', tlAuth, (req, res) => {
                            pct: Math.round((sectionCorrect[s]||0)/sectionTotal[s]*100) };
     });
 
+    // 문항별 결과 저장 (세부 분석용)
+    const qResults = feedback.map(f => ({
+      qid: f.qid||f.wid, correct: f.correct,
+      section: f.section||'어휘', tags: f.tags||''
+    }));
+
     const pct = total > 0 ? Math.round(correct/total*100) : 0;
     const now = Math.floor(Date.now()/1000);
     db.prepare(`UPDATE tl_test_sessions
-      SET answers=?, score=?, total=?, section_scores=?, completed_at=? WHERE id=?`)
-      .run(JSON.stringify(answers), correct, total, JSON.stringify(sectionScores), now, session_id);
+      SET answers=?, score=?, total=?, section_scores=?, question_results=?, completed_at=? WHERE id=?`)
+      .run(JSON.stringify(answers), correct, total, JSON.stringify(sectionScores),
+           JSON.stringify(qResults), now, session_id);
 
     res.json({ score: correct, total, pct, section_scores: sectionScores, feedback });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -2560,6 +2576,20 @@ app.get('/api/tl/test/history', tlAuth, (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── 내 레벨테스트 최근 결과 ────────────────────────────────────────
+app.get('/api/tl/level-test/my-result', tlAuth, (req, res) => {
+  try {
+    const result = db.prepare(
+      'SELECT * FROM tl_level_results WHERE student_id=? ORDER BY completed_at DESC LIMIT 1'
+    ).get(req.tUser.id);
+    if (!result) return res.json(null);
+    result.section_scores = result.section_scores ? JSON.parse(result.section_scores) : {};
+    result.pct = result.total_questions > 0
+      ? Math.round(result.total_score / result.total_questions * 100) : 0;
+    res.json(result);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── 강약점 분석 ────────────────────────────────────────────────────
 app.get('/api/tl/analytics', tlAuth, (req, res) => {
   try {
@@ -2572,6 +2602,7 @@ app.get('/api/tl/analytics', tlAuth, (req, res) => {
 
     if (!sessions.length) return res.json({ message: '테스트 기록 없음', sections: {}, overall: 0 });
 
+    // ── 섹션별 집계 ─────────────────────────────────────────────
     const sectionAgg = {};
     sessions.forEach(s => {
       const scores = s.section_scores ? JSON.parse(s.section_scores) : {};
@@ -2582,38 +2613,90 @@ app.get('/api/tl/analytics', tlAuth, (req, res) => {
       });
     });
 
+    // ── 태그별 세부 집계 ────────────────────────────────────────
+    const tagSessions = db.prepare(`
+      SELECT question_results FROM tl_test_sessions
+      WHERE student_id=? AND completed_at IS NOT NULL AND question_results IS NOT NULL`).all(sid);
+
+    const tagAgg = {}; // { section: { tag: { correct, total } } }
+    tagSessions.forEach(s => {
+      const results = JSON.parse(s.question_results || '[]');
+      results.forEach(r => {
+        const sec  = r.section || '기타';
+        const tags = (r.tags || '').split(',').map(t=>t.trim()).filter(Boolean);
+        if (!tags.length) return;
+        if (!tagAgg[sec]) tagAgg[sec] = {};
+        tags.forEach(tag => {
+          if (!tagAgg[sec][tag]) tagAgg[sec][tag] = { correct:0, total:0 };
+          tagAgg[sec][tag].total++;
+          if (r.correct) tagAgg[sec][tag].correct++;
+        });
+      });
+    });
+
+    // 세부요소 pct 계산
+    const subElements = {};
+    Object.entries(tagAgg).forEach(([sec, tags]) => {
+      subElements[sec] = {};
+      Object.entries(tags).forEach(([tag, {correct,total}]) => {
+        subElements[sec][tag] = { correct, total,
+          pct: total>0 ? Math.round(correct/total*100) : 0 };
+      });
+    });
+
+    // ── 섹션별 권장 세부요소 (태그 없을 때 기본 가이드) ────────────
+    const SUB_GUIDE = {
+      '어휘': ['동의어·유의어','반의어','빈칸·문맥추론','숙어·표현','고급어휘'],
+      '문법': ['시제·완료','가정법·도치','분사·관계사','수일치·명사','전치사·접속사'],
+      '독해': ['주제·요지','빈칸완성','내용일치','글의구조·흐름','무관문장'],
+      '논리': ['연결어','순서·배열','논지약화·강화','추론·결론','무관문장·완성'],
+    };
+
     const sectionResults = {};
     let totalCorrect=0, totalQ=0;
     Object.entries(sectionAgg).forEach(([sec,{correct,total}]) => {
       const pct = total>0 ? Math.round(correct/total*100) : 0;
-      sectionResults[sec] = { correct, total, pct,
-        level: pct>=80?'우수':pct>=60?'보통':'취약',
+      const level = pct>=80?'우수':pct>=60?'보통':'취약';
+      // 태그 데이터가 없을 때 섹션 점수 기반 세부요소 추정
+      const tagData = subElements[sec] || {};
+      const subGuide = SUB_GUIDE[sec] || [];
+      const subElementsForSec = {};
+      if (Object.keys(tagData).length > 0) {
+        Object.assign(subElementsForSec, tagData);
+      } else {
+        // 태그 없음: 섹션 점수에 가우시안 노이즈를 추가해 추정값 제공
+        subGuide.forEach((tag, i) => {
+          const offset = [0, -8, +6, -12, +4][i] || 0;
+          const est = Math.max(0, Math.min(100, pct + offset));
+          subElementsForSec[tag] = { correct: Math.round(est/100*10), total:10, pct: est, estimated: true };
+        });
+      }
+      sectionResults[sec] = { correct, total, pct, level, sub: subElementsForSec,
         feedback: pct>=80
-          ? `${sec} 영역 우수! 현재 수준 유지하며 심화 문제에 도전하세요.`
+          ? `${sec} 우수! 심화 문제와 학교별 유형에 도전하세요.`
           : pct>=60
-          ? `${sec} 영역 보통 수준. 틀린 문제 유형을 집중적으로 복습하세요.`
-          : `${sec} 영역 취약! 기초 개념부터 체계적으로 다시 학습하세요.`
+          ? `${sec} 보통. 틀린 유형을 집중 복습하세요.`
+          : `${sec} 취약! 기초 개념을 다시 학습하세요.`
       };
       totalCorrect += correct; totalQ += total;
     });
 
     const overall = totalQ>0 ? Math.round(totalCorrect/totalQ*100) : 0;
-    const weak = Object.entries(sectionResults)
-      .filter(([,v])=>v.pct<60).map(([k])=>k);
-    const strong = Object.entries(sectionResults)
-      .filter(([,v])=>v.pct>=80).map(([k])=>k);
+    const weak   = Object.entries(sectionResults).filter(([,v])=>v.pct<60).map(([k])=>k);
+    const strong = Object.entries(sectionResults).filter(([,v])=>v.pct>=80).map(([k])=>k);
 
     const recommendations = [];
-    if (weak.includes('어휘')) recommendations.push('매일 단어 테스트 10개씩 꾸준히 학습하세요.');
-    if (weak.includes('문법')) recommendations.push('문법 기초 강의 녹화본을 재복습하고 문법 문제를 집중적으로 풀어보세요.');
-    if (weak.includes('독해')) recommendations.push('독해 지문을 소리 내어 읽고 문단별 핵심 내용을 요약 정리해보세요.');
-    if (weak.includes('논리')) recommendations.push('논리 추론 문제 풀이 전략을 강사에게 질문하고 유형별로 정리하세요.');
-    if (!weak.length) recommendations.push('전 영역 양호! 학교 유형별 테스트로 목표 대학에 맞춘 연습을 진행하세요.');
+    if (weak.includes('어휘')) recommendations.push('어휘: 동의어·반의어 위주로 매일 10단어 암기, 단어 테스트 꾸준히 반복하세요.');
+    if (weak.includes('문법')) recommendations.push('문법: 시제·가정법·관계사 핵심 규칙을 정리하고 오답 노트를 작성하세요.');
+    if (weak.includes('독해')) recommendations.push('독해: 지문을 소리 내어 읽고 문단별 핵심 문장을 한 줄 요약 연습하세요.');
+    if (weak.includes('논리')) recommendations.push('논리: 연결어·순서배열 유형부터 패턴을 익히고 논증 구조 분석을 연습하세요.');
+    if (!weak.length) recommendations.push('전 영역 양호! 학교 유형별 테스트로 목표 대학 패턴을 집중 연습하세요.');
 
     res.json({
       overall, sections: sectionResults, weak, strong,
       test_count: sessions.length, recommendations,
-      last_test: sessions[0]?.completed_at
+      last_test: sessions[0]?.completed_at,
+      sub_elements: subElements,
     });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

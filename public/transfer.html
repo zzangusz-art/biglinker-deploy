@@ -6,6 +6,7 @@
 <title>BigLinker 편입 LMS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 /* ══════════ VARIABLES ══════════ */
 :root{
@@ -832,6 +833,13 @@ tbody tr:hover{background:var(--s2)}
           <div class="stat-card"><div class="stat-label">오늘 수업</div><div class="stat-value" style="color:var(--purple)">3</div><div class="stat-sub">교시 (오전)</div></div>
           <div class="stat-card"><div class="stat-label">오늘 테스트</div><div class="stat-value" style="color:var(--green)" id="stu-stat-tests">0</div><div class="stat-sub">완료 세션</div></div>
         </div>
+        <!-- 레벨테스트 결과 카드 (다음 테스트 전까지 유지) -->
+        <div class="card mb-16" id="stu-level-result-card" style="display:none">
+          <div class="card-title"><span class="ct-icon">🎯</span> 내 레벨테스트 결과
+            <button class="btn btn-ghost btn-sm" style="margin-left:auto;font-size:10px" onclick="showStuPage('stu-level',document.querySelectorAll('#sidebar-student .nav-item')[3])">재응시 →</button>
+          </div>
+          <div id="stu-level-result-inner"></div>
+        </div>
         <!-- 오전 수업 미리보기 -->
         <div class="card mb-16">
           <div class="card-title"><span class="ct-icon">☀️</span> 오늘 오전 수업
@@ -1140,12 +1148,54 @@ tbody tr:hover{background:var(--s2)}
       <!-- 내 성적 -->
       <div id="stu-performance" class="page">
         <div class="page-header">
-          <div class="page-title">📈 내 성적</div>
-          <div class="page-desc">전체 테스트 성과와 강약점 분석입니다</div>
+          <div class="page-title">📈 내 성적 분석</div>
+          <div class="page-desc">테스트 결과를 기반으로 영역별·세부요소별 강약점을 분석합니다</div>
         </div>
-        <div id="perf-content">
-          <div class="loading-overlay"><div class="spinner"></div> 데이터 로딩 중...</div>
+        <!-- 종합 요약 -->
+        <div class="stats-grid mb-16" id="perf-summary" style="display:none">
+          <div class="stat-card"><div class="stat-label">전체 정답률</div><div class="stat-value" id="perf-overall" style="color:var(--blue)">—</div><div class="stat-sub">누적 평균</div></div>
+          <div class="stat-card"><div class="stat-label">총 테스트</div><div class="stat-value" id="perf-count" style="color:var(--purple)">0</div><div class="stat-sub">완료 세션</div></div>
+          <div class="stat-card"><div class="stat-label">강점 영역</div><div class="stat-value" id="perf-strong" style="color:var(--green);font-size:14px">—</div><div class="stat-sub">80% 이상</div></div>
+          <div class="stat-card"><div class="stat-label">취약 영역</div><div class="stat-value" id="perf-weak" style="color:var(--red);font-size:14px">—</div><div class="stat-sub">60% 미만</div></div>
         </div>
+        <!-- 레이더차트 + 섹션점수 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px" id="perf-chart-row" class="perf-chart-row">
+          <div class="card">
+            <div class="card-title"><span class="ct-icon">🕸️</span> 영역별 레이더 차트</div>
+            <div style="position:relative;height:280px;display:flex;align-items:center;justify-content:center">
+              <canvas id="radar-chart"></canvas>
+              <div id="radar-no-data" style="display:none;text-align:center;color:var(--muted);font-size:12px">테스트를 완료하면 차트가 표시됩니다</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title"><span class="ct-icon">📊</span> 섹션별 점수</div>
+            <div id="perf-section-bars"></div>
+          </div>
+        </div>
+        <!-- 세부요소 분석 -->
+        <div class="card mb-16" id="perf-sub-card" style="display:none">
+          <div class="card-title"><span class="ct-icon">🔬</span> 세부요소별 분석</div>
+          <div id="perf-sub-elements"></div>
+        </div>
+        <!-- 추천 학습법 -->
+        <div class="card mb-16" id="perf-rec-card" style="display:none">
+          <div class="card-title"><span class="ct-icon">💡</span> 맞춤 학습 추천</div>
+          <div id="perf-recommendations"></div>
+        </div>
+        <!-- 테스트 이력 -->
+        <div class="card" id="perf-history-card" style="display:none">
+          <div class="card-title"><span class="ct-icon">📋</span> 최근 테스트 이력</div>
+          <div id="perf-history"></div>
+        </div>
+        <!-- 빈 상태 -->
+        <div id="perf-empty" style="display:none">
+          <div class="empty-state"><div class="empty-icon">📊</div>
+            <div class="empty-text">아직 테스트 기록이 없습니다</div>
+            <div class="empty-sub">테스트 센터에서 테스트를 시작해보세요</div>
+            <div class="mt-12"><button class="btn btn-primary" onclick="showStuPage('stu-test',document.querySelectorAll('#sidebar-student .nav-item')[4])">테스트 센터 가기</button></div>
+          </div>
+        </div>
+        <div id="perf-loading"><div class="loading-overlay"><div class="spinner"></div> 분석 중...</div></div>
       </div>
 
     </main>
@@ -1753,7 +1803,10 @@ function initStuDates() {
 
 async function loadStuDashboard() {
   try {
-    const today = await api('GET', '/today');
+    const [today, lvResult] = await Promise.all([
+      api('GET', '/today'),
+      api('GET', '/level-test/my-result').catch(()=>null),
+    ]);
     // Morning cards
     document.getElementById('stu-home-morning').innerHTML = today.schedule.length
       ? today.schedule.map(s=>periodCardHtml(s,false)).join('')
@@ -1763,6 +1816,35 @@ async function loadStuDashboard() {
       ? today.recordings.map(r=>recCardHtml(r)).join('')
       : '<div class="empty-state" style="padding:16px"><div class="empty-text">오늘 등록된 녹화본 없음</div><div class="empty-sub">강사가 수업 후 등록합니다</div></div>';
     document.getElementById('stu-stat-tests').textContent = today.todayTests.length;
+    // 레벨테스트 결과 카드 (다음 응시 전까지 유지)
+    const lvCard = document.getElementById('stu-level-result-card');
+    const lvInner = document.getElementById('stu-level-result-inner');
+    if (lvResult && lvCard && lvInner) {
+      lvCard.style.display = 'block';
+      const ss = lvResult.section_scores || {};
+      const sectionHtml = ['어휘','문법','독해','논리'].map(s => {
+        const d = ss[s]; if (!d) return '';
+        const c = d.pct>=80?'var(--green)':d.pct>=60?'var(--yellow)':'var(--red)';
+        return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <span style="width:32px;font-size:11px;color:var(--muted)">${s}</span>
+          <div style="flex:1;height:6px;background:var(--s4);border-radius:3px;overflow:hidden">
+            <div style="width:${d.pct}%;height:100%;background:${c};border-radius:3px"></div>
+          </div>
+          <span style="font-size:11px;font-weight:700;color:${c};width:32px;text-align:right">${d.pct}%</span>
+        </div>`;
+      }).join('');
+      const classColor = lvResult.assigned_class==='A'?'var(--blue)':lvResult.assigned_class==='B'?'var(--purple)':'var(--green)';
+      const classLabel = {A:'A반 · SKY 목표',B:'B반 · 서울권 목표',C:'C반 · 일반대 목표'}[lvResult.assigned_class]||'';
+      lvInner.innerHTML = `<div style="display:flex;gap:16px;align-items:flex-start">
+        <div style="text-align:center;min-width:80px">
+          <div style="font-size:36px;font-weight:900;color:${classColor}">${lvResult.assigned_class}</div>
+          <div style="font-size:10px;color:var(--muted)">${classLabel}</div>
+          <div style="font-size:20px;font-weight:700;color:${classColor};margin-top:4px">${lvResult.pct}%</div>
+          <div style="font-size:10px;color:var(--muted)">${lvResult.total_score}/${lvResult.total_questions}점</div>
+        </div>
+        <div style="flex:1">${sectionHtml}</div>
+      </div>`;
+    }
   } catch(e) { toast(e.message,'error'); }
 }
 
@@ -2166,48 +2248,150 @@ function showTestResult(data) {
 // ══════════════════════════════════════════════
 // PERFORMANCE PAGE
 // ══════════════════════════════════════════════
+let _radarChart = null;
+
 async function loadPerformance() {
-  const el = document.getElementById('perf-content');
-  el.innerHTML = '<div class="loading-overlay"><div class="spinner"></div> 분석 중...</div>';
+  // 로딩 표시
+  document.getElementById('perf-loading').style.display='block';
+  ['perf-summary','perf-chart-row','perf-sub-card','perf-rec-card','perf-history-card','perf-empty']
+    .forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='none'; });
   try {
     const [analytics, history] = await Promise.all([
       api('GET', '/analytics'),
       api('GET', '/test/history')
     ]);
+    document.getElementById('perf-loading').style.display='none';
+
     if (analytics.message === '테스트 기록 없음') {
-      el.innerHTML = `<div class="empty-state"><div class="empty-icon">📊</div><div class="empty-text">아직 테스트 기록이 없습니다</div><div class="empty-sub">테스트 센터에서 테스트를 시작해보세요</div><div class="mt-12"><button class="btn btn-primary" onclick="showStuPage('stu-test',document.querySelectorAll('#sidebar-student .nav-item')[4])">테스트 센터 가기</button></div></div>`;
-      return;
+      document.getElementById('perf-empty').style.display='block'; return;
     }
-    const sections = analytics.sections||{};
-    el.innerHTML = `
-      <!-- 종합 점수 -->
-      <div class="card mb-16" style="text-align:center;padding:32px">
-        <div style="font-size:12px;color:var(--muted);margin-bottom:8px">전체 정답률</div>
-        <div style="font-size:52px;font-weight:900;color:${analytics.overall>=80?'var(--green)':analytics.overall>=60?'var(--yellow)':'var(--red)'}">${analytics.overall}%</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:6px">총 ${analytics.test_count}회 테스트 완료</div>
-        ${analytics.strong.length?`<div class="mt-8"><span style="font-size:11px;color:var(--muted)">강점: </span>${analytics.strong.map(s=>`<span class="chip" style="color:${sectionColor(s)}">${s}</span>`).join('')}</div>`:''}
-        ${analytics.weak.length?`<div class="mt-8"><span style="font-size:11px;color:var(--red)">취약: </span>${analytics.weak.map(s=>`<span class="chip" style="color:var(--red)">${s}</span>`).join('')}</div>`:''}
-      </div>
-      <!-- 섹션별 분석 -->
-      <div class="analytics-grid mb-16">
-        ${Object.entries(sections).map(([sec,d])=>`
-          <div class="analytics-card">
-            <div class="analytics-section-name" style="color:${sectionColor(sec)}">${sec}</div>
-            <span class="analytics-level ${d.level==='우수'?'level-excellent':d.level==='보통'?'level-normal':'level-weak'}">${d.level}</span>
-            <div class="progress-bar-wrap mb-8 mt-8"><div class="progress-bar-fill" style="width:${d.pct}%;background:${sectionColor(sec)}"></div></div>
-            <div style="font-size:11px;color:var(--muted);margin-bottom:8px">${d.correct}/${d.total} 정답 (${d.pct}%)</div>
-            <div class="analytics-feedback">${d.feedback}</div>
-          </div>`).join('')}
-      </div>
-      <!-- AI 추천 -->
-      ${analytics.recommendations.length?`<div class="card mb-16"><div class="card-title"><span class="ct-icon">💡</span> 학습 추천</div>${analytics.recommendations.map(r=>`<div style="padding:10px 0;border-bottom:1px solid var(--border);font-size:12px;line-height:1.6"><span style="color:var(--yellow);margin-right:8px">★</span>${r}</div>`).join('')}</div>`:''}
-      <!-- 테스트 이력 -->
-      <div class="card"><div class="card-title"><span class="ct-icon">📋</span> 테스트 이력</div>
-        ${history.length?`<div class="table-wrap"><table><thead><tr><th>유형</th><th>점수</th><th>정답률</th><th>일시</th></tr></thead><tbody>
-          ${history.map(h=>`<tr><td><span class="chip">${h.session_type}</span></td><td>${h.score}/${h.total}</td><td><b style="color:${h.pct>=80?'var(--green)':h.pct>=60?'var(--yellow)':'var(--red)'}">${h.pct}%</b></td><td style="font-size:11px;color:var(--muted)">${formatTs(h.completed_at)}</td></tr>`).join('')}
-        </tbody></table></div>`:'<div class="empty-state" style="padding:16px"><div class="empty-text">테스트 기록 없음</div></div>'}
+    const sections = analytics.sections || {};
+    const SECS = ['어휘','문법','독해','논리'];
+
+    // ── 종합 요약 ────────────────────────────────────────────────
+    document.getElementById('perf-overall').textContent = analytics.overall + '%';
+    document.getElementById('perf-count').textContent   = analytics.test_count + '회';
+    document.getElementById('perf-strong').textContent  = analytics.strong.length ? analytics.strong.join(' · ') : '—';
+    document.getElementById('perf-weak').textContent    = analytics.weak.length   ? analytics.weak.join(' · ')   : '없음';
+    document.getElementById('perf-summary').style.display = 'grid';
+
+    // ── 레이더 차트 ──────────────────────────────────────────────
+    const canvas = document.getElementById('radar-chart');
+    const noData = document.getElementById('radar-no-data');
+    const radarData = SECS.map(s => sections[s]?.pct ?? 0);
+    if (radarData.some(v=>v>0)) {
+      canvas.style.display = 'block'; noData.style.display = 'none';
+      if (_radarChart) { _radarChart.destroy(); _radarChart = null; }
+      _radarChart = new Chart(canvas, {
+        type: 'radar',
+        data: {
+          labels: SECS,
+          datasets: [{
+            label: '정답률 (%)',
+            data: radarData,
+            fill: true,
+            backgroundColor: 'rgba(79,125,255,0.18)',
+            borderColor: '#4f7dff',
+            pointBackgroundColor: SECS.map(s => sectionColor(s)),
+            pointBorderColor: '#fff',
+            pointRadius: 5,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          scales: { r: {
+            min: 0, max: 100,
+            ticks: { stepSize: 20, color: '#5a5e80', font: { size: 10 }, backdropColor: 'transparent' },
+            grid:       { color: 'rgba(255,255,255,0.07)' },
+            angleLines: { color: 'rgba(255,255,255,0.07)' },
+            pointLabels:{ color: '#dde1f5', font: { size: 13, weight: '600' } },
+          }},
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: ctx => ` ${ctx.raw}%` } }
+          }
+        }
+      });
+    } else { canvas.style.display='none'; noData.style.display='block'; }
+    document.getElementById('perf-chart-row').style.display = 'grid';
+
+    // ── 섹션별 바 차트 ───────────────────────────────────────────
+    document.getElementById('perf-section-bars').innerHTML = SECS.map(s => {
+      const d = sections[s];
+      if (!d) return `<div style="padding:10px 0;border-bottom:1px solid var(--border)"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:12px;font-weight:600;color:${sectionColor(s)}">${s}</span><span style="font-size:11px;color:var(--muted)">데이터 없음</span></div></div>`;
+      const c = d.pct>=80?'var(--green)':d.pct>=60?'var(--yellow)':'var(--red)';
+      const lv = d.pct>=80?'우수':d.pct>=60?'보통':'취약';
+      return `<div style="padding:10px 0;border-bottom:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+          <span style="font-size:12px;font-weight:600;color:${sectionColor(s)}">${s}</span>
+          <span style="font-size:12px;font-weight:700;color:${c}">${d.pct}% <span style="font-size:10px;font-weight:400;color:var(--muted)">(${d.correct}/${d.total}) ${lv}</span></span>
+        </div>
+        <div style="height:6px;background:var(--s4);border-radius:3px;overflow:hidden">
+          <div style="width:${d.pct}%;height:100%;background:${c};border-radius:3px;transition:width .6s"></div>
+        </div>
       </div>`;
-  } catch(e) { el.innerHTML = `<div class="empty-state"><div class="empty-text">오류: ${e.message}</div></div>`; }
+    }).join('');
+
+    // ── 세부요소 분석 ────────────────────────────────────────────
+    const subCard = document.getElementById('perf-sub-card');
+    const subEl   = document.getElementById('perf-sub-elements');
+    const subHasData = SECS.some(s => sections[s]?.sub && Object.keys(sections[s].sub).length > 0);
+    if (subHasData) {
+      subCard.style.display = 'block';
+      subEl.innerHTML = SECS.map(s => {
+        const d = sections[s]; if (!d || !d.sub) return '';
+        const subEntries = Object.entries(d.sub);
+        if (!subEntries.length) return '';
+        const subBars = subEntries.map(([tag, td]) => {
+          const c = td.pct>=80?'var(--green)':td.pct>=60?'var(--yellow)':'var(--red)';
+          const est = td.estimated ? ' <span style="font-size:9px;color:var(--muted)">(추정)</span>' : '';
+          return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+            <span style="font-size:11px;color:var(--sub);min-width:90px">${tag}${est}</span>
+            <div style="flex:1;height:5px;background:var(--s4);border-radius:3px;overflow:hidden">
+              <div style="width:${td.pct}%;height:100%;background:${c};border-radius:3px"></div>
+            </div>
+            <span style="font-size:11px;font-weight:700;color:${c};min-width:34px;text-align:right">${td.pct}%</span>
+          </div>`;
+        }).join('');
+        return `<div style="margin-bottom:18px">
+          <div style="font-size:12px;font-weight:700;color:${sectionColor(s)};margin-bottom:8px;display:flex;align-items:center;gap:6px">
+            ${s} <span style="font-size:11px;font-weight:400;color:var(--muted)">세부 요소</span>
+          </div>${subBars}</div>`;
+      }).join('');
+    }
+
+    // ── 추천 학습법 ──────────────────────────────────────────────
+    if (analytics.recommendations?.length) {
+      document.getElementById('perf-rec-card').style.display = 'block';
+      document.getElementById('perf-recommendations').innerHTML = analytics.recommendations.map((r,i) => {
+        const icons = ['📖','✏️','📄','🧠','🏫'];
+        return `<div style="display:flex;gap-10px;align-items:flex-start;padding:12px 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:18px;margin-right:10px">${icons[i]||'★'}</span>
+          <div style="font-size:12px;line-height:1.7;color:var(--text)">${r}</div>
+        </div>`;
+      }).join('');
+    }
+
+    // ── 테스트 이력 ──────────────────────────────────────────────
+    if (history.length) {
+      document.getElementById('perf-history-card').style.display = 'block';
+      const typeLabel = {vocab:'단어',grammar:'문법',reading:'독해',logic:'논리',mixed:'종합',university:'학교별',vocab_section:'어휘섹션'};
+      document.getElementById('perf-history').innerHTML =
+        `<div class="table-wrap"><table><thead><tr><th>유형</th><th>점수</th><th>정답률</th><th>일시</th></tr></thead><tbody>
+          ${history.map(h=>{
+            const c=h.pct>=80?'var(--green)':h.pct>=60?'var(--yellow)':'var(--red)';
+            const lbl=typeLabel[h.display_type||h.session_type]||h.session_type;
+            return `<tr><td><span class="chip">${lbl}</span></td><td>${h.score}/${h.total}</td>
+              <td><b style="color:${c}">${h.pct}%</b></td>
+              <td style="font-size:11px;color:var(--muted)">${formatTs(h.completed_at)}</td></tr>`;
+          }).join('')}
+        </tbody></table></div>`;
+    }
+  } catch(e) {
+    document.getElementById('perf-loading').style.display='none';
+    document.getElementById('perf-empty').style.display='block';
+    document.getElementById('perf-empty').innerHTML=`<div class="empty-state"><div class="empty-text">오류: ${e.message}</div></div>`;
+  }
 }
 
 // ══════════════════════════════════════════════
