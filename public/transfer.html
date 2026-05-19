@@ -1035,9 +1035,20 @@ tbody tr:hover{background:var(--s2)}
             <div class="card" style="max-width:500px">
               <div class="card-title"><span class="ct-icon">📚</span> 섹션별 테스트</div>
               <div class="form-group"><label class="form-label">섹션 선택</label>
-                <select id="sec-section" class="form-select"><option value="어휘">어휘 (Vocabulary)</option><option value="문법">문법 (Grammar)</option><option value="독해">독해 (Reading)</option><option value="논리">논리 (Logic)</option></select></div>
+                <select id="sec-section" class="form-select" onchange="updateSecCount()">
+                  <option value="어휘">어휘 (Vocabulary)</option>
+                  <option value="문법">문법 (Grammar)</option>
+                  <option value="독해">독해 (Reading)</option>
+                  <option value="논리">논리 (Logic)</option>
+                </select></div>
               <div class="form-group"><label class="form-label">문제 수</label>
-                <select id="sec-count" class="form-select"><option value="5">5문제</option><option value="10" selected>10문제</option><option value="15">15문제</option></select></div>
+                <select id="sec-count" class="form-select">
+                  <option value="5">5문제</option>
+                  <option value="10" selected>10문제</option>
+                  <option value="15">15문제</option>
+                </select>
+                <div id="sec-count-note" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
+              </div>
               <button class="btn btn-primary btn-full mt-12" onclick="startSectionTest()">섹션 테스트 시작 →</button>
             </div>
           </div>
@@ -2038,12 +2049,16 @@ function renderLTResult(r) {
   }).join('');
   // Feedback
   const fb = r.feedback||[];
-  document.getElementById('lt-feedback-list').innerHTML = fb.slice(0,20).map((f,i)=>`
+  document.getElementById('lt-feedback-list').innerHTML = fb.map((f,i)=>`
     <div class="feedback-item ${f.correct?'fb-correct':'fb-wrong'}">
-      <div class="flex gap-8 items-center mb-4"><span style="font-size:10px;font-weight:700;color:${f.correct?'var(--green)':'var(--red)'}">${f.correct?'✅ 정답':'❌ 오답'}</span><span class="chip" style="color:${sectionColor(f.section)}">${f.section}</span></div>
+      <div class="flex gap-8 items-center mb-4">
+        <span style="font-size:10px;font-weight:700;color:var(--muted)">${i+1}번</span>
+        <span style="font-size:10px;font-weight:700;color:${f.correct?'var(--green)':'var(--red)'}">${f.correct?'✅ 정답':'❌ 오답'}</span>
+        <span class="chip" style="color:${sectionColor(f.section)}">${f.section}</span>
+      </div>
       ${!f.correct?`<div style="font-size:11px;color:var(--muted)">정답: <b style="color:var(--green)">${f.correct_answer}</b></div>`:''}
       ${f.explanation?`<div class="feedback-explanation">${f.explanation}</div>`:''}
-    </div>`).join('') + (fb.length>20?`<div style="text-align:center;font-size:11px;color:var(--muted);padding:8px">... 외 ${fb.length-20}문항</div>`:'');
+    </div>`).join('');
 }
 
 function resetLevelTest() {
@@ -2123,6 +2138,28 @@ async function submitVocabTest() {
     const pct = Math.round(correct/total*100);
     showTestResult({ score:correct, total, pct, type:'단어테스트', feedback, isVocab:true });
   } catch(e) { toast(e.message,'error'); }
+}
+
+// 섹션별 문제 수 최대치 안내 (어휘/문법=10개, 독해/논리=15개)
+const SEC_MAX = { '어휘':10, '문법':10, '독해':15, '논리':15 };
+function updateSecCount() {
+  const section = document.getElementById('sec-section').value;
+  const max = SEC_MAX[section] || 10;
+  const sel = document.getElementById('sec-count');
+  const note = document.getElementById('sec-count-note');
+  // 현재 선택값 유지하되 최대치 초과 옵션 비활성화
+  [...sel.options].forEach(opt => {
+    opt.disabled = parseInt(opt.value) > max;
+    if (opt.disabled && opt.selected) {
+      // 최대치로 자동 선택
+      sel.value = String(max);
+    }
+  });
+  if (max < 15) {
+    note.textContent = `※ ${section} 섹션은 최대 ${max}문제까지 선택 가능합니다.`;
+  } else {
+    note.textContent = `5 / 10 / 15문제 중 선택하세요.`;
+  }
 }
 
 async function startSectionTest() {
