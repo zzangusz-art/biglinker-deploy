@@ -2411,6 +2411,8 @@ function resetTestCenter() {
   document.getElementById('test-running').style.display='none';
   document.getElementById('vocab-running').style.display='none';
   document.getElementById('test-result').style.display='none';
+  // 섹션 선택 초기 문제 수 안내 업데이트
+  updateSecCount();
 }
 
 async function startVocabTest() {
@@ -2616,7 +2618,7 @@ let _radarChart = null;
 async function loadPerformance() {
   // 로딩 표시
   document.getElementById('perf-loading').style.display='block';
-  ['perf-summary','perf-chart-row','perf-sub-card','perf-rec-card','perf-history-card','perf-empty']
+  ['perf-summary','perf-chart-row','perf-attend-card','perf-sub-card','perf-rec-card','perf-history-card','perf-empty']
     .forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='none'; });
   try {
     const [analytics, history, attendance] = await Promise.all([
