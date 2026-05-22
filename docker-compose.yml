@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  # ═══════════════════════════════════════════════════════
+  # BigLinker 메인 애플리케이션
+  # ═══════════════════════════════════════════════════════
+  biglinker:
+    build: .
+    container_name: biglinker-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      JWT_SECRET: ${JWT_SECRET:-change-me-to-random-64-chars}
+      PORT: 3000
+      DB_PATH: /data/biglinker.db
+      UPLOADS_DIR: /data/uploads
+      LOG_LEVEL: info
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:8080
+    volumes:
+      # 데이터 영속성
+      - biglinker-data:/data
+      # 개발시 소스 코드 마운트 (선택사항)
+      # - ./:/app
+      # - /app/node_modules
+    networks:
+      - biglinker-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', r => process.exit(r.statusCode===200?0:1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  biglinker-data:
+    driver: local
+
+networks:
+  biglinker-network:
+    driver: bridge

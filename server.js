@@ -2992,6 +2992,574 @@ app.get('/api/tl/today', tlAuth, (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ═══════════════════════════════════════════════════════
+//  ERP — 빅링커 사내 통합 업무 시스템
+//  대표(ceo) · 관리자(manager) · 직원(employee)
+// ═══════════════════════════════════════════════════════
+
+try { db.exec("ALTER TABLE users ADD COLUMN erp_role TEXT DEFAULT NULL"); } catch {}
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS erp_employees (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    department TEXT DEFAULT '운영팀',
+    position TEXT DEFAULT '직원',
+    employment_type TEXT DEFAULT '정규직',
+    hire_date TEXT,
+    base_salary INTEGER DEFAULT 0,
+    phone TEXT DEFAULT '',
+    emergency_contact TEXT DEFAULT '',
+    bank_info TEXT DEFAULT '',
+    status TEXT DEFAULT '재직'
+  );
+  CREATE TABLE IF NOT EXISTS erp_attendance (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    work_date TEXT NOT NULL,
+    check_in TEXT,
+    check_out TEXT,
+    work_hours REAL DEFAULT 0,
+    status TEXT DEFAULT '정상',
+    note TEXT DEFAULT '',
+    created_at INTEGER DEFAULT (strftime('%s','now'))
+  );
+  CREATE TABLE IF NOT EXISTS erp_tasks (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    assignee_id TEXT REFERENCES users(id),
+    creator_id TEXT NOT NULL REFERENCES users(id),
+    priority TEXT DEFAULT '보통',
+    status TEXT DEFAULT '대기',
+    due_date TEXT,
+    category TEXT DEFAULT '일반',
+    completed_at INTEGER,
+    created_at INTEGER DEFAULT (strftime('%s','now'))
+  );
+  CREATE TABLE IF NOT EXISTS erp_schedules (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    creator_id TEXT REFERENCES users(id),
+    attendees TEXT DEFAULT '[]',
+    type TEXT DEFAULT '일반',
+    start_dt TEXT NOT NULL,
+    end_dt TEXT,
+    location TEXT DEFAULT '',
+    all_day INTEGER DEFAULT 0,
+    color TEXT DEFAULT '#4f7dff',
+    created_at INTEGER DEFAULT (strftime('%s','now'))
+  );
+  CREATE TABLE IF NOT EXISTS erp_notices (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    author_id TEXT REFERENCES users(id),
+    target TEXT DEFAULT '전체',
+    is_pinned INTEGER DEFAULT 0,
+    views INTEGER DEFAULT 0,
+    created_at INTEGER DEFAULT (strftime('%s','now')),
+    updated_at INTEGER DEFAULT (strftime('%s','now'))
+  );
+  CREATE TABLE IF NOT EXISTS erp_approvals (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    content TEXT DEFAULT '',
+    requester_id TEXT NOT NULL REFERENCES users(id),
+    approver_id TEXT REFERENCES users(id),
+    status TEXT DEFAULT '대기',
+    approver_note TEXT DEFAULT '',
+    requested_at INTEGER DEFAULT (strftime('%s','now')),
+    processed_at INTEGER
+  );
+  CREATE TABLE IF NOT EXISTS erp_revenue (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    amount INTEGER NOT NULL,
+    category TEXT DEFAULT '수강료',
+    client_id TEXT REFERENCES users(id),
+    payment_date TEXT,
+    status TEXT DEFAULT '완료',
+    note TEXT DEFAULT '',
+    created_at INTEGER DEFAULT (strftime('%s','now'))
+  );
+  CREATE TABLE IF NOT EXISTS erp_expenses (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    amount INTEGER NOT NULL,
+    category TEXT DEFAULT '운영비',
+    spender_id TEXT REFERENCES users(id),
+    expense_date TEXT,
+    status TEXT DEFAULT '승인',
+    note TEXT DEFAULT '',
+    created_at INTEGER DEFAULT (strftime('%s','now'))
+  );
+  CREATE TABLE IF NOT EXISTS erp_okrs (
+    id TEXT PRIMARY KEY,
+    objective TEXT NOT NULL,
+    key_result TEXT NOT NULL,
+    owner_id TEXT REFERENCES users(id),
+    quarter TEXT DEFAULT '',
+    progress INTEGER DEFAULT 0,
+    status TEXT DEFAULT '진행중',
+    created_at INTEGER DEFAULT (strftime('%s','now'))
+  );
+  CREATE TABLE IF NOT EXISTS erp_payroll (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    year_month TEXT NOT NULL,
+    base_salary INTEGER DEFAULT 0,
+    bonus INTEGER DEFAULT 0,
+    deduction INTEGER DEFAULT 0,
+    net_salary INTEGER DEFAULT 0,
+    status TEXT DEFAULT '예정',
+    payment_date TEXT,
+    created_at INTEGER DEFAULT (strftime('%s','now'))
+  );
+`);
+
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_erp_att ON erp_attendance(user_id, work_date);
+  CREATE INDEX IF NOT EXISTS idx_erp_task_a ON erp_tasks(assignee_id, status);
+  CREATE INDEX IF NOT EXISTS idx_erp_sched ON erp_schedules(start_dt);
+  CREATE INDEX IF NOT EXISTS idx_erp_notice ON erp_notices(is_pinned DESC, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_erp_appr_r ON erp_approvals(requester_id, status);
+  CREATE INDEX IF NOT EXISTS idx_erp_appr_a ON erp_approvals(approver_id, status);
+`);
+
+function seedErp() {
+  if (!db.prepare("SELECT id FROM users WHERE username='ceo'").get()) {
+    const h = bcrypt.hashSync('ceo1234', 10);
+    db.prepare("INSERT OR IGNORE INTO users (id,username,password_hash,role,name,erp_role) VALUES (?,?,?,?,?,?)")
+      .run('erp_ceo','ceo',h,'admin','대표이사','ceo');
+    db.prepare("INSERT OR IGNORE INTO erp_employees (user_id,department,position,employment_type,hire_date,base_salary,phone) VALUES (?,?,?,?,?,?,?)")
+      .run('erp_ceo','경영진','대표이사','정규직','2020-03-01',0,'010-1000-0001');
+  }
+  db.prepare("UPDATE users SET erp_role='manager' WHERE role='admin' AND erp_role IS NULL").run();
+  db.prepare("UPDATE users SET erp_role='employee' WHERE role='consultant' AND erp_role IS NULL").run();
+
+  const empIns = db.prepare("INSERT OR IGNORE INTO erp_employees (user_id,department,position,employment_type,hire_date,base_salary) VALUES (?,?,?,?,?,?)");
+  db.prepare("SELECT * FROM users WHERE erp_role IN ('ceo','manager','employee')").all().forEach(u => {
+    const dept = u.erp_role==='ceo'?'경영진':u.role==='admin'?'운영팀':'컨설팅팀';
+    const pos  = u.erp_role==='ceo'?'대표이사':u.role==='admin'?'팀장':'컨설턴트';
+    const hd   = u.created_at ? new Date(u.created_at*1000).toISOString().slice(0,10) : '2024-01-01';
+    empIns.run(u.id, dept, pos, '정규직', hd, 0);
+  });
+
+  if (!db.prepare("SELECT id FROM erp_revenue LIMIT 1").get()) {
+    const ri = db.prepare("INSERT OR IGNORE INTO erp_revenue (id,title,amount,category,payment_date,status,note) VALUES (?,?,?,?,?,?,?)");
+    [['2026-02','1800000'],['2026-03','2100000'],['2026-04','2350000'],['2026-05','1950000']].forEach(([m,a],i)=>{
+      ri.run(`rev_${i*3+1}`,`${m} 수강료 수납`,parseInt(a),'수강료',`${m}-10`,'완료','');
+      ri.run(`rev_${i*3+2}`,`${m} 컨설팅비`,650000,'컨설팅비',`${m}-15`,'완료','');
+      if(i===2) ri.run(`rev_${i*3+3}`,'기업교육 강의료',2500000,'기업교육','2026-04-20','완료','A기업 직원 연수');
+    });
+    ri.run('rev_13','국제협력 프로그램비',1200000,'기타','2026-05-05','완료','');
+  }
+  if (!db.prepare("SELECT id FROM erp_expenses LIMIT 1").get()) {
+    const ei = db.prepare("INSERT OR IGNORE INTO erp_expenses (id,title,amount,category,expense_date,status) VALUES (?,?,?,?,?,?)");
+    [['exp_1','사무실 임대료',900000,'임대료','2026-05-01'],
+     ['exp_2','인터넷·전기 요금',87000,'공과금','2026-05-08'],
+     ['exp_3','교육 교재 구매',145000,'교재비','2026-05-10'],
+     ['exp_4','마케팅 광고비',300000,'마케팅','2026-05-12'],
+     ['exp_5','소프트웨어 구독',55000,'IT비용','2026-05-01'],
+     ['exp_6','회식비',120000,'복리후생','2026-05-15']].forEach(r=>ei.run(...r,'승인'));
+  }
+  if (!db.prepare("SELECT id FROM erp_notices LIMIT 1").get()) {
+    const ni = db.prepare("INSERT OR IGNORE INTO erp_notices (id,title,content,author_id,target,is_pinned,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)");
+    const now = Math.floor(Date.now()/1000);
+    ni.run('nt_1','[필독] 2026년 5월 사내 공지','5월 한 달 동안 신규 학생 모집이 진행됩니다. 각 컨설턴트분들은 담당 학생 면담 일정을 반드시 확인해주세요. 이달 목표 달성을 위해 적극적인 참여 부탁드립니다.','erp_ceo','전체',1,now-86400*3,now-86400*3);
+    ni.run('nt_2','수시 컨설팅 강화 방안 공유','2027학년도 수시 전략 강화를 위한 내부 교육을 진행합니다.\n일정: 5/25(월) 오후 3시\n장소: 대회의실\n참석 대상: 전 컨설턴트','adm_1','전체',0,now-86400,now-86400);
+    ni.run('nt_3','[필독] 개인정보 보호 교육 안내','연 1회 의무 개인정보 보호 교육이 실시됩니다. 6/1까지 온라인 교육 이수 후 확인서를 운영팀에 제출해주세요.','adm_1','전체',0,now-3600*2,now-3600*2);
+  }
+  if (!db.prepare("SELECT id FROM erp_okrs LIMIT 1").get()) {
+    const oi = db.prepare("INSERT OR IGNORE INTO erp_okrs (id,objective,key_result,owner_id,quarter,progress,status) VALUES (?,?,?,?,?,?,?)");
+    oi.run('okr_1','2026 Q2 수강생 만족도 최고치 달성','수강생 만족도 설문 평균 4.5점 이상 달성','erp_ceo','2026-Q2',68,'진행중');
+    oi.run('okr_2','2026 Q2 수강생 만족도 최고치 달성','컨설팅 피드백 응답률 95% 이상 유지','adm_1','2026-Q2',82,'진행중');
+    oi.run('okr_3','신규 사업 영역 개척','기업교육 계약 3건 이상 신규 수주','erp_ceo','2026-Q2',33,'진행중');
+    oi.run('okr_4','신규 사업 영역 개척','국제협력 파트너 2개 기관 이상 확보','erp_ceo','2026-Q2',50,'진행중');
+    oi.run('okr_5','내부 운영 효율화','업무 자동화로 주당 반복 업무 2시간 절감','adm_1','2026-Q2',40,'진행중');
+  }
+  if (!db.prepare("SELECT id FROM erp_tasks LIMIT 1").get()) {
+    const ti = db.prepare("INSERT OR IGNORE INTO erp_tasks (id,title,description,assignee_id,creator_id,priority,status,due_date,category) VALUES (?,?,?,?,?,?,?,?,?)");
+    const nw = new Date(Date.now()+7*86400000).toISOString().slice(0,10);
+    const td = new Date().toISOString().slice(0,10);
+    ti.run('tsk_1','5월 학생 성과 보고서 작성','담당 학생 전체 역량 분석 결과 취합 및 보고서 작성','cons_1','adm_1','높음','진행중',nw,'보고');
+    ti.run('tsk_2','신규 수강생 온보딩 자료 업데이트','2026년 기준 최신 입학 요강 반영','cons_1','adm_1','보통','대기',nw,'운영');
+    ti.run('tsk_3','홈페이지 서비스 소개 개선','gobiglinker.com 용역 서비스 상세 설명 추가','adm_1','erp_ceo','보통','대기',nw,'IT');
+    ti.run('tsk_4','6월 기업교육 제안서 작성','B기업 방문 교육 제안서 초안 준비','adm_1','erp_ceo','긴급','진행중',td,'영업');
+    ti.run('tsk_5','컨설턴트 역량 교육 일정 수립','수시 전략 심화 교육 커리큘럼 기획','adm_1','erp_ceo','보통','완료',td,'교육');
+  }
+  if (!db.prepare("SELECT id FROM erp_approvals LIMIT 1").get()) {
+    const ai = db.prepare("INSERT OR IGNORE INTO erp_approvals (id,type,title,content,requester_id,approver_id,status,requested_at) VALUES (?,?,?,?,?,?,?,?)");
+    const now = Math.floor(Date.now()/1000);
+    ai.run('appr_1','휴가신청','[연차] 5/30(금) 연차 1일 신청','개인 사정으로 연차를 신청합니다.','cons_1','adm_1','대기',now-3600*5);
+    ai.run('appr_2','지출결의','교육 교재 구매비 145,000원','신규 수강생 배부용 교재 구매 승인 요청','cons_1','adm_1','승인',now-86400*2);
+    ai.run('appr_3','업무보고','5월 3주차 주간 업무 보고','수행 업무: 학생 4명 세특 피드백, 신규 면담 2건','cons_1','adm_1','승인',now-86400*7);
+  }
+  log('info','[ERP] 시드 완료');
+}
+seedErp();
+
+// ── ERP 인증 미들웨어 ─────────────────────────────────
+function erpGetRole(userId) {
+  const u = db.prepare("SELECT erp_role, role FROM users WHERE id=?").get(userId);
+  if (!u) return null;
+  if (u.erp_role) return u.erp_role;
+  if (u.role === 'admin') return 'manager';
+  if (u.role === 'consultant') return 'employee';
+  return null;
+}
+
+function erpAuth(req, res, next) {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ error: '로그인이 필요합니다' });
+  try {
+    req.user = jwt.verify(token, JWT_SECRET);
+    req.user.erpRole = erpGetRole(req.user.id);
+    if (!req.user.erpRole) return res.status(403).json({ error: 'ERP 접근 권한이 없습니다' });
+    next();
+  } catch { res.status(401).json({ error: '세션이 만료되었습니다' }); }
+}
+
+function erpManager(req, res, next) {
+  if (!['ceo','manager'].includes(req.user.erpRole))
+    return res.status(403).json({ error: '관리자 이상 권한이 필요합니다' });
+  next();
+}
+
+function erpCeo(req, res, next) {
+  if (req.user.erpRole !== 'ceo')
+    return res.status(403).json({ error: '대표 권한이 필요합니다' });
+  next();
+}
+
+// ── ERP 현재 사용자 ──────────────────────────────────
+app.get('/api/erp/me', erpAuth, (req, res) => {
+  const u = db.prepare("SELECT id,name,username,role,erp_role FROM users WHERE id=?").get(req.user.id);
+  const emp = db.prepare("SELECT * FROM erp_employees WHERE user_id=?").get(u.id);
+  res.json({ id:u.id, name:u.name, username:u.username, role:u.role, erpRole:req.user.erpRole,
+    department:emp?.department||'', position:emp?.position||'', status:emp?.status||'재직',
+    hire_date:emp?.hire_date||'', base_salary:emp?.base_salary||0, phone:emp?.phone||'' });
+});
+
+// ── ERP 대시보드 ─────────────────────────────────────
+app.get('/api/erp/dashboard', erpAuth, (req, res) => {
+  const role = req.user.erpRole;
+  const today = new Date().toISOString().slice(0,10);
+  const thisMonth = today.slice(0,7);
+
+  const notices = db.prepare("SELECT id,title,is_pinned,created_at FROM erp_notices ORDER BY is_pinned DESC,created_at DESC LIMIT 5").all();
+  const myTasks = db.prepare("SELECT id,title,priority,status,due_date FROM erp_tasks WHERE assignee_id=? AND status!='완료' ORDER BY priority DESC,due_date LIMIT 8").all(req.user.id);
+  const todayAtt = db.prepare("SELECT check_in,check_out,status FROM erp_attendance WHERE user_id=? AND work_date=?").get(req.user.id, today);
+  const base = { notices, myTasks, todayAttendance: todayAtt||null, today };
+
+  if (role === 'ceo') {
+    const monthRev = db.prepare("SELECT COALESCE(SUM(amount),0) AS t FROM erp_revenue WHERE strftime('%Y-%m',payment_date)=? AND status='완료'").get(thisMonth)?.t||0;
+    const monthExp = db.prepare("SELECT COALESCE(SUM(amount),0) AS t FROM erp_expenses WHERE strftime('%Y-%m',expense_date)=? AND status='승인'").get(thisMonth)?.t||0;
+    const totalStudents = db.prepare("SELECT COUNT(*) AS n FROM users WHERE role='student'").get()?.n||0;
+    const totalEmp = db.prepare("SELECT COUNT(*) AS n FROM erp_employees WHERE status='재직'").get()?.n||0;
+    const pendingAppr = db.prepare("SELECT COUNT(*) AS n FROM erp_approvals WHERE status='대기'").get()?.n||0;
+    const monthlyRev = db.prepare("SELECT strftime('%Y-%m',payment_date) AS m, SUM(amount) AS t FROM erp_revenue WHERE status='완료' AND payment_date>=date('now','-5 months') GROUP BY m ORDER BY m").all();
+    const monthlyExp = db.prepare("SELECT strftime('%Y-%m',expense_date) AS m, SUM(amount) AS t FROM erp_expenses WHERE status='승인' AND expense_date>=date('now','-5 months') GROUP BY m ORDER BY m").all();
+    const teamAtt = db.prepare("SELECT u.id,u.name,e.department,a.check_in,a.check_out,a.status FROM users u LEFT JOIN erp_employees e ON u.id=e.user_id LEFT JOIN erp_attendance a ON u.id=a.user_id AND a.work_date=? WHERE u.erp_role IS NOT NULL AND u.role!='student' ORDER BY e.department,u.name").all(today);
+    const pendingApprList = db.prepare("SELECT a.*,r.name AS rname FROM erp_approvals a LEFT JOIN users r ON a.requester_id=r.id WHERE a.status='대기' ORDER BY a.requested_at DESC LIMIT 5").all();
+    return res.json({...base, kpi:{monthRev,monthExp,profit:monthRev-monthExp,totalStudents,totalEmp,pendingAppr}, monthlyRev, monthlyExp, teamAtt, pendingApprList});
+  }
+
+  if (role === 'manager') {
+    const pendingAppr = db.prepare("SELECT COUNT(*) AS n FROM erp_approvals WHERE approver_id=? AND status='대기'").get(req.user.id)?.n||0;
+    const teamTasks = db.prepare("SELECT t.*,u.name AS aname FROM erp_tasks t LEFT JOIN users u ON t.assignee_id=u.id WHERE t.status!='완료' ORDER BY CASE t.priority WHEN '긴급' THEN 0 WHEN '높음' THEN 1 ELSE 2 END,t.due_date LIMIT 15").all();
+    const teamAtt = db.prepare("SELECT u.id,u.name,e.department,a.check_in,a.check_out,a.status FROM users u LEFT JOIN erp_employees e ON u.id=e.user_id LEFT JOIN erp_attendance a ON u.id=a.user_id AND a.work_date=? WHERE u.role IN ('consultant','admin') OR u.erp_role IN ('employee','manager') ORDER BY u.name").all(today);
+    const studentCount = db.prepare("SELECT COUNT(*) AS n FROM users WHERE role='student'").get()?.n||0;
+    return res.json({...base, pendingAppr, teamTasks, teamAtt, studentCount});
+  }
+
+  const myApprovals = db.prepare("SELECT id,type,title,status,requested_at FROM erp_approvals WHERE requester_id=? ORDER BY requested_at DESC LIMIT 5").all(req.user.id);
+  const myStudents = db.prepare("SELECT id,name,school,grade,target_univ FROM users WHERE consultant_id=? AND role='student'").all(req.user.id);
+  res.json({...base, myApprovals, myStudents});
+});
+
+// ── 직원 관리 ────────────────────────────────────────
+app.get('/api/erp/employees', erpAuth, erpManager, (req, res) => {
+  res.json(db.prepare("SELECT u.id,u.name,u.username,u.role,u.erp_role,u.email,e.department,e.position,e.employment_type,e.hire_date,e.base_salary,e.phone,e.status FROM users u LEFT JOIN erp_employees e ON u.id=e.user_id WHERE u.erp_role IS NOT NULL AND u.role!='student' ORDER BY e.department,u.name").all());
+});
+
+app.put('/api/erp/employees/:id', erpAuth, erpManager, (req, res) => {
+  const {department,position,employment_type,hire_date,base_salary,phone,emergency_contact,bank_info,status} = req.body;
+  db.prepare("INSERT INTO erp_employees (user_id,department,position,employment_type,hire_date,base_salary,phone,emergency_contact,bank_info,status) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET department=excluded.department,position=excluded.position,employment_type=excluded.employment_type,hire_date=excluded.hire_date,base_salary=excluded.base_salary,phone=excluded.phone,emergency_contact=excluded.emergency_contact,bank_info=excluded.bank_info,status=excluded.status")
+    .run(req.params.id,department||'',position||'',employment_type||'정규직',hire_date||'',parseInt(base_salary)||0,phone||'',emergency_contact||'',bank_info||'',status||'재직');
+  res.json({success:true});
+});
+
+// ── 출퇴근 ───────────────────────────────────────────
+app.get('/api/erp/attendance', erpAuth, (req, res) => {
+  const targetId = req.user.erpRole==='employee' ? req.user.id : (req.query.userId||req.user.id);
+  const from = req.query.from || new Date(Date.now()-30*86400000).toISOString().slice(0,10);
+  const to   = req.query.to   || new Date().toISOString().slice(0,10);
+  res.json(db.prepare("SELECT a.*,u.name FROM erp_attendance a JOIN users u ON a.user_id=u.id WHERE a.user_id=? AND a.work_date BETWEEN ? AND ? ORDER BY a.work_date DESC").all(targetId,from,to));
+});
+
+app.get('/api/erp/attendance/team', erpAuth, erpManager, (req, res) => {
+  const date = req.query.date || new Date().toISOString().slice(0,10);
+  res.json(db.prepare("SELECT u.id,u.name,u.role,e.department,e.position,a.check_in,a.check_out,a.status,a.work_hours,a.note FROM users u LEFT JOIN erp_employees e ON u.id=e.user_id LEFT JOIN erp_attendance a ON u.id=a.user_id AND a.work_date=? WHERE u.erp_role IS NOT NULL AND u.role!='student' ORDER BY e.department,u.name").all(date));
+});
+
+app.post('/api/erp/attendance/checkin', erpAuth, (req, res) => {
+  const today = new Date().toISOString().slice(0,10);
+  const now   = new Date().toTimeString().slice(0,5);
+  if (db.prepare("SELECT id FROM erp_attendance WHERE user_id=? AND work_date=?").get(req.user.id,today))
+    return res.status(400).json({error:'이미 출근 처리되었습니다'});
+  const status = parseInt(now.split(':')[0]) >= 9 ? '지각' : '정상';
+  const id = uid();
+  db.prepare("INSERT INTO erp_attendance (id,user_id,work_date,check_in,status) VALUES (?,?,?,?,?)").run(id,req.user.id,today,now,status);
+  res.json({success:true,checkIn:now,status,id});
+});
+
+app.post('/api/erp/attendance/checkout', erpAuth, (req, res) => {
+  const today = new Date().toISOString().slice(0,10);
+  const now   = new Date().toTimeString().slice(0,5);
+  const att = db.prepare("SELECT * FROM erp_attendance WHERE user_id=? AND work_date=?").get(req.user.id,today);
+  if (!att) return res.status(400).json({error:'출근 기록이 없습니다'});
+  if (att.check_out) return res.status(400).json({error:'이미 퇴근 처리되었습니다'});
+  const [h1,m1]=att.check_in.split(':').map(Number), [h2,m2]=now.split(':').map(Number);
+  const hours = Math.max(0,((h2*60+m2)-(h1*60+m1))/60);
+  const status = att.status==='지각'?'지각':(hours<8?'조퇴':'정상');
+  db.prepare("UPDATE erp_attendance SET check_out=?,work_hours=?,status=? WHERE id=?").run(now,parseFloat(hours.toFixed(2)),status,att.id);
+  res.json({success:true,checkOut:now,workHours:hours.toFixed(1),status});
+});
+
+app.post('/api/erp/attendance/admin', erpAuth, erpManager, (req, res) => {
+  const {user_id,work_date,check_in,check_out,status,note} = req.body;
+  const hours = (check_in&&check_out) ? (() => { const [h1,m1]=check_in.split(':').map(Number),[h2,m2]=check_out.split(':').map(Number); return Math.max(0,((h2*60+m2)-(h1*60+m1))/60); })() : 0;
+  const ex = db.prepare("SELECT id FROM erp_attendance WHERE user_id=? AND work_date=?").get(user_id,work_date);
+  if (ex) db.prepare("UPDATE erp_attendance SET check_in=?,check_out=?,status=?,work_hours=?,note=? WHERE id=?").run(check_in||null,check_out||null,status||'정상',hours,note||'',ex.id);
+  else db.prepare("INSERT INTO erp_attendance (id,user_id,work_date,check_in,check_out,status,work_hours,note) VALUES (?,?,?,?,?,?,?,?)").run(uid(),user_id,work_date,check_in||null,check_out||null,status||'정상',hours,note||'');
+  res.json({success:true});
+});
+
+// ── 업무 태스크 ──────────────────────────────────────
+app.get('/api/erp/tasks', erpAuth, (req, res) => {
+  let q = "SELECT t.*,u.name AS aname,c.name AS cname FROM erp_tasks t LEFT JOIN users u ON t.assignee_id=u.id LEFT JOIN users c ON t.creator_id=c.id WHERE 1=1";
+  const p = [];
+  if (req.user.erpRole==='employee' && req.query.all!=='1') { q+=' AND t.assignee_id=?'; p.push(req.user.id); }
+  if (req.query.status) { q+=' AND t.status=?'; p.push(req.query.status); }
+  if (req.query.assignee) { q+=' AND t.assignee_id=?'; p.push(req.query.assignee); }
+  q+=" ORDER BY CASE t.priority WHEN '긴급' THEN 0 WHEN '높음' THEN 1 WHEN '보통' THEN 2 ELSE 3 END,t.due_date LIMIT 100";
+  res.json(db.prepare(q).all(...p));
+});
+
+app.post('/api/erp/tasks', erpAuth, erpManager, (req, res) => {
+  const {title,description,assignee_id,priority,status,due_date,category} = req.body;
+  if (!title) return res.status(400).json({error:'title 필수'});
+  const id = uid();
+  db.prepare("INSERT INTO erp_tasks (id,title,description,assignee_id,creator_id,priority,status,due_date,category) VALUES (?,?,?,?,?,?,?,?,?)").run(id,title,description||'',assignee_id||null,req.user.id,priority||'보통',status||'대기',due_date||null,category||'일반');
+  res.json({id,success:true});
+});
+
+app.put('/api/erp/tasks/:id', erpAuth, (req, res) => {
+  const t = db.prepare("SELECT * FROM erp_tasks WHERE id=?").get(req.params.id);
+  if (!t) return res.status(404).json({error:'없음'});
+  if (req.user.erpRole==='employee' && t.assignee_id!==req.user.id) return res.status(403).json({error:'권한 없음'});
+  const {title,description,assignee_id,priority,status,due_date,category} = req.body;
+  const isDone = status==='완료' && t.status!=='완료';
+  db.prepare("UPDATE erp_tasks SET title=COALESCE(?,title),description=COALESCE(?,description),assignee_id=COALESCE(?,assignee_id),priority=COALESCE(?,priority),status=COALESCE(?,status),due_date=COALESCE(?,due_date),category=COALESCE(?,category),completed_at=? WHERE id=?")
+    .run(title||null,description||null,assignee_id||null,priority||null,status||null,due_date||null,category||null,isDone?Math.floor(Date.now()/1000):t.completed_at,req.params.id);
+  res.json({success:true});
+});
+
+app.delete('/api/erp/tasks/:id', erpAuth, erpManager, (req, res) => {
+  db.prepare("DELETE FROM erp_tasks WHERE id=?").run(req.params.id);
+  res.json({success:true});
+});
+
+// ── 일정 ─────────────────────────────────────────────
+app.get('/api/erp/schedules', erpAuth, (req, res) => {
+  const from = req.query.from || new Date(Date.now()-30*86400000).toISOString().slice(0,10);
+  const to   = req.query.to   || new Date(Date.now()+60*86400000).toISOString().slice(0,10);
+  res.json(db.prepare("SELECT s.*,u.name AS cname FROM erp_schedules s LEFT JOIN users u ON s.creator_id=u.id WHERE date(s.start_dt) BETWEEN ? AND ? ORDER BY s.start_dt").all(from,to));
+});
+
+app.post('/api/erp/schedules', erpAuth, (req, res) => {
+  const {title,description,attendees,type,start_dt,end_dt,location,all_day,color} = req.body;
+  if (!title||!start_dt) return res.status(400).json({error:'필수 항목 누락'});
+  const id = uid();
+  db.prepare("INSERT INTO erp_schedules (id,title,description,creator_id,attendees,type,start_dt,end_dt,location,all_day,color) VALUES (?,?,?,?,?,?,?,?,?,?,?)").run(id,title,description||'',req.user.id,JSON.stringify(attendees||[]),type||'일반',start_dt,end_dt||null,location||'',all_day?1:0,color||'#4f7dff');
+  res.json({id,success:true});
+});
+
+app.put('/api/erp/schedules/:id', erpAuth, (req, res) => {
+  const s = db.prepare("SELECT creator_id FROM erp_schedules WHERE id=?").get(req.params.id);
+  if (!s) return res.status(404).json({error:'없음'});
+  if (req.user.erpRole==='employee' && s.creator_id!==req.user.id) return res.status(403).json({error:'권한 없음'});
+  const {title,description,attendees,type,start_dt,end_dt,location,all_day,color} = req.body;
+  db.prepare("UPDATE erp_schedules SET title=COALESCE(?,title),description=COALESCE(?,description),attendees=COALESCE(?,attendees),type=COALESCE(?,type),start_dt=COALESCE(?,start_dt),end_dt=COALESCE(?,end_dt),location=COALESCE(?,location),all_day=COALESCE(?,all_day),color=COALESCE(?,color) WHERE id=?")
+    .run(title||null,description||null,attendees?JSON.stringify(attendees):null,type||null,start_dt||null,end_dt||null,location||null,all_day!=null?all_day?1:0:null,color||null,req.params.id);
+  res.json({success:true});
+});
+
+app.delete('/api/erp/schedules/:id', erpAuth, (req, res) => {
+  const s = db.prepare("SELECT creator_id FROM erp_schedules WHERE id=?").get(req.params.id);
+  if (!s) return res.status(404).json({error:'없음'});
+  if (req.user.erpRole==='employee' && s.creator_id!==req.user.id) return res.status(403).json({error:'권한 없음'});
+  db.prepare("DELETE FROM erp_schedules WHERE id=?").run(req.params.id);
+  res.json({success:true});
+});
+
+// ── 공지사항 ──────────────────────────────────────────
+app.get('/api/erp/notices', erpAuth, (req, res) => {
+  res.json(db.prepare("SELECT n.*,u.name AS aname FROM erp_notices n LEFT JOIN users u ON n.author_id=u.id ORDER BY n.is_pinned DESC,n.created_at DESC LIMIT 50").all().map(n=>({...n,createdAt:n.created_at*1000})));
+});
+
+app.get('/api/erp/notices/:id', erpAuth, (req, res) => {
+  db.prepare("UPDATE erp_notices SET views=views+1 WHERE id=?").run(req.params.id);
+  const n = db.prepare("SELECT n.*,u.name AS aname FROM erp_notices n LEFT JOIN users u ON n.author_id=u.id WHERE n.id=?").get(req.params.id);
+  if (!n) return res.status(404).json({error:'없음'});
+  res.json({...n,createdAt:n.created_at*1000});
+});
+
+app.post('/api/erp/notices', erpAuth, erpManager, (req, res) => {
+  const {title,content,target,is_pinned} = req.body;
+  if (!title||!content) return res.status(400).json({error:'필수 항목 누락'});
+  const id=uid(), ts=Math.floor(Date.now()/1000);
+  db.prepare("INSERT INTO erp_notices (id,title,content,author_id,target,is_pinned,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)").run(id,title,content,req.user.id,target||'전체',is_pinned?1:0,ts,ts);
+  res.json({id,success:true});
+});
+
+app.put('/api/erp/notices/:id', erpAuth, erpManager, (req, res) => {
+  const {title,content,target,is_pinned} = req.body;
+  const ts=Math.floor(Date.now()/1000);
+  db.prepare("UPDATE erp_notices SET title=COALESCE(?,title),content=COALESCE(?,content),target=COALESCE(?,target),is_pinned=COALESCE(?,is_pinned),updated_at=? WHERE id=?").run(title||null,content||null,target||null,is_pinned!=null?is_pinned?1:0:null,ts,req.params.id);
+  res.json({success:true});
+});
+
+app.delete('/api/erp/notices/:id', erpAuth, erpManager, (req, res) => {
+  db.prepare("DELETE FROM erp_notices WHERE id=?").run(req.params.id);
+  res.json({success:true});
+});
+
+// ── 결재 ─────────────────────────────────────────────
+app.get('/api/erp/approvals', erpAuth, (req, res) => {
+  let q="SELECT a.*,r.name AS rname,ap.name AS apname FROM erp_approvals a LEFT JOIN users r ON a.requester_id=r.id LEFT JOIN users ap ON a.approver_id=ap.id WHERE 1=1";
+  const p=[];
+  if (req.user.erpRole==='employee') { q+=' AND a.requester_id=?'; p.push(req.user.id); }
+  else if (req.query.role==='approver') { q+=' AND a.approver_id=?'; p.push(req.user.id); }
+  if (req.query.status) { q+=' AND a.status=?'; p.push(req.query.status); }
+  q+=' ORDER BY a.requested_at DESC LIMIT 100';
+  res.json(db.prepare(q).all(...p).map(a=>({...a,requestedAt:a.requested_at*1000})));
+});
+
+app.post('/api/erp/approvals', erpAuth, (req, res) => {
+  const {type,title,content,approver_id} = req.body;
+  if (!type||!title) return res.status(400).json({error:'필수 항목 누락'});
+  const appId = approver_id || db.prepare("SELECT id FROM users WHERE (erp_role='manager' OR role='admin') AND id!=? LIMIT 1").get(req.user.id)?.id;
+  const id=uid();
+  db.prepare("INSERT INTO erp_approvals (id,type,title,content,requester_id,approver_id,status,requested_at) VALUES (?,?,?,?,?,?,?,?)").run(id,type,title,content||'',req.user.id,appId||null,'대기',Math.floor(Date.now()/1000));
+  res.json({id,success:true});
+});
+
+app.put('/api/erp/approvals/:id/process', erpAuth, erpManager, (req, res) => {
+  const {status,approver_note} = req.body;
+  if (!['승인','반려'].includes(status)) return res.status(400).json({error:'상태 오류'});
+  db.prepare("UPDATE erp_approvals SET status=?,approver_note=?,approver_id=?,processed_at=? WHERE id=?").run(status,approver_note||'',req.user.id,Math.floor(Date.now()/1000),req.params.id);
+  res.json({success:true});
+});
+
+// ── 재무 ─────────────────────────────────────────────
+app.get('/api/erp/finance/summary', erpAuth, erpCeo, (req, res) => {
+  const months=[];
+  for(let i=5;i>=0;i--){const d=new Date();d.setMonth(d.getMonth()-i);months.push(d.toISOString().slice(0,7));}
+  const monthly = months.map(m=>({
+    month:m,
+    revenue: db.prepare("SELECT COALESCE(SUM(amount),0) AS t FROM erp_revenue WHERE strftime('%Y-%m',payment_date)=? AND status='완료'").get(m)?.t||0,
+    expense: db.prepare("SELECT COALESCE(SUM(amount),0) AS t FROM erp_expenses WHERE strftime('%Y-%m',expense_date)=? AND status='승인'").get(m)?.t||0,
+  })).map(r=>({...r,profit:r.revenue-r.expense}));
+  const revCat = db.prepare("SELECT category,SUM(amount) AS total FROM erp_revenue WHERE status='완료' AND payment_date>=date('now','-3 months') GROUP BY category ORDER BY total DESC").all();
+  const expCat = db.prepare("SELECT category,SUM(amount) AS total FROM erp_expenses WHERE status='승인' AND expense_date>=date('now','-3 months') GROUP BY category ORDER BY total DESC").all();
+  res.json({monthly,revCat,expCat});
+});
+
+app.get('/api/erp/revenue', erpAuth, erpCeo, (req, res) => {
+  res.json(db.prepare("SELECT r.*,u.name AS cname FROM erp_revenue r LEFT JOIN users u ON r.client_id=u.id ORDER BY r.payment_date DESC,r.created_at DESC LIMIT 100").all());
+});
+
+app.post('/api/erp/revenue', erpAuth, erpCeo, (req, res) => {
+  const {title,amount,category,client_id,payment_date,status,note}=req.body;
+  if (!title||!amount) return res.status(400).json({error:'필수 항목 누락'});
+  const id=uid();
+  db.prepare("INSERT INTO erp_revenue (id,title,amount,category,client_id,payment_date,status,note) VALUES (?,?,?,?,?,?,?,?)").run(id,title,parseInt(amount),category||'수강료',client_id||null,payment_date||null,status||'완료',note||'');
+  res.json({id,success:true});
+});
+
+app.delete('/api/erp/revenue/:id', erpAuth, erpCeo, (req, res) => {
+  db.prepare("DELETE FROM erp_revenue WHERE id=?").run(req.params.id); res.json({success:true});
+});
+
+app.get('/api/erp/expenses', erpAuth, erpCeo, (req, res) => {
+  res.json(db.prepare("SELECT e.*,u.name AS sname FROM erp_expenses e LEFT JOIN users u ON e.spender_id=u.id ORDER BY e.expense_date DESC,e.created_at DESC LIMIT 100").all());
+});
+
+app.post('/api/erp/expenses', erpAuth, erpManager, (req, res) => {
+  const {title,amount,category,expense_date,note}=req.body;
+  if (!title||!amount) return res.status(400).json({error:'필수 항목 누락'});
+  const id=uid();
+  db.prepare("INSERT INTO erp_expenses (id,title,amount,category,spender_id,expense_date,status,note) VALUES (?,?,?,?,?,?,?,?)").run(id,title,parseInt(amount),category||'운영비',req.user.id,expense_date||null,'승인',note||'');
+  res.json({id,success:true});
+});
+
+// ── OKR ──────────────────────────────────────────────
+app.get('/api/erp/okrs', erpAuth, (req, res) => {
+  res.json(db.prepare("SELECT o.*,u.name AS oname FROM erp_okrs o LEFT JOIN users u ON o.owner_id=u.id ORDER BY o.quarter DESC,o.status,o.created_at DESC").all());
+});
+
+app.post('/api/erp/okrs', erpAuth, erpManager, (req, res) => {
+  const {objective,key_result,owner_id,quarter,progress,status}=req.body;
+  if (!objective||!key_result) return res.status(400).json({error:'필수 항목 누락'});
+  const id=uid();
+  db.prepare("INSERT INTO erp_okrs (id,objective,key_result,owner_id,quarter,progress,status) VALUES (?,?,?,?,?,?,?)").run(id,objective,key_result,owner_id||req.user.id,quarter||'',parseInt(progress)||0,status||'진행중');
+  res.json({id,success:true});
+});
+
+app.put('/api/erp/okrs/:id', erpAuth, (req, res) => {
+  const {objective,key_result,owner_id,quarter,progress,status}=req.body;
+  db.prepare("UPDATE erp_okrs SET objective=COALESCE(?,objective),key_result=COALESCE(?,key_result),owner_id=COALESCE(?,owner_id),quarter=COALESCE(?,quarter),progress=COALESCE(?,progress),status=COALESCE(?,status) WHERE id=?")
+    .run(objective||null,key_result||null,owner_id||null,quarter||null,progress!=null?parseInt(progress):null,status||null,req.params.id);
+  res.json({success:true});
+});
+
+app.delete('/api/erp/okrs/:id', erpAuth, erpCeo, (req, res) => {
+  db.prepare("DELETE FROM erp_okrs WHERE id=?").run(req.params.id); res.json({success:true});
+});
+
+// ── 급여 ─────────────────────────────────────────────
+app.get('/api/erp/payroll', erpAuth, (req, res) => {
+  const uid2 = req.user.erpRole==='employee' ? req.user.id : (req.query.userId||null);
+  let q="SELECT p.*,u.name FROM erp_payroll p JOIN users u ON p.user_id=u.id WHERE 1=1";
+  const p=[];
+  if(uid2){q+=' AND p.user_id=?';p.push(uid2);}
+  if(req.query.year_month){q+=' AND p.year_month=?';p.push(req.query.year_month);}
+  q+=' ORDER BY p.year_month DESC,u.name LIMIT 200';
+  res.json(db.prepare(q).all(...p));
+});
+
+app.post('/api/erp/payroll', erpAuth, erpCeo, (req, res) => {
+  const {user_id,year_month,base_salary,bonus,deduction,status,payment_date}=req.body;
+  if (!user_id||!year_month) return res.status(400).json({error:'필수 항목 누락'});
+  const base=parseInt(base_salary)||0, bon=parseInt(bonus)||0, ded=parseInt(deduction)||0, net=base+bon-ded;
+  const id=uid();
+  db.prepare("INSERT OR REPLACE INTO erp_payroll (id,user_id,year_month,base_salary,bonus,deduction,net_salary,status,payment_date) VALUES (?,?,?,?,?,?,?,?,?)").run(id,user_id,year_month,base,bon,ded,net,status||'예정',payment_date||null);
+  res.json({id,net_salary:net,success:true});
+});
+
+// ── ERP 사용자 목록 (배정용) ──────────────────────────
+app.get('/api/erp/users', erpAuth, erpManager, (req, res) => {
+  res.json(db.prepare("SELECT u.id,u.name,u.role,u.erp_role,e.department,e.position FROM users u LEFT JOIN erp_employees e ON u.id=e.user_id WHERE u.erp_role IS NOT NULL AND u.role!='student' ORDER BY u.name").all());
+});
+
+// ── ERP 프론트엔드 ────────────────────────────────────
+app.get('/erp', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'erp.html')));
+app.get('/erp/*', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'erp.html')));
+
 // ─────────────────────────────────────────────────────────────────
 // 편입 LMS 프론트엔드 라우팅
 app.get('/transfer', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'transfer.html')));

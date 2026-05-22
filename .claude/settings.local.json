@@ -9,7 +9,19 @@
       "PowerShell(node -e \"console.log\\(require\\('crypto'\\).randomBytes\\(64\\).toString\\('hex'\\)\\)\")",
       "PowerShell(Get-ChildItem \"C:\\\\Program Files\\\\nodejs\", \"C:\\\\Program Files \\(x86\\)\\\\nodejs\", \"$env:APPDATA\\\\nvm\", \"$env:LOCALAPPDATA\\\\nvm\" -ErrorAction SilentlyContinue | Select-Object FullName)",
       "PowerShell($env:PATH = \"C:\\\\Program Files\\\\nodejs;\" + $env:PATH; Set-Location \"C:\\\\Users\\\\user\\\\Desktop\\\\대입 AI\\\\biglinker-deploy\"; npm install 2>&1)",
-      "PowerShell(Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Seconds 1; $env:PATH = \"C:\\\\Program Files\\\\nodejs;\" + $env:PATH; Start-Process -FilePath \"C:\\\\Program Files\\\\nodejs\\\\node.exe\" -ArgumentList \"server.js\" -WorkingDirectory \"C:\\\\Users\\\\user\\\\Desktop\\\\대입 AI\\\\biglinker-deploy\" -PassThru -WindowStyle Normal | Out-Null; Start-Sleep -Seconds 3; \\(Invoke-RestMethod \"http://localhost:3000/health\"\\).status)"
+      "PowerShell(Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Seconds 1; $env:PATH = \"C:\\\\Program Files\\\\nodejs;\" + $env:PATH; Start-Process -FilePath \"C:\\\\Program Files\\\\nodejs\\\\node.exe\" -ArgumentList \"server.js\" -WorkingDirectory \"C:\\\\Users\\\\user\\\\Desktop\\\\대입 AI\\\\biglinker-deploy\" -PassThru -WindowStyle Normal | Out-Null; Start-Sleep -Seconds 3; \\(Invoke-RestMethod \"http://localhost:3000/health\"\\).status)",
+      "Bash(git init *)",
+      "Bash(git remote *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(node -e ' *)",
+      "Bash(python -c \"import sys; print\\(sys.version\\)\")",
+      "Bash(node -e \"console.log\\(process.version\\)\")",
+      "Bash(python3 -c ' *)",
+      "Bash(powershell -command \"Get-Content 'C:\\\\Users\\\\user\\\\Desktop\\\\대입 AI\\\\medical.txt' -Encoding UTF8 | Select-Object -Skip 790 -First 150\")",
+      "Bash(node -e \"require\\('./server.js'\\)\")",
+      "Bash(node --check server.js)"
     ]
   }
 }

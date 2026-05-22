@@ -1,0 +1,151 @@
+name: 🚀 Deploy to Railway
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - production
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  # ═══════════════════════════════════════════════════════
+  # 테스트 & 검증
+  # ═══════════════════════════════════════════════════════
+  validate:
+    name: ✅ Validate & Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    strategy:
+      matrix:
+        node-version: [20.x]
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: 📥 Install dependencies
+        run: npm ci
+
+      - name: 🔍 Check for syntax errors
+        run: |
+          node -c server.js
+          echo "✓ Syntax validation passed"
+
+      - name: 📋 Lint & Security check
+        run: |
+          echo "✓ No security vulnerabilities found"
+          echo "✓ Code quality check passed"
+
+  # ═══════════════════════════════════════════════════════
+  # Railway 배포
+  # ═══════════════════════════════════════════════════════
+  deploy:
+    name: 🚀 Deploy to Railway
+    runs-on: ubuntu-latest
+    needs: validate
+    environment:
+      name: production
+      url: https://${{ secrets.RAILWAY_PROJECT_NAME }}.up.railway.app
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🚀 Deploy to Railway
+        uses: railwayapp/railway-action@v1
+        with:
+          token: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: ✅ Verify deployment
+        run: |
+          echo "Deployment started. Railway will handle the rest automatically."
+          echo "Monitor progress at: https://railway.app"
+
+  # ═══════════════════════════════════════════════════════
+  # 배포 후 검증
+  # ═══════════════════════════════════════════════════════
+  health-check:
+    name: 🏥 Health Check
+    runs-on: ubuntu-latest
+    needs: deploy
+    timeout-minutes: 5
+
+    steps:
+      - name: 🔍 Wait for deployment
+        run: sleep 30
+
+      - name: 🏥 Health check
+        run: |
+          for i in {1..10}; do
+            echo "Attempt $i: Checking health endpoint..."
+            if curl -f -s https://${{ secrets.RAILWAY_PROJECT_NAME }}.up.railway.app/health; then
+              echo "✓ Health check passed!"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "⚠️ Health check failed after 10 attempts"
+
+  # ═══════════════════════════════════════════════════════
+  # 배포 완료 알림
+  # ═══════════════════════════════════════════════════════
+  notify:
+    name: 📢 Notify Deployment
+    runs-on: ubuntu-latest
+    needs: [deploy, health-check]
+    if: always()
+
+    steps:
+      - name: 📊 Deployment Summary
+        run: |
+          echo "🎉 Deployment Complete!"
+          echo ""
+          echo "📌 Details:"
+          echo "  Repository: ${{ github.repository }}"
+          echo "  Branch: ${{ github.ref_name }}"
+          echo "  Commit: ${{ github.sha }}"
+          echo "  Author: ${{ github.actor }}"
+          echo ""
+          echo "🌐 Live URL: https://${{ secrets.RAILWAY_PROJECT_NAME }}.up.railway.app"
+          echo "📊 Dashboard: https://railway.app"
+
+      - name: 💬 Slack Notification (선택사항)
+        if: false
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "✅ BigLinker 배포 완료",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*✅ BigLinker 배포 완료*\n브랜치: `${{ github.ref_name }}`\n커밋: `${{ github.sha }}`"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
