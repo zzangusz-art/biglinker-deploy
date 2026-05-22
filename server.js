@@ -3146,20 +3146,21 @@ db.exec(`
     updated_at INTEGER DEFAULT (strftime('%s','now')),
     UNIQUE(user_id, year_month, category)
   );
-
-  /* 출퇴근 상세 기록 (휴가/휴무 정보 추가) */
-  ALTER TABLE erp_attendance ADD COLUMN leave_type TEXT DEFAULT NULL;
-  ALTER TABLE erp_attendance ADD COLUMN leave_reason TEXT DEFAULT '';
-  ALTER TABLE erp_attendance ADD COLUMN leave_approved_by TEXT;
 `);
 
+// 출퇴근 상세 기록 컬럼 추가 (이미 있으면 무시)
 try {
   db.exec(`
     ALTER TABLE erp_attendance ADD COLUMN leave_type TEXT DEFAULT NULL;
     ALTER TABLE erp_attendance ADD COLUMN leave_reason TEXT DEFAULT '';
     ALTER TABLE erp_attendance ADD COLUMN leave_approved_by TEXT;
   `);
-} catch {}
+} catch (err) {
+  // 컬럼이 이미 존재하면 무시
+  if (!err.message.includes('duplicate column')) {
+    console.warn('[WARN] ALTER TABLE 오류:', err.message);
+  }
+}
 
 // 인덱스
 db.exec(`

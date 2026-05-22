@@ -690,7 +690,7 @@ async function submitLeaveRequest(e) {
     reason: document.getElementById('leave-reason').value
   });
   if (res.success) {
-    showToast('휴가 신청이 완료되었습니다', 'success');
+    toast('휴가 신청이 완료되었습니다', 'success');
     setTimeout(() => navigate('leave-request'), 800);
   }
 }
