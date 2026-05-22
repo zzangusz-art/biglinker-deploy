@@ -781,13 +781,16 @@ async function renderSales(parent) {
   // 월별 차트
   const months = Object.keys(data.monthlySummary).sort();
   const maxAmount = Math.max(...Object.values(data.monthlySummary), 1);
-  const chart = parent.getElementById('sales-chart');
-  chart.innerHTML = months.slice(-6).map(m => `
-    <div class="bar" style="height:${(data.monthlySummary[m]/maxAmount)*100%}">
-      <span class="bar-value">${(data.monthlySummary[m]/1000000).toFixed(1)}M</span>
-      <span class="bar-label">${m}</span>
-    </div>
-  `).join('');
+  const chart = document.getElementById('sales-chart');
+  if (chart) {
+    chart.innerHTML = months.slice(-6).map(m => {
+      const pct = Math.round((data.monthlySummary[m] / maxAmount) * 100);
+      return `<div class="bar" style="height:${pct}%">
+        <span class="bar-value">${(data.monthlySummary[m]/1000000).toFixed(1)}M</span>
+        <span class="bar-label">${m}</span>
+      </div>`;
+    }).join('');
+  }
 }
 
 function openSalesForm() {
