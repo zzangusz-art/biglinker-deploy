@@ -817,7 +817,7 @@ app.use((req, _res, next) => {
 });
 
 app.use('/uploads', express.static(UPLOADS));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
 // Multer 설정
 const storage = multer.diskStorage({
