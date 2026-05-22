@@ -3556,6 +3556,9 @@ app.get('/api/erp/users', erpAuth, erpManager, (req, res) => {
   res.json(db.prepare("SELECT u.id,u.name,u.role,u.erp_role,e.department,e.position FROM users u LEFT JOIN erp_employees e ON u.id=e.user_id WHERE u.erp_role IS NOT NULL AND u.role!='student' ORDER BY u.name").all());
 });
 
+// ── 기본 경로: ERP로 리다이렉트 ────────────────────
+app.get('/', (_req, res) => res.redirect('/erp'));
+
 // ── ERP 프론트엔드 ────────────────────────────────────
 app.get('/erp', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'erp.html')));
 app.get('/erp/*', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'erp.html')));
