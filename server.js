@@ -3117,6 +3117,54 @@ db.exec(`
     payment_date TEXT,
     created_at INTEGER DEFAULT (strftime('%s','now'))
   );
+
+  /* 연차/휴가 신청 */
+  CREATE TABLE IF NOT EXISTS erp_leave_requests (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    leave_type TEXT NOT NULL CHECK(leave_type IN ('연차','병가','경조사','기타')),
+    start_date TEXT NOT NULL,
+    end_date TEXT NOT NULL,
+    num_days REAL NOT NULL,
+    reason TEXT DEFAULT '',
+    approver_id TEXT REFERENCES users(id),
+    status TEXT DEFAULT '신청',
+    approver_note TEXT DEFAULT '',
+    requested_at INTEGER DEFAULT (strftime('%s','now')),
+    processed_at INTEGER
+  );
+
+  /* 개인별 월별 매출 */
+  CREATE TABLE IF NOT EXISTS erp_individual_sales (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    year_month TEXT NOT NULL,
+    amount INTEGER DEFAULT 0,
+    category TEXT DEFAULT '컨설팅',
+    description TEXT DEFAULT '',
+    created_at INTEGER DEFAULT (strftime('%s','now')),
+    updated_at INTEGER DEFAULT (strftime('%s','now')),
+    UNIQUE(user_id, year_month, category)
+  );
+
+  /* 출퇴근 상세 기록 (휴가/휴무 정보 추가) */
+  ALTER TABLE erp_attendance ADD COLUMN leave_type TEXT DEFAULT NULL;
+  ALTER TABLE erp_attendance ADD COLUMN leave_reason TEXT DEFAULT '';
+  ALTER TABLE erp_attendance ADD COLUMN leave_approved_by TEXT;
+`);
+
+try {
+  db.exec(`
+    ALTER TABLE erp_attendance ADD COLUMN leave_type TEXT DEFAULT NULL;
+    ALTER TABLE erp_attendance ADD COLUMN leave_reason TEXT DEFAULT '';
+    ALTER TABLE erp_attendance ADD COLUMN leave_approved_by TEXT;
+  `);
+} catch {}
+
+// 인덱스
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_erp_leave ON erp_leave_requests(user_id, status);
+  CREATE INDEX IF NOT EXISTS idx_erp_sales ON erp_individual_sales(user_id, year_month);
 `);
 
 db.exec(`
@@ -3554,6 +3602,319 @@ app.post('/api/erp/payroll', erpAuth, erpCeo, (req, res) => {
 // ── ERP 사용자 목록 (배정용) ──────────────────────────
 app.get('/api/erp/users', erpAuth, erpManager, (req, res) => {
   res.json(db.prepare("SELECT u.id,u.name,u.role,u.erp_role,e.department,e.position FROM users u LEFT JOIN erp_employees e ON u.id=e.user_id WHERE u.erp_role IS NOT NULL AND u.role!='student' ORDER BY u.name").all());
+});
+
+// ═══════════════════════════════════════════════════════
+// 출퇴근 상세 관리 API
+// ═══════════════════════════════════════════════════════
+
+// 출퇴근 기록 수정 (시간 조정, 휴가 등록)
+app.put('/api/erp/attendance/:id', erpAuth, (req, res) => {
+  const { id } = req.params;
+  const { check_in, check_out, work_hours, leave_type, leave_reason, status } = req.body;
+
+  const attendance = db.prepare("SELECT * FROM erp_attendance WHERE id=?").get(id);
+  if (!attendance) return res.status(404).json({ error: '기록을 찾을 수 없습니다' });
+
+  // 자신의 기록만 수정 가능, 관리자는 모든 기록 수정 가능
+  const isManager = req.user.erp_role === 'manager' || req.user.erp_role === 'ceo';
+  if (attendance.user_id !== req.user.id && !isManager) {
+    return res.status(403).json({ error: '권한이 없습니다' });
+  }
+
+  db.prepare(`
+    UPDATE erp_attendance
+    SET check_in=COALESCE(?, check_in),
+        check_out=COALESCE(?, check_out),
+        work_hours=COALESCE(?, work_hours),
+        leave_type=COALESCE(?, leave_type),
+        leave_reason=COALESCE(?, leave_reason),
+        status=COALESCE(?, status),
+        leave_approved_by=CASE WHEN ? THEN ? ELSE leave_approved_by END
+    WHERE id=?
+  `).run(check_in, check_out, work_hours, leave_type, leave_reason, status, isManager, req.user.id, id);
+
+  res.json({ success: true, message: '기록이 수정되었습니다' });
+});
+
+// 월별 출퇴근 현황
+app.get('/api/erp/attendance/monthly/:year_month', erpAuth, (req, res) => {
+  const { year_month } = req.params;
+  const userId = req.query.userId;
+
+  // 자신의 데이터만 조회 가능, 관리자/대표는 전체 조회 가능
+  const isManager = req.user.erp_role === 'manager' || req.user.erp_role === 'ceo';
+  const target = (isManager && userId) ? userId : req.user.id;
+
+  const records = db.prepare(`
+    SELECT id, user_id, work_date, check_in, check_out, work_hours,
+           status, leave_type, leave_reason, created_at
+    FROM erp_attendance
+    WHERE user_id=? AND work_date LIKE ?
+    ORDER BY work_date ASC
+  `).all(target, year_month + '%');
+
+  const summary = {
+    totalDays: records.length,
+    workDays: records.filter(r => r.status === '정상').length,
+    leaveDays: records.filter(r => r.leave_type).length,
+    totalWorkHours: records.reduce((s, r) => s + (r.work_hours || 0), 0)
+  };
+
+  res.json({ records, summary });
+});
+
+// ═══════════════════════════════════════════════════════
+// 연차/휴가 관리 API
+// ═══════════════════════════════════════════════════════
+
+// 연차/휴가 신청
+app.post('/api/erp/leave-requests', erpAuth, (req, res) => {
+  const { leave_type, start_date, end_date, num_days, reason } = req.body;
+
+  if (!leave_type || !start_date || !end_date || !num_days) {
+    return res.status(400).json({ error: '필수 정보가 누락되었습니다' });
+  }
+
+  const id = `leave_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  db.prepare(`
+    INSERT INTO erp_leave_requests (id, user_id, leave_type, start_date, end_date, num_days, reason)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(id, req.user.id, leave_type, start_date, end_date, num_days, reason || '');
+
+  res.json({ success: true, id, message: '휴가 신청이 완료되었습니다' });
+});
+
+// 내 연차/휴가 신청 조회
+app.get('/api/erp/leave-requests', erpAuth, (req, res) => {
+  const leaves = db.prepare(`
+    SELECT l.*, u.name as approver_name
+    FROM erp_leave_requests l
+    LEFT JOIN users u ON l.approver_id=u.id
+    WHERE l.user_id=?
+    ORDER BY l.requested_at DESC
+  `).all(req.user.id);
+
+  res.json(leaves);
+});
+
+// 연차/휴가 신청 목록 (관리자/대표용)
+app.get('/api/erp/leave-requests/pending', erpAuth, erpManager, (req, res) => {
+  const leaves = db.prepare(`
+    SELECT l.*, u.name as requester_name, e.department
+    FROM erp_leave_requests l
+    JOIN users u ON l.user_id=u.id
+    LEFT JOIN erp_employees e ON l.user_id=e.user_id
+    WHERE l.status='신청'
+    ORDER BY l.requested_at ASC
+  `).all();
+
+  res.json(leaves);
+});
+
+// 연차/휴가 승인/반려
+app.put('/api/erp/leave-requests/:id/process', erpAuth, erpManager, (req, res) => {
+  const { id } = req.params;
+  const { status, note } = req.body; // status: '승인' or '반려'
+
+  if (!['승인', '반려'].includes(status)) {
+    return res.status(400).json({ error: '유효한 상태가 아닙니다' });
+  }
+
+  db.prepare(`
+    UPDATE erp_leave_requests
+    SET status=?, approver_id=?, approver_note=?, processed_at=strftime('%s','now')
+    WHERE id=?
+  `).run(status, req.user.id, note || '', id);
+
+  res.json({ success: true, message: `휴가가 ${status}되었습니다` });
+});
+
+// ═══════════════════════════════════════════════════════
+// 개인별 월별 매출 API
+// ═══════════════════════════════════════════════════════
+
+// 개인별 월별 매출 등록/수정
+app.post('/api/erp/individual-sales', erpAuth, (req, res) => {
+  const { year_month, amount, category, description } = req.body;
+
+  if (!year_month || amount === undefined) {
+    return res.status(400).json({ error: '필수 정보가 누락되었습니다' });
+  }
+
+  const existing = db.prepare(
+    "SELECT id FROM erp_individual_sales WHERE user_id=? AND year_month=? AND category=?"
+  ).get(req.user.id, year_month, category || '컨설팅');
+
+  const id = existing?.id || `sales_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+  if (existing) {
+    db.prepare(`
+      UPDATE erp_individual_sales
+      SET amount=?, description=?, updated_at=strftime('%s','now')
+      WHERE id=?
+    `).run(amount, description || '', id);
+  } else {
+    db.prepare(`
+      INSERT INTO erp_individual_sales (id, user_id, year_month, amount, category, description)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(id, req.user.id, year_month, amount, category || '컨설팅', description || '');
+  }
+
+  res.json({ success: true, id, message: '매출이 기록되었습니다' });
+});
+
+// 개인별 월별 매출 조회
+app.get('/api/erp/individual-sales', erpAuth, (req, res) => {
+  const userId = req.query.userId;
+  const isManager = req.user.erp_role === 'manager' || req.user.erp_role === 'ceo';
+
+  const target = (isManager && userId) ? userId : req.user.id;
+
+  const sales = db.prepare(`
+    SELECT id, user_id, year_month, amount, category, description, created_at, updated_at
+    FROM erp_individual_sales
+    WHERE user_id=?
+    ORDER BY year_month DESC, category ASC
+  `).all(target);
+
+  // 월별 합계 계산
+  const monthlySummary = {};
+  sales.forEach(s => {
+    if (!monthlySummary[s.year_month]) {
+      monthlySummary[s.year_month] = 0;
+    }
+    monthlySummary[s.year_month] += s.amount;
+  });
+
+  res.json({ sales, monthlySummary });
+});
+
+// 팀 전체 매출 현황 (관리자/대표용)
+app.get('/api/erp/team-sales/:year_month', erpAuth, erpManager, (req, res) => {
+  const { year_month } = req.params;
+
+  const teamSales = db.prepare(`
+    SELECT u.id, u.name, SUM(s.amount) as total_amount, COUNT(DISTINCT s.category) as categories
+    FROM erp_individual_sales s
+    JOIN users u ON s.user_id=u.id
+    WHERE s.year_month=?
+    GROUP BY s.user_id
+    ORDER BY total_amount DESC
+  `).all(year_month);
+
+  const totalTeamSales = teamSales.reduce((s, t) => s + t.total_amount, 0);
+
+  res.json({ teamSales, totalTeamSales });
+});
+
+// ═══════════════════════════════════════════════════════
+// 공유 캘린더 API (기존 schedules 확대)
+// ═══════════════════════════════════════════════════════
+
+// 캘린더 이벤트 상세 조회
+app.get('/api/erp/calendar/events/:id', erpAuth, (req, res) => {
+  const event = db.prepare(`
+    SELECT s.*, u.name as creator_name
+    FROM erp_schedules s
+    LEFT JOIN users u ON s.creator_id=u.id
+    WHERE s.id=?
+  `).get(req.params.id);
+
+  if (!event) return res.status(404).json({ error: '일정을 찾을 수 없습니다' });
+
+  event.attendees = event.attendees ? JSON.parse(event.attendees) : [];
+  res.json(event);
+});
+
+// 기간별 캘린더 이벤트 조회 (공유 캘린더)
+app.get('/api/erp/calendar/events', erpAuth, (req, res) => {
+  const { start_dt, end_dt } = req.query;
+
+  if (!start_dt || !end_dt) {
+    return res.status(400).json({ error: 'start_dt, end_dt 필수' });
+  }
+
+  const events = db.prepare(`
+    SELECT s.*, u.name as creator_name
+    FROM erp_schedules s
+    LEFT JOIN users u ON s.creator_id=u.id
+    WHERE s.start_dt >= ? AND s.start_dt < ?
+    ORDER BY s.start_dt ASC
+  `).all(start_dt, end_dt);
+
+  events.forEach(e => {
+    e.attendees = e.attendees ? JSON.parse(e.attendees) : [];
+  });
+
+  res.json(events);
+});
+
+// 캘린더 이벤트 생성
+app.post('/api/erp/calendar/events', erpAuth, (req, res) => {
+  const { title, description, type, start_dt, end_dt, location, attendees, color, all_day } = req.body;
+
+  if (!title || !start_dt) {
+    return res.status(400).json({ error: '제목과 시작 시간은 필수입니다' });
+  }
+
+  const id = `event_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+  db.prepare(`
+    INSERT INTO erp_schedules (id, title, description, creator_id, type, start_dt, end_dt, location, attendees, color, all_day)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, title, description || '', req.user.id, type || '일반',
+    start_dt, end_dt || null, location || '',
+    JSON.stringify(attendees || []), color || '#4f7dff', all_day ? 1 : 0
+  );
+
+  res.json({ success: true, id, message: '일정이 추가되었습니다' });
+});
+
+// 캘린더 이벤트 수정
+app.put('/api/erp/calendar/events/:id', erpAuth, (req, res) => {
+  const { id } = req.params;
+  const { title, description, type, start_dt, end_dt, location, attendees, color, all_day } = req.body;
+
+  const event = db.prepare("SELECT * FROM erp_schedules WHERE id=?").get(id);
+  if (!event) return res.status(404).json({ error: '일정을 찾을 수 없습니다' });
+
+  // 작성자만 수정 가능, 대표는 모든 일정 수정 가능
+  if (event.creator_id !== req.user.id && req.user.erp_role !== 'ceo') {
+    return res.status(403).json({ error: '권한이 없습니다' });
+  }
+
+  db.prepare(`
+    UPDATE erp_schedules
+    SET title=COALESCE(?, title),
+        description=COALESCE(?, description),
+        type=COALESCE(?, type),
+        start_dt=COALESCE(?, start_dt),
+        end_dt=COALESCE(?, end_dt),
+        location=COALESCE(?, location),
+        attendees=COALESCE(?, attendees),
+        color=COALESCE(?, color),
+        all_day=COALESCE(?, all_day)
+    WHERE id=?
+  `).run(title, description, type, start_dt, end_dt, location,
+         attendees ? JSON.stringify(attendees) : null, color, all_day !== undefined ? (all_day ? 1 : 0) : null, id);
+
+  res.json({ success: true, message: '일정이 수정되었습니다' });
+});
+
+// 캘린더 이벤트 삭제
+app.delete('/api/erp/calendar/events/:id', erpAuth, (req, res) => {
+  const event = db.prepare("SELECT * FROM erp_schedules WHERE id=?").get(req.params.id);
+  if (!event) return res.status(404).json({ error: '일정을 찾을 수 없습니다' });
+
+  // 작성자만 삭제 가능, 대표는 모든 일정 삭제 가능
+  if (event.creator_id !== req.user.id && req.user.erp_role !== 'ceo') {
+    return res.status(403).json({ error: '권한이 없습니다' });
+  }
+
+  db.prepare("DELETE FROM erp_schedules WHERE id=?").run(req.params.id);
+  res.json({ success: true, message: '일정이 삭제되었습니다' });
 });
 
 // ── 기본 경로: ERP로 리다이렉트 ────────────────────

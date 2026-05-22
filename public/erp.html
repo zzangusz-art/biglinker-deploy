@@ -15,8 +15,9 @@ html,body{height:100%;font-family:'Noto Sans KR',sans-serif;background:var(--bg)
 .login-title{text-align:center;margin-bottom:32px;font-size:24px;font-weight:700}
 .form-group{margin-bottom:16px}
 .form-label{display:block;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;font-weight:600}
-input[type="text"],input[type="password"]{width:100%;padding:12px 14px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:13px;outline:none;transition:border-color 0.2s}
-input:focus{border-color:var(--blue)}
+input[type="text"],input[type="password"],input[type="date"],input[type="month"],input[type="datetime-local"],input[type="number"],select,textarea{width:100%;padding:12px 14px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:13px;outline:none;transition:border-color 0.2s}
+input:focus,select:focus,textarea:focus{border-color:var(--blue)}
+select{cursor:pointer}
 .btn{width:100%;padding:12px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;transition:background 0.2s;margin-top:8px;font-family:inherit}
 .btn:hover{background:#6b93ff}
 .btn-danger{background:var(--red)}
@@ -249,6 +250,9 @@ function renderSidebar() {
       { label: '💰 재무 현황', id: 'finance' },
       { label: '👥 직원 현황', id: 'employees' },
       { label: '📈 OKR 관리', id: 'okr' },
+      { label: '💼 연차관리', id: 'leave-management' },
+      { label: '💹 팀매출현황', id: 'team-sales' },
+      { label: '📅 공유캘린더', id: 'calendar' },
       { label: '📋 결재 관리', id: 'approvals' },
       { label: '📢 공지사항', id: 'notices' },
     ],
@@ -256,7 +260,10 @@ function renderSidebar() {
       { label: '📊 업무 현황', id: 'dashboard' },
       { label: '👥 팀 관리', id: 'employees' },
       { label: '✅ 업무 배분', id: 'tasks' },
-      { label: '📅 일정 관리', id: 'schedules' },
+      { label: '🕐 출퇴근관리', id: 'attendance-mgmt' },
+      { label: '💼 연차신청', id: 'leave-request' },
+      { label: '💹 월별매출', id: 'sales' },
+      { label: '📅 공유캘린더', id: 'calendar' },
       { label: '📋 결재 처리', id: 'approvals' },
       { label: '📢 공지사항', id: 'notices' },
     ],
@@ -264,7 +271,9 @@ function renderSidebar() {
       { label: '🏠 내 현황', id: 'dashboard' },
       { label: '🕐 출퇴근', id: 'attendance' },
       { label: '✅ 나의 업무', id: 'tasks' },
-      { label: '📅 일정', id: 'schedules' },
+      { label: '💼 연차신청', id: 'leave-request' },
+      { label: '💹 월별매출', id: 'sales' },
+      { label: '📅 일정', id: 'calendar' },
       { label: '📋 결재 신청', id: 'approvals' },
       { label: '📢 공지사항', id: 'notices' },
     ],
@@ -293,6 +302,12 @@ function navigate(page) {
   else if (page === 'tasks') renderTasks(content);
   else if (page === 'schedules') renderSchedules(content);
   else if (page === 'attendance') renderAttendance(content);
+  else if (page === 'attendance-mgmt') renderAttendanceManagement(content);
+  else if (page === 'leave-request') renderLeaveRequest(content);
+  else if (page === 'leave-management') renderLeaveManagement(content);
+  else if (page === 'sales') renderSales(content);
+  else if (page === 'team-sales') renderTeamSales(content);
+  else if (page === 'calendar') renderCalendar(content);
   else if (page === 'approvals') renderApprovals(content);
   else if (page === 'notices') renderNotices(content);
 }
@@ -551,6 +566,473 @@ function createOKR() {
 
 function editOKR(id) {
   console.log('OKR 편집:', id);
+}
+
+// ═══════════════════════════════════════════════════════
+// 출퇴근 상세 관리 (직원, 관리자)
+// ═══════════════════════════════════════════════════════
+
+async function renderAttendanceManagement(parent) {
+  parent.innerHTML = `
+    <div class="page-header">
+      <div class="page-title">🕐 출퇴근 관리</div>
+    </div>
+    <div class="table-wrap">
+      <div class="table-header">
+        <h3>팀원 출퇴근 현황</h3>
+        <input type="month" id="filter-month" value="${new Date().toISOString().slice(0,7)}">
+      </div>
+      <table id="attendance-table">
+        <thead>
+          <tr><th>직원</th><th>부서</th><th>출근</th><th>퇴근</th><th>근무시간</th><th>상태</th><th>관리</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  `;
+
+  const month = document.getElementById('filter-month').value;
+  const att = await api('GET', `/erp/attendance/monthly/${month}?userId=`);
+  const table = parent.querySelector('tbody');
+  table.innerHTML = att.records.map(r => `
+    <tr>
+      <td>${r.user_id}</td><td>-</td>
+      <td>${r.check_in || '-'}</td><td>${r.check_out || '-'}</td>
+      <td>${(r.work_hours || 0).toFixed(1)}h</td>
+      <td><span class="badge ${r.status==='정상'?'ready':'pending'}">${r.status}</span></td>
+      <td><button class="btn sm" onclick="editAttendance('${r.id}')">편집</button></td>
+    </tr>
+  `).join('');
+}
+
+function editAttendance(id) {
+  alert('출퇴근 편집: ' + id);
+}
+
+// ═══════════════════════════════════════════════════════
+// 연차/휴가 신청 (직원, 관리자)
+// ═══════════════════════════════════════════════════════
+
+async function renderLeaveRequest(parent) {
+  parent.innerHTML = `
+    <div class="page-header">
+      <div class="page-title">💼 연차/휴가 신청</div>
+      <button class="btn sm" onclick="openLeaveForm()">+ 신청하기</button>
+    </div>
+    <div class="table-wrap">
+      <div class="table-header"><h3>나의 신청 현황</h3></div>
+      <table id="leave-table">
+        <thead>
+          <tr><th>유형</th><th>기간</th><th>일수</th><th>사유</th><th>상태</th><th>처리일</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  `;
+
+  const leaves = await api('GET', '/erp/leave-requests');
+  const table = parent.querySelector('tbody');
+  table.innerHTML = leaves.map(l => `
+    <tr>
+      <td><span class="badge">${l.leave_type}</span></td>
+      <td>${l.start_date} ~ ${l.end_date}</td>
+      <td>${l.num_days}</td>
+      <td>${l.reason || '-'}</td>
+      <td><span class="badge ${l.status==='승인'?'done':l.status==='반려'?'urgent':'pending'}">${l.status}</span></td>
+      <td>${l.processed_at ? new Date(l.processed_at*1000).toLocaleDateString() : '-'}</td>
+    </tr>
+  `).join('');
+}
+
+function openLeaveForm() {
+  const form = `
+    <form onsubmit="submitLeaveRequest(event)">
+      <div class="form-group">
+        <label class="form-label">연차/휴가 유형</label>
+        <select id="leave-type" required>
+          <option value="연차">연차</option>
+          <option value="병가">병가</option>
+          <option value="경조사">경조사</option>
+          <option value="기타">기타</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="form-col">
+          <label class="form-label">시작일</label>
+          <input type="date" id="leave-start" required>
+        </div>
+        <div class="form-col">
+          <label class="form-label">종료일</label>
+          <input type="date" id="leave-end" required>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">일수</label>
+        <input type="number" id="leave-days" step="0.5" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">사유</label>
+        <textarea id="leave-reason" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--s2);color:var(--text);font-family:inherit;font-size:13px;min-height:80px"></textarea>
+      </div>
+      <button type="submit" class="btn">신청하기</button>
+    </form>
+  `;
+  showModal('연차/휴가 신청', form);
+}
+
+async function submitLeaveRequest(e) {
+  e.preventDefault();
+  const res = await api('POST', '/erp/leave-requests', {
+    leave_type: document.getElementById('leave-type').value,
+    start_date: document.getElementById('leave-start').value,
+    end_date: document.getElementById('leave-end').value,
+    num_days: parseFloat(document.getElementById('leave-days').value),
+    reason: document.getElementById('leave-reason').value
+  });
+  if (res.success) {
+    showToast('휴가 신청이 완료되었습니다', 'success');
+    setTimeout(() => navigate('leave-request'), 800);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// 연차/휴가 관리 (대표용)
+// ═══════════════════════════════════════════════════════
+
+async function renderLeaveManagement(parent) {
+  parent.innerHTML = `
+    <div class="page-header">
+      <div class="page-title">💼 연차/휴가 승인</div>
+    </div>
+    <div class="table-wrap">
+      <div class="table-header"><h3>승인 대기 중</h3></div>
+      <table id="leave-pending-table">
+        <thead>
+          <tr><th>신청자</th><th>유형</th><th>기간</th><th>일수</th><th>사유</th><th>처리</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  `;
+
+  const leaves = await api('GET', '/erp/leave-requests/pending');
+  const table = parent.querySelector('tbody');
+  table.innerHTML = leaves.map(l => `
+    <tr>
+      <td>${l.requester_name}</td>
+      <td><span class="badge">${l.leave_type}</span></td>
+      <td>${l.start_date} ~ ${l.end_date}</td>
+      <td>${l.num_days}</td>
+      <td>${l.reason || '-'}</td>
+      <td>
+        <button class="btn sm" onclick="approveLeave('${l.id}', '승인')">승인</button>
+        <button class="btn sm" style="background:#f87171" onclick="approveLeave('${l.id}', '반려')">반려</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function approveLeave(id, status) {
+  const note = prompt(`${status} 사유를 입력하세요:`, '');
+  const res = await api('PUT', `/erp/leave-requests/${id}/process`, { status, note });
+  if (res.success) {
+    showToast(`휴가가 ${status}되었습니다`, 'success');
+    navigate('leave-management');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// 개인별 월별 매출 (직원, 관리자)
+// ═══════════════════════════════════════════════════════
+
+async function renderSales(parent) {
+  parent.innerHTML = `
+    <div class="page-header">
+      <div class="page-title">💹 월별 매출</div>
+      <button class="btn sm" onclick="openSalesForm()">+ 매출 등록</button>
+    </div>
+    <div class="table-wrap">
+      <div class="table-header"><h3>나의 월별 매출</h3></div>
+      <table id="sales-table">
+        <thead>
+          <tr><th>년월</th><th>카테고리</th><th>금액</th><th>설명</th><th>수정</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div style="margin-top:24px">
+      <h3 style="font-size:14px;margin-bottom:12px">월별 합계</h3>
+      <div class="chart-bar" id="sales-chart"></div>
+    </div>
+  `;
+
+  const data = await api('GET', '/erp/individual-sales');
+  const table = parent.querySelector('tbody');
+  table.innerHTML = data.sales.map(s => `
+    <tr>
+      <td>${s.year_month}</td>
+      <td><span class="badge">${s.category}</span></td>
+      <td>${s.amount.toLocaleString()}원</td>
+      <td>${s.description || '-'}</td>
+      <td><button class="btn sm" onclick="editSales('${s.id}')">편집</button></td>
+    </tr>
+  `).join('');
+
+  // 월별 차트
+  const months = Object.keys(data.monthlySummary).sort();
+  const maxAmount = Math.max(...Object.values(data.monthlySummary), 1);
+  const chart = parent.getElementById('sales-chart');
+  chart.innerHTML = months.slice(-6).map(m => `
+    <div class="bar" style="height:${(data.monthlySummary[m]/maxAmount)*100%}">
+      <span class="bar-value">${(data.monthlySummary[m]/1000000).toFixed(1)}M</span>
+      <span class="bar-label">${m}</span>
+    </div>
+  `).join('');
+}
+
+function openSalesForm() {
+  const form = `
+    <form onsubmit="submitSales(event)">
+      <div class="form-group">
+        <label class="form-label">년월</label>
+        <input type="month" id="sales-month" required>
+      </div>
+      <div class="form-row">
+        <div class="form-col">
+          <label class="form-label">카테고리</label>
+          <select id="sales-category">
+            <option value="컨설팅">컨설팅</option>
+            <option value="수강료">수강료</option>
+            <option value="기타">기타</option>
+          </select>
+        </div>
+        <div class="form-col">
+          <label class="form-label">금액 (원)</label>
+          <input type="number" id="sales-amount" required>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">설명</label>
+        <input type="text" id="sales-desc" placeholder="예: OO 회사 컨설팅">
+      </div>
+      <button type="submit" class="btn">등록하기</button>
+    </form>
+  `;
+  showModal('월별 매출 등록', form);
+}
+
+async function submitSales(e) {
+  e.preventDefault();
+  const res = await api('POST', '/erp/individual-sales', {
+    year_month: document.getElementById('sales-month').value,
+    amount: parseInt(document.getElementById('sales-amount').value),
+    category: document.getElementById('sales-category').value,
+    description: document.getElementById('sales-desc').value
+  });
+  if (res.success) {
+    showToast('매출이 기록되었습니다', 'success');
+    setTimeout(() => navigate('sales'), 800);
+  }
+}
+
+function editSales(id) {
+  alert('매출 편집: ' + id);
+}
+
+// ═══════════════════════════════════════════════════════
+// 팀 매출 현황 (대표용)
+// ═══════════════════════════════════════════════════════
+
+async function renderTeamSales(parent) {
+  const month = new Date().toISOString().slice(0,7);
+  parent.innerHTML = `
+    <div class="page-header">
+      <div class="page-title">💹 팀 매출 현황</div>
+      <input type="month" id="team-sales-month" value="${month}" onchange="updateTeamSales()">
+    </div>
+    <div class="table-wrap">
+      <div class="table-header"><h3>팀원별 매출</h3></div>
+      <table id="team-sales-table">
+        <thead>
+          <tr><th>직원</th><th>매출액</th><th>카테고리</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  `;
+
+  updateTeamSales();
+}
+
+async function updateTeamSales() {
+  const month = document.getElementById('team-sales-month').value;
+  const data = await api('GET', `/erp/team-sales/${month}`);
+  const table = document.querySelector('#team-sales-table tbody');
+  table.innerHTML = data.teamSales.map(s => `
+    <tr>
+      <td>${s.name}</td>
+      <td style="font-weight:700">${s.total_amount.toLocaleString()}원</td>
+      <td>${s.categories}개 카테고리</td>
+    </tr>
+  `).join('');
+
+  // 합계 추가
+  const header = document.querySelector('.table-header');
+  header.innerHTML = `<h3>팀원별 매출 (합계: ${data.totalTeamSales.toLocaleString()}원)</h3>`;
+}
+
+// ═══════════════════════════════════════════════════════
+// 공유 캘린더 (모두용)
+// ═══════════════════════════════════════════════════════
+
+async function renderCalendar(parent) {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+
+  parent.innerHTML = `
+    <div class="page-header">
+      <div class="page-title">📅 공유 캘린더</div>
+      <button class="btn sm" onclick="openEventForm()">+ 일정 추가</button>
+    </div>
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px">
+      <div class="table-wrap">
+        <div class="table-header">
+          <h3>이번 달 일정</h3>
+          <input type="month" id="calendar-month" value="${year}-${month}">
+        </div>
+        <table id="calendar-table">
+          <thead>
+            <tr><th>시간</th><th>제목</th><th>장소</th><th>참석자</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:16px">
+        <h3 style="font-size:14px;margin-bottom:12px">캘린더</h3>
+        <div id="mini-calendar" style="font-size:12px"></div>
+      </div>
+    </div>
+  `;
+
+  loadCalendarEvents();
+  renderMiniCalendar();
+}
+
+async function loadCalendarEvents() {
+  const month = document.getElementById('calendar-month').value;
+  const start_dt = month + '-01';
+  const end_dt = new Date(month + '-01T23:59:59').toISOString().slice(0, 10);
+  const nextMonth = new Date(month + '-01');
+  nextMonth.setMonth(nextMonth.getMonth() + 1);
+  const end_next = nextMonth.toISOString().slice(0, 10);
+
+  const events = await api('GET', `/erp/calendar/events?start_dt=${start_dt}&end_dt=${end_next}`);
+  const table = document.querySelector('#calendar-table tbody');
+  table.innerHTML = events.map(e => `
+    <tr>
+      <td>${e.start_dt}</td>
+      <td>${e.title}</td>
+      <td>${e.location || '-'}</td>
+      <td>${Array.isArray(e.attendees) ? e.attendees.length : 0}명</td>
+    </tr>
+  `).join('');
+}
+
+function renderMiniCalendar() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const startDate = new Date(firstDay);
+  startDate.setDate(startDate.getDate() - firstDay.getDay());
+
+  const calendar = document.getElementById('mini-calendar');
+  const weeks = [];
+  let currentWeek = [];
+
+  for (let i = 0; i < 42; i++) {
+    const date = new Date(startDate);
+    date.setDate(date.getDate() + i);
+    const isCurrentMonth = date.getMonth() === month;
+    currentWeek.push(`<div style="padding:4px;text-align:center;color:${isCurrentMonth?'var(--text)':'var(--muted)'};">${date.getDate()}</div>`);
+    if (currentWeek.length === 7) {
+      weeks.push(`<div style="display:grid;grid-template-columns:repeat(7,1fr);">${currentWeek.join('')}</div>`);
+      currentWeek = [];
+    }
+  }
+
+  calendar.innerHTML = `
+    <div style="margin-bottom:8px;font-weight:700">${year}년 ${month+1}월</div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:8px">
+      <div style="text-align:center;font-size:10px;color:var(--red)">일</div>
+      <div style="text-align:center;font-size:10px">월</div>
+      <div style="text-align:center;font-size:10px">화</div>
+      <div style="text-align:center;font-size:10px">수</div>
+      <div style="text-align:center;font-size:10px">목</div>
+      <div style="text-align:center;font-size:10px">금</div>
+      <div style="text-align:center;font-size:10px;color:var(--blue)">토</div>
+    </div>
+    ${weeks.join('')}
+  `;
+}
+
+function openEventForm() {
+  const form = `
+    <form onsubmit="submitEvent(event)">
+      <div class="form-group">
+        <label class="form-label">제목</label>
+        <input type="text" id="event-title" required>
+      </div>
+      <div class="form-row">
+        <div class="form-col">
+          <label class="form-label">시작</label>
+          <input type="datetime-local" id="event-start" required>
+        </div>
+        <div class="form-col">
+          <label class="form-label">종료</label>
+          <input type="datetime-local" id="event-end">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">위치</label>
+        <input type="text" id="event-location" placeholder="대면/회의실 등">
+      </div>
+      <div class="form-group">
+        <label class="form-label">유형</label>
+        <select id="event-type">
+          <option value="회의">회의</option>
+          <option value="상담">대면 상담</option>
+          <option value="교육">교육/세미나</option>
+          <option value="기타">기타</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">설명</label>
+        <textarea id="event-desc" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--s2);color:var(--text);font-family:inherit;font-size:13px;min-height:60px"></textarea>
+      </div>
+      <button type="submit" class="btn">추가하기</button>
+    </form>
+  `;
+  showModal('새 일정 추가', form);
+}
+
+async function submitEvent(e) {
+  e.preventDefault();
+  const start = new Date(document.getElementById('event-start').value);
+  const res = await api('POST', '/erp/calendar/events', {
+    title: document.getElementById('event-title').value,
+    type: document.getElementById('event-type').value,
+    start_dt: start.toISOString().slice(0, 19),
+    end_dt: document.getElementById('event-end').value ? new Date(document.getElementById('event-end').value).toISOString().slice(0, 19) : null,
+    location: document.getElementById('event-location').value,
+    description: document.getElementById('event-desc').value
+  });
+  if (res.success) {
+    showToast('일정이 추가되었습니다', 'success');
+    setTimeout(() => navigate('calendar'), 800);
+  }
 }
 
 // 초기화
