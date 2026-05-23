@@ -373,29 +373,301 @@ async function renderDashboard(parent) {
 async function renderFinance(parent) {
   if (state.user.erpRole !== 'ceo') { parent.innerHTML = '<p>접근 권한이 없습니다</p>'; return; }
 
-  const data = await api('GET', '/erp/finance/summary');
-  let html = '<div class="page on"><div class="page-header"><h1 class="page-title">재무 현황</h1></div>';
+  parent.innerHTML = `
+    <div class="page-header">
+      <div class="page-title">💰 재무 현황</div>
+      <div class="page-actions">
+        <button class="btn sm" onclick="openRevenueForm()">+ 매출 등록</button>
+        <button class="btn sm" style="background:var(--s3);border:1px solid var(--border)" onclick="openExpenseForm()">+ 지출 등록</button>
+      </div>
+    </div>
 
-  html += '<div style="margin-bottom:24px"><h3 style="margin-bottom:12px">월별 매출·지출</h3>';
-  const months = (data.monthly || []).map(m => m.month).slice(-6);
-  const maxVal = Math.max(...(data.monthly || []).map(m => Math.max(m.revenue, m.expense)));
-  html += '<div class="chart-bar">';
-  (data.monthly || []).slice(-6).forEach(m => {
-    const revH = (m.revenue / maxVal * 100) || 0;
-    const expH = (m.expense / maxVal * 100) || 0;
-    html += `<div style="flex:1"><div style="display:flex;gap:2px;height:120px;align-items:flex-end">
-      <div style="flex:1;height:${revH}%;background:var(--blue);border-radius:2px"></div>
-      <div style="flex:1;height:${expH}%;background:var(--red);border-radius:2px"></div>
-    </div><div style="font-size:10px;text-align:center;margin-top:6px;color:var(--muted)">${m.month}</div></div>`;
-  });
-  html += '</div><div style="font-size:11px;color:var(--muted);margin-top:8px">파란색: 매출 | 빨간색: 지출</div></div>';
+    <!-- KPI 요약 -->
+    <div class="dashboard-grid" id="finance-kpis"></div>
 
-  html += '<div class="grid-2"><div><h3>매출 분류</h3><table><tr><th>분류</th><th>금액</th></tr>';
-  (data.revCat || []).forEach(r => html += `<tr><td>${r.category}</td><td>${(r.total/1e6).toFixed(1)}백만</td></tr>`);
-  html += '</table></div><div><h3>지출 분류</h3><table><tr><th>분류</th><th>금액</th></tr>';
-  (data.expCat || []).forEach(e => html += `<tr><td>${e.category}</td><td>${(e.total/1e6).toFixed(1)}백만</td></tr>`);
-  html += '</table></div></div></div>';
-  parent.innerHTML = html;
+    <!-- 차트 -->
+    <div class="table-wrap" style="padding:20px;margin-bottom:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <h3 style="font-size:14px;font-weight:600">📊 월별 매출·지출 추이</h3>
+        <div style="display:flex;gap:12px;font-size:11px">
+          <span><span style="display:inline-block;width:10px;height:10px;background:var(--blue);border-radius:2px;margin-right:4px"></span>매출</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:var(--red);border-radius:2px;margin-right:4px"></span>지출</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:var(--green);border-radius:2px;margin-right:4px"></span>순이익</span>
+        </div>
+      </div>
+      <div class="chart-bar" id="finance-chart" style="height:160px;align-items:flex-end;gap:12px"></div>
+    </div>
+
+    <!-- 탭: 매출 / 지출 -->
+    <div style="display:flex;gap:0;margin-bottom:0;border-bottom:1px solid var(--border)">
+      <button id="tab-rev" onclick="switchFinanceTab('rev')"
+        style="padding:10px 24px;background:transparent;border:none;border-bottom:2px solid var(--blue);color:var(--text);font-weight:700;cursor:pointer;font-family:inherit;font-size:13px">💳 매출 내역</button>
+      <button id="tab-exp" onclick="switchFinanceTab('exp')"
+        style="padding:10px 24px;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);cursor:pointer;font-family:inherit;font-size:13px">🧾 지출 내역</button>
+    </div>
+
+    <!-- 매출 목록 -->
+    <div id="finance-rev-panel" class="table-wrap" style="border-top:none;border-radius:0 0 12px 12px">
+      <table id="revenue-table">
+        <thead><tr><th>날짜</th><th>항목</th><th>분류</th><th>금액</th><th>상태</th><th>비고</th><th>관리</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- 지출 목록 -->
+    <div id="finance-exp-panel" class="table-wrap" style="display:none;border-top:none;border-radius:0 0 12px 12px">
+      <table id="expense-table">
+        <thead><tr><th>날짜</th><th>항목</th><th>분류</th><th>금액</th><th>상태</th><th>비고</th><th>관리</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  `;
+
+  await loadFinanceData();
+}
+
+async function loadFinanceData() {
+  const [summary, revenues, expenses] = await Promise.all([
+    api('GET', '/erp/finance/summary'),
+    api('GET', '/erp/revenue'),
+    api('GET', '/erp/expenses'),
+  ]);
+
+  // KPI 카드
+  const latestMonth = summary.monthly?.[summary.monthly.length - 1] || {};
+  const prevMonth   = summary.monthly?.[summary.monthly.length - 2] || {};
+  const kpiEl = document.getElementById('finance-kpis');
+  if (kpiEl) {
+    const fmt = v => (v >= 1e8 ? (v/1e8).toFixed(1)+'억' : v >= 1e4 ? (v/1e4).toFixed(0)+'만' : v.toLocaleString())+'원';
+    const diff = (a, b) => b > 0 ? ((a-b)/b*100).toFixed(1) : '0';
+    kpiEl.innerHTML = [
+      { label:'이번달 매출', val: latestMonth.revenue||0, prev: prevMonth.revenue||0, color:'--blue' },
+      { label:'이번달 지출', val: latestMonth.expense||0, prev: prevMonth.expense||0, color:'--red' },
+      { label:'이번달 순이익', val: (latestMonth.revenue||0)-(latestMonth.expense||0), prev: (prevMonth.revenue||0)-(prevMonth.expense||0), color:'--green' },
+    ].map(k => {
+      const d = diff(k.val, k.prev);
+      const sign = d >= 0 ? '+' : '';
+      return `<div class="kpi-card">
+        <div class="kpi-label">${k.label}</div>
+        <div class="kpi-value" style="color:var(${k.color})">${fmt(k.val)}</div>
+        <div class="kpi-unit" style="color:${d>=0?'var(--green)':'var(--red)'}">${sign}${d}% 전월 대비</div>
+      </div>`;
+    }).join('');
+  }
+
+  // 차트
+  const chartEl = document.getElementById('finance-chart');
+  if (chartEl && summary.monthly?.length) {
+    const maxVal = Math.max(...summary.monthly.map(m => Math.max(m.revenue, m.expense)), 1);
+    chartEl.innerHTML = summary.monthly.slice(-6).map(m => {
+      const rH = Math.max(Math.round(m.revenue/maxVal*100), 2);
+      const eH = Math.max(Math.round(m.expense/maxVal*100), 2);
+      const pH = m.profit > 0 ? Math.max(Math.round(m.profit/maxVal*100), 2) : 0;
+      return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">
+        <div style="width:100%;display:flex;gap:3px;height:140px;align-items:flex-end">
+          <div style="flex:1;height:${rH}%;background:var(--blue);border-radius:3px 3px 0 0;min-height:4px"></div>
+          <div style="flex:1;height:${eH}%;background:var(--red);border-radius:3px 3px 0 0;min-height:4px"></div>
+          <div style="flex:1;height:${pH}%;background:var(--green);border-radius:3px 3px 0 0;min-height:${m.profit>0?4:0}px"></div>
+        </div>
+        <div style="font-size:10px;color:var(--muted)">${m.month.slice(5)}월</div>
+      </div>`;
+    }).join('');
+  }
+
+  // 매출 테이블
+  const revBody = document.querySelector('#revenue-table tbody');
+  if (revBody) {
+    revBody.innerHTML = revenues.length ? revenues.map(r => `
+      <tr>
+        <td>${r.payment_date || '-'}</td>
+        <td style="font-weight:600">${r.title}</td>
+        <td><span class="badge done">${r.category}</span></td>
+        <td style="font-weight:700;color:var(--blue)">${r.amount.toLocaleString()}원</td>
+        <td><span class="badge ${r.status==='완료'?'ready':'pending'}">${r.status}</span></td>
+        <td style="color:var(--muted)">${r.note||'-'}</td>
+        <td>
+          <button class="btn sm" onclick='openRevenueForm(${JSON.stringify(r)})'>편집</button>
+          <button class="btn sm btn-danger" onclick="deleteRevenue('${r.id}')">삭제</button>
+        </td>
+      </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">등록된 매출이 없습니다</td></tr>';
+  }
+
+  // 지출 테이블
+  const expBody = document.querySelector('#expense-table tbody');
+  if (expBody) {
+    expBody.innerHTML = expenses.length ? expenses.map(e => `
+      <tr>
+        <td>${e.expense_date || '-'}</td>
+        <td style="font-weight:600">${e.title}</td>
+        <td><span class="badge pending">${e.category}</span></td>
+        <td style="font-weight:700;color:var(--red)">${e.amount.toLocaleString()}원</td>
+        <td><span class="badge ${e.status==='승인'?'ready':'urgent'}">${e.status}</span></td>
+        <td style="color:var(--muted)">${e.note||'-'}</td>
+        <td>
+          <button class="btn sm" onclick='openExpenseForm(${JSON.stringify(e)})'>편집</button>
+          <button class="btn sm btn-danger" onclick="deleteExpense('${e.id}')">삭제</button>
+        </td>
+      </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">등록된 지출이 없습니다</td></tr>';
+  }
+}
+
+function switchFinanceTab(tab) {
+  document.getElementById('finance-rev-panel').style.display = tab === 'rev' ? '' : 'none';
+  document.getElementById('finance-exp-panel').style.display = tab === 'exp' ? '' : 'none';
+  document.getElementById('tab-rev').style.cssText = tab === 'rev'
+    ? 'padding:10px 24px;background:transparent;border:none;border-bottom:2px solid var(--blue);color:var(--text);font-weight:700;cursor:pointer;font-family:inherit;font-size:13px'
+    : 'padding:10px 24px;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);cursor:pointer;font-family:inherit;font-size:13px';
+  document.getElementById('tab-exp').style.cssText = tab === 'exp'
+    ? 'padding:10px 24px;background:transparent;border:none;border-bottom:2px solid var(--red);color:var(--text);font-weight:700;cursor:pointer;font-family:inherit;font-size:13px'
+    : 'padding:10px 24px;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);cursor:pointer;font-family:inherit;font-size:13px';
+}
+
+function openRevenueForm(item = null) {
+  const isEdit = item && item.id;
+  const modal = document.createElement('div');
+  modal.className = 'modal on';
+  modal.id = 'revenue-modal';
+  modal.innerHTML = `
+    <div class="modal-content">
+      <button class="modal-close" onclick="document.getElementById('revenue-modal').remove()">✕</button>
+      <div class="modal-title">${isEdit ? '매출 수정' : '매출 등록'}</div>
+      <form onsubmit="submitRevenue(event, ${isEdit ? "'" + item.id + "'" : 'null'})">
+        <div class="form-row">
+          <div class="form-col">
+            <label class="form-label">항목명</label>
+            <input type="text" id="rev-title" value="${isEdit ? item.title : ''}" required>
+          </div>
+          <div class="form-col">
+            <label class="form-label">금액 (원)</label>
+            <input type="number" id="rev-amount" value="${isEdit ? item.amount : ''}" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-col">
+            <label class="form-label">분류</label>
+            <select id="rev-category">
+              ${['수강료','컨설팅비','기업교육','용역','국제협력','기타'].map(c => `<option value="${c}" ${isEdit&&item.category===c?'selected':''}>${c}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-col">
+            <label class="form-label">결제일</label>
+            <input type="date" id="rev-date" value="${isEdit ? (item.payment_date||'') : ''}">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-col">
+            <label class="form-label">상태</label>
+            <select id="rev-status">
+              ${['완료','예정','취소'].map(s => `<option value="${s}" ${isEdit&&item.status===s?'selected':''}>${s}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-col">
+            <label class="form-label">비고</label>
+            <input type="text" id="rev-note" value="${isEdit ? (item.note||'') : ''}">
+          </div>
+        </div>
+        <button type="submit" class="btn" style="margin-top:8px">${isEdit ? '수정하기' : '등록하기'}</button>
+      </form>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+async function submitRevenue(e, id) {
+  e.preventDefault();
+  const body = {
+    title: document.getElementById('rev-title').value,
+    amount: document.getElementById('rev-amount').value,
+    category: document.getElementById('rev-category').value,
+    payment_date: document.getElementById('rev-date').value,
+    status: document.getElementById('rev-status').value,
+    note: document.getElementById('rev-note').value,
+  };
+  const res = id ? await api('PUT', `/erp/revenue/${id}`, body) : await api('POST', '/erp/revenue', body);
+  if (res.success || res.id) {
+    document.getElementById('revenue-modal')?.remove();
+    toast(id ? '매출이 수정되었습니다' : '매출이 등록되었습니다', 'success');
+    await loadFinanceData();
+  } else { toast(res.error || '오류 발생', 'error'); }
+}
+
+async function deleteRevenue(id) {
+  if (!confirm('이 매출 항목을 삭제하시겠습니까?')) return;
+  const res = await api('DELETE', `/erp/revenue/${id}`);
+  if (res.success) { toast('삭제되었습니다', 'success'); await loadFinanceData(); }
+}
+
+function openExpenseForm(item = null) {
+  const isEdit = item && item.id;
+  const modal = document.createElement('div');
+  modal.className = 'modal on';
+  modal.id = 'expense-modal';
+  modal.innerHTML = `
+    <div class="modal-content">
+      <button class="modal-close" onclick="document.getElementById('expense-modal').remove()">✕</button>
+      <div class="modal-title">${isEdit ? '지출 수정' : '지출 등록'}</div>
+      <form onsubmit="submitExpense(event, ${isEdit ? "'" + item.id + "'" : 'null'})">
+        <div class="form-row">
+          <div class="form-col">
+            <label class="form-label">항목명</label>
+            <input type="text" id="exp-title" value="${isEdit ? item.title : ''}" required>
+          </div>
+          <div class="form-col">
+            <label class="form-label">금액 (원)</label>
+            <input type="number" id="exp-amount" value="${isEdit ? item.amount : ''}" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-col">
+            <label class="form-label">분류</label>
+            <select id="exp-category">
+              ${['임대료','인건비','공과금','소모품','마케팅','식비','교통비','기타'].map(c => `<option value="${c}" ${isEdit&&item.category===c?'selected':''}>${c}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-col">
+            <label class="form-label">지출일</label>
+            <input type="date" id="exp-date" value="${isEdit ? (item.expense_date||'') : ''}">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-col">
+            <label class="form-label">상태</label>
+            <select id="exp-status">
+              ${['승인','대기','반려'].map(s => `<option value="${s}" ${isEdit&&item.status===s?'selected':''}>${s}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-col">
+            <label class="form-label">비고</label>
+            <input type="text" id="exp-note" value="${isEdit ? (item.note||'') : ''}">
+          </div>
+        </div>
+        <button type="submit" class="btn" style="margin-top:8px;background:var(--red)">${isEdit ? '수정하기' : '등록하기'}</button>
+      </form>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+async function submitExpense(e, id) {
+  e.preventDefault();
+  const body = {
+    title: document.getElementById('exp-title').value,
+    amount: document.getElementById('exp-amount').value,
+    category: document.getElementById('exp-category').value,
+    expense_date: document.getElementById('exp-date').value,
+    status: document.getElementById('exp-status').value,
+    note: document.getElementById('exp-note').value,
+  };
+  const res = id ? await api('PUT', `/erp/expenses/${id}`, body) : await api('POST', '/erp/expenses', body);
+  if (res.success || res.id) {
+    document.getElementById('expense-modal')?.remove();
+    toast(id ? '지출이 수정되었습니다' : '지출이 등록되었습니다', 'success');
+    await loadFinanceData();
+  } else { toast(res.error || '오류 발생', 'error'); }
+}
+
+async function deleteExpense(id) {
+  if (!confirm('이 지출 항목을 삭제하시겠습니까?')) return;
+  const res = await api('DELETE', `/erp/expenses/${id}`);
+  if (res.success) { toast('삭제되었습니다', 'success'); await loadFinanceData(); }
 }
 
 async function renderEmployees(parent) {
@@ -888,154 +1160,310 @@ async function updateTeamSales() {
 // 공유 캘린더 (모두용)
 // ═══════════════════════════════════════════════════════
 
-async function renderCalendar(parent) {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, '0');
+// ── 공유 캘린더 상태 ─────────────────────────────────
+const calState = { year: new Date().getFullYear(), month: new Date().getMonth(), events: [] };
 
+async function renderCalendar(parent) {
   parent.innerHTML = `
-    <div class="page-header">
+    <div class="page-header" style="margin-bottom:16px">
       <div class="page-title">📅 공유 캘린더</div>
-      <button class="btn sm" onclick="openEventForm()">+ 일정 추가</button>
+      <div class="page-actions">
+        <button class="btn sm" style="background:var(--s3);border:1px solid var(--border)" onclick="calNav(-1)">‹ 이전달</button>
+        <button class="btn sm" style="background:var(--s3);border:1px solid var(--border)" onclick="calNavToday()">오늘</button>
+        <button class="btn sm" style="background:var(--s3);border:1px solid var(--border)" onclick="calNav(1)">다음달 ›</button>
+        <button class="btn sm" onclick="openEventForm()">+ 일정 추가</button>
+      </div>
     </div>
-    <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px">
-      <div class="table-wrap">
-        <div class="table-header">
-          <h3>이번 달 일정</h3>
-          <input type="month" id="calendar-month" value="${year}-${month}">
-        </div>
-        <table id="calendar-table">
-          <thead>
-            <tr><th>시간</th><th>제목</th><th>장소</th><th>참석자</th></tr>
-          </thead>
-          <tbody></tbody>
-        </table>
+    <div id="cal-title" style="font-size:20px;font-weight:700;margin-bottom:16px;text-align:center"></div>
+    <!-- 요일 헤더 -->
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:2px">
+      ${['일','월','화','수','목','금','토'].map((d,i) =>
+        `<div style="text-align:center;padding:8px 4px;font-size:12px;font-weight:700;color:${i===0?'var(--red)':i===6?'var(--blue)':'var(--muted)'}">${d}</div>`
+      ).join('')}
+    </div>
+    <!-- 캘린더 그리드 -->
+    <div id="cal-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px"></div>
+
+    <!-- 이벤트 목록 사이드패널 (선택한 날짜) -->
+    <div id="cal-day-panel" style="display:none;margin-top:20px;background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h3 id="cal-day-title" style="font-size:14px;font-weight:700"></h3>
+        <button onclick="document.getElementById('cal-day-panel').style.display='none'" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px">✕</button>
       </div>
-      <div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:16px">
-        <h3 style="font-size:14px;margin-bottom:12px">캘린더</h3>
-        <div id="mini-calendar" style="font-size:12px"></div>
-      </div>
+      <div id="cal-day-events"></div>
     </div>
   `;
 
-  loadCalendarEvents();
-  renderMiniCalendar();
+  await calLoadAndRender();
 }
 
-async function loadCalendarEvents() {
-  const month = document.getElementById('calendar-month').value;
-  const start_dt = month + '-01';
-  const end_dt = new Date(month + '-01T23:59:59').toISOString().slice(0, 10);
-  const nextMonth = new Date(month + '-01');
-  nextMonth.setMonth(nextMonth.getMonth() + 1);
-  const end_next = nextMonth.toISOString().slice(0, 10);
+async function calLoadAndRender() {
+  const { year, month } = calState;
+  const start_dt = `${year}-${String(month+1).padStart(2,'0')}-01`;
+  const next = new Date(year, month+1, 1);
+  const end_dt = next.toISOString().slice(0,10);
 
-  const events = await api('GET', `/erp/calendar/events?start_dt=${start_dt}&end_dt=${end_next}`);
-  const table = document.querySelector('#calendar-table tbody');
-  table.innerHTML = events.map(e => `
-    <tr>
-      <td>${e.start_dt}</td>
-      <td>${e.title}</td>
-      <td>${e.location || '-'}</td>
-      <td>${Array.isArray(e.attendees) ? e.attendees.length : 0}명</td>
-    </tr>
-  `).join('');
+  calState.events = await api('GET', `/erp/calendar/events?start_dt=${start_dt}&end_dt=${end_dt}`);
+  calRenderGrid();
 }
 
-function renderMiniCalendar() {
+function calRenderGrid() {
+  const { year, month, events } = calState;
   const today = new Date();
-  const year = today.getFullYear();
-  const month = today.getMonth();
-  const firstDay = new Date(year, month, 1);
-  const lastDay = new Date(year, month + 1, 0);
-  const startDate = new Date(firstDay);
-  startDate.setDate(startDate.getDate() - firstDay.getDay());
 
-  const calendar = document.getElementById('mini-calendar');
-  const weeks = [];
-  let currentWeek = [];
+  document.getElementById('cal-title').textContent = `${year}년 ${month+1}월`;
 
-  for (let i = 0; i < 42; i++) {
-    const date = new Date(startDate);
-    date.setDate(date.getDate() + i);
-    const isCurrentMonth = date.getMonth() === month;
-    currentWeek.push(`<div style="padding:4px;text-align:center;color:${isCurrentMonth?'var(--text)':'var(--muted)'};">${date.getDate()}</div>`);
-    if (currentWeek.length === 7) {
-      weeks.push(`<div style="display:grid;grid-template-columns:repeat(7,1fr);">${currentWeek.join('')}</div>`);
-      currentWeek = [];
+  // 이벤트를 날짜별로 정리
+  const evByDay = {};
+  events.forEach(e => {
+    const d = (e.start_dt || '').slice(0,10);
+    if (!evByDay[d]) evByDay[d] = [];
+    evByDay[d].push(e);
+  });
+
+  const firstDay = new Date(year, month, 1).getDay(); // 0=일
+  const lastDate = new Date(year, month+1, 0).getDate();
+  const prevLastDate = new Date(year, month, 0).getDate();
+  const totalCells = Math.ceil((firstDay + lastDate) / 7) * 7;
+
+  let cells = '';
+  for (let i = 0; i < totalCells; i++) {
+    let date, curMonth = true, dateStr;
+    if (i < firstDay) {
+      date = prevLastDate - firstDay + i + 1;
+      curMonth = false;
+      const pm = month === 0 ? 12 : month;
+      const py = month === 0 ? year-1 : year;
+      dateStr = `${py}-${String(pm).padStart(2,'0')}-${String(date).padStart(2,'0')}`;
+    } else if (i >= firstDay + lastDate) {
+      date = i - firstDay - lastDate + 1;
+      curMonth = false;
+      const nm = month === 11 ? 1 : month+2;
+      const ny = month === 11 ? year+1 : year;
+      dateStr = `${ny}-${String(nm).padStart(2,'0')}-${String(date).padStart(2,'0')}`;
+    } else {
+      date = i - firstDay + 1;
+      dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(date).padStart(2,'0')}`;
     }
+
+    const isToday = dateStr === today.toISOString().slice(0,10);
+    const dayOfWeek = i % 7;
+    const dayColor = !curMonth ? 'var(--muted)' : dayOfWeek===0 ? 'var(--red)' : dayOfWeek===6 ? 'var(--blue)' : 'var(--text)';
+    const dayEvents = evByDay[dateStr] || [];
+    const typeColors = { '회의':'var(--blue)','상담':'var(--gold)','교육':'var(--teal)','기타':'var(--muted)' };
+
+    const evHtml = dayEvents.slice(0,3).map(ev =>
+      `<div onclick="event.stopPropagation();showEventDetail('${ev.id}')" style="font-size:10px;padding:2px 5px;margin-bottom:2px;border-radius:3px;background:${typeColors[ev.type]||'var(--blue)'};opacity:0.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;color:#fff">${ev.title}</div>`
+    ).join('') + (dayEvents.length > 3 ? `<div style="font-size:10px;color:var(--muted);padding:2px 4px">+${dayEvents.length-3}개</div>` : '');
+
+    cells += `
+      <div onclick="calSelectDay('${dateStr}')" style="min-height:88px;background:${isToday?'rgba(79,125,255,.12)':'var(--s1)'};border:1px solid ${isToday?'var(--blue)':'var(--border)'};border-radius:6px;padding:6px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background='var(--s2)'" onmouseout="this.style.background='${isToday?'rgba(79,125,255,.12)':'var(--s1)'}'">
+        <div style="font-size:12px;font-weight:${isToday?700:500};color:${isToday?'var(--blue)':dayColor};${isToday?'background:var(--blue);color:#fff;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;':''}margin-bottom:4px">${date}</div>
+        ${evHtml}
+      </div>`;
   }
 
-  calendar.innerHTML = `
-    <div style="margin-bottom:8px;font-weight:700">${year}년 ${month+1}월</div>
-    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:8px">
-      <div style="text-align:center;font-size:10px;color:var(--red)">일</div>
-      <div style="text-align:center;font-size:10px">월</div>
-      <div style="text-align:center;font-size:10px">화</div>
-      <div style="text-align:center;font-size:10px">수</div>
-      <div style="text-align:center;font-size:10px">목</div>
-      <div style="text-align:center;font-size:10px">금</div>
-      <div style="text-align:center;font-size:10px;color:var(--blue)">토</div>
-    </div>
-    ${weeks.join('')}
-  `;
+  document.getElementById('cal-grid').innerHTML = cells;
 }
 
-function openEventForm() {
-  const form = `
-    <form onsubmit="submitEvent(event)">
-      <div class="form-group">
-        <label class="form-label">제목</label>
-        <input type="text" id="event-title" required>
-      </div>
-      <div class="form-row">
-        <div class="form-col">
-          <label class="form-label">시작</label>
-          <input type="datetime-local" id="event-start" required>
+function calNav(delta) {
+  calState.month += delta;
+  if (calState.month < 0)  { calState.month = 11; calState.year--; }
+  if (calState.month > 11) { calState.month = 0;  calState.year++; }
+  calLoadAndRender();
+}
+
+function calNavToday() {
+  calState.year = new Date().getFullYear();
+  calState.month = new Date().getMonth();
+  calLoadAndRender();
+}
+
+async function calSelectDay(dateStr) {
+  const panel = document.getElementById('cal-day-panel');
+  const title = document.getElementById('cal-day-title');
+  const evList = document.getElementById('cal-day-events');
+
+  title.textContent = `📅 ${dateStr} 일정`;
+  const dayEvents = calState.events.filter(e => (e.start_dt||'').startsWith(dateStr));
+
+  if (dayEvents.length === 0) {
+    evList.innerHTML = `<div style="color:var(--muted);font-size:12px;padding:12px 0">일정이 없습니다. <span style="color:var(--blue);cursor:pointer" onclick="openEventFormDate('${dateStr}')">+ 추가하기</span></div>`;
+  } else {
+    const typeColors = { '회의':'var(--blue)','상담':'var(--gold)','교육':'var(--teal)','기타':'var(--muted)' };
+    evList.innerHTML = dayEvents.map(ev => `
+      <div style="display:flex;align-items:flex-start;gap:12px;padding:12px;background:var(--s2);border-radius:8px;margin-bottom:8px;border-left:3px solid ${typeColors[ev.type]||'var(--blue)'}">
+        <div style="flex:1">
+          <div style="font-weight:700;margin-bottom:4px">${ev.title}</div>
+          <div style="font-size:11px;color:var(--muted)">
+            ${ev.start_dt ? ev.start_dt.slice(11,16) : ''} ${ev.end_dt ? '~ ' + ev.end_dt.slice(11,16) : ''}
+            ${ev.location ? '📍 ' + ev.location : ''}
+          </div>
+          ${ev.description ? `<div style="font-size:12px;margin-top:4px;color:var(--text)">${ev.description}</div>` : ''}
         </div>
-        <div class="form-col">
-          <label class="form-label">종료</label>
-          <input type="datetime-local" id="event-end">
+        <div style="display:flex;gap:4px;flex-shrink:0">
+          <button class="btn sm" onclick="showEventDetail('${ev.id}')">편집</button>
+          <button class="btn sm btn-danger" onclick="deleteEvent('${ev.id}')">삭제</button>
         </div>
+      </div>`).join('');
+  }
+
+  panel.style.display = '';
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function showEventDetail(eventId) {
+  const ev = calState.events.find(e => e.id === eventId);
+  if (!ev) return;
+
+  const modal = document.createElement('div');
+  modal.className = 'modal on';
+  modal.id = 'event-detail-modal';
+  const typeColors = { '회의':'var(--blue)','상담':'var(--gold)','교육':'var(--teal)','기타':'var(--muted)' };
+  modal.innerHTML = `
+    <div class="modal-content">
+      <button class="modal-close" onclick="document.getElementById('event-detail-modal').remove()">✕</button>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+        <div style="width:8px;height:8px;border-radius:50%;background:${typeColors[ev.type]||'var(--blue)'}"></div>
+        <div class="modal-title" style="margin:0">${ev.title}</div>
       </div>
-      <div class="form-group">
-        <label class="form-label">위치</label>
-        <input type="text" id="event-location" placeholder="대면/회의실 등">
-      </div>
-      <div class="form-group">
-        <label class="form-label">유형</label>
-        <select id="event-type">
-          <option value="회의">회의</option>
-          <option value="상담">대면 상담</option>
-          <option value="교육">교육/세미나</option>
-          <option value="기타">기타</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">설명</label>
-        <textarea id="event-desc" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--s2);color:var(--text);font-family:inherit;font-size:13px;min-height:60px"></textarea>
-      </div>
-      <button type="submit" class="btn">추가하기</button>
-    </form>
-  `;
-  showModal('새 일정 추가', form);
+      <form onsubmit="submitEventEdit(event, '${ev.id}')">
+        <div class="form-group">
+          <label class="form-label">제목</label>
+          <input type="text" id="ev-title" value="${ev.title}" required>
+        </div>
+        <div class="form-row">
+          <div class="form-col">
+            <label class="form-label">시작</label>
+            <input type="datetime-local" id="ev-start" value="${(ev.start_dt||'').slice(0,16)}">
+          </div>
+          <div class="form-col">
+            <label class="form-label">종료</label>
+            <input type="datetime-local" id="ev-end" value="${(ev.end_dt||'').slice(0,16)}">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-col">
+            <label class="form-label">유형</label>
+            <select id="ev-type">
+              ${['회의','상담','교육','기타'].map(t => `<option value="${t}" ${ev.type===t?'selected':''}>${t}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-col">
+            <label class="form-label">장소</label>
+            <input type="text" id="ev-location" value="${ev.location||''}">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">설명</label>
+          <textarea id="ev-desc" style="min-height:60px">${ev.description||''}</textarea>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button type="submit" class="btn">저장</button>
+          <button type="button" class="btn btn-danger" onclick="deleteEvent('${ev.id}')">삭제</button>
+        </div>
+      </form>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+async function submitEventEdit(e, id) {
+  e.preventDefault();
+  const res = await api('PUT', `/erp/calendar/events/${id}`, {
+    title: document.getElementById('ev-title').value,
+    type: document.getElementById('ev-type').value,
+    start_dt: document.getElementById('ev-start').value,
+    end_dt: document.getElementById('ev-end').value,
+    location: document.getElementById('ev-location').value,
+    description: document.getElementById('ev-desc').value,
+  });
+  if (res.success) {
+    document.getElementById('event-detail-modal')?.remove();
+    toast('일정이 수정되었습니다', 'success');
+    await calLoadAndRender();
+  }
+}
+
+async function deleteEvent(id) {
+  if (!confirm('이 일정을 삭제하시겠습니까?')) return;
+  const res = await api('DELETE', `/erp/calendar/events/${id}`);
+  if (res.success) {
+    document.querySelectorAll('#event-detail-modal, #cal-day-panel').forEach(el => {
+      if (el.id === 'event-detail-modal') el.remove();
+      else el.style.display = 'none';
+    });
+    toast('일정이 삭제되었습니다', 'success');
+    await calLoadAndRender();
+  }
+}
+
+function openEventForm(dateStr = null) {
+  const defaultStart = dateStr ? dateStr + 'T09:00' : '';
+  const defaultEnd   = dateStr ? dateStr + 'T10:00' : '';
+  const modal = document.createElement('div');
+  modal.className = 'modal on';
+  modal.id = 'event-add-modal';
+  modal.innerHTML = `
+    <div class="modal-content">
+      <button class="modal-close" onclick="document.getElementById('event-add-modal').remove()">✕</button>
+      <div class="modal-title">📅 새 일정 추가</div>
+      <form onsubmit="submitEvent(event)">
+        <div class="form-group">
+          <label class="form-label">제목</label>
+          <input type="text" id="event-title" placeholder="일정 제목" required>
+        </div>
+        <div class="form-row">
+          <div class="form-col">
+            <label class="form-label">유형</label>
+            <select id="event-type">
+              <option value="회의">🤝 회의</option>
+              <option value="상담">💬 대면 상담</option>
+              <option value="교육">📚 교육/세미나</option>
+              <option value="기타">📌 기타</option>
+            </select>
+          </div>
+          <div class="form-col">
+            <label class="form-label">장소</label>
+            <input type="text" id="event-location" placeholder="회의실, 카페 등" value="">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-col">
+            <label class="form-label">시작</label>
+            <input type="datetime-local" id="event-start" value="${defaultStart}" required>
+          </div>
+          <div class="form-col">
+            <label class="form-label">종료</label>
+            <input type="datetime-local" id="event-end" value="${defaultEnd}">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">설명</label>
+          <textarea id="event-desc" style="min-height:60px" placeholder="일정에 대한 메모"></textarea>
+        </div>
+        <button type="submit" class="btn">추가하기</button>
+      </form>
+    </div>`;
+  document.body.appendChild(modal);
 }
 
 async function submitEvent(e) {
   e.preventDefault();
-  const start = new Date(document.getElementById('event-start').value);
+  const startVal = document.getElementById('event-start').value;
+  const endVal   = document.getElementById('event-end').value;
   const res = await api('POST', '/erp/calendar/events', {
-    title: document.getElementById('event-title').value,
-    type: document.getElementById('event-type').value,
-    start_dt: start.toISOString().slice(0, 19),
-    end_dt: document.getElementById('event-end').value ? new Date(document.getElementById('event-end').value).toISOString().slice(0, 19) : null,
-    location: document.getElementById('event-location').value,
-    description: document.getElementById('event-desc').value
+    title:       document.getElementById('event-title').value,
+    type:        document.getElementById('event-type').value,
+    start_dt:    startVal.replace('T', ' '),
+    end_dt:      endVal ? endVal.replace('T', ' ') : null,
+    location:    document.getElementById('event-location').value,
+    description: document.getElementById('event-desc').value,
   });
-  if (res.success) {
-    showToast('일정이 추가되었습니다', 'success');
-    setTimeout(() => navigate('calendar'), 800);
-  }
+  if (res.success || res.id) {
+    document.getElementById('event-add-modal')?.remove();
+    toast('일정이 추가되었습니다', 'success');
+    await calLoadAndRender();
+  } else { toast(res.error || '오류 발생', 'error'); }
 }
 
 // 초기화

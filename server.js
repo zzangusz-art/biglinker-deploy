@@ -3540,6 +3540,13 @@ app.post('/api/erp/revenue', erpAuth, erpCeo, (req, res) => {
   res.json({id,success:true});
 });
 
+app.put('/api/erp/revenue/:id', erpAuth, erpCeo, (req, res) => {
+  const {title,amount,category,client_id,payment_date,status,note}=req.body;
+  db.prepare("UPDATE erp_revenue SET title=COALESCE(?,title),amount=COALESCE(?,amount),category=COALESCE(?,category),client_id=COALESCE(?,client_id),payment_date=COALESCE(?,payment_date),status=COALESCE(?,status),note=COALESCE(?,note) WHERE id=?")
+    .run(title||null,amount?parseInt(amount):null,category||null,client_id||null,payment_date||null,status||null,note||null,req.params.id);
+  res.json({success:true});
+});
+
 app.delete('/api/erp/revenue/:id', erpAuth, erpCeo, (req, res) => {
   db.prepare("DELETE FROM erp_revenue WHERE id=?").run(req.params.id); res.json({success:true});
 });
@@ -3554,6 +3561,17 @@ app.post('/api/erp/expenses', erpAuth, erpManager, (req, res) => {
   const id=uid();
   db.prepare("INSERT INTO erp_expenses (id,title,amount,category,spender_id,expense_date,status,note) VALUES (?,?,?,?,?,?,?,?)").run(id,title,parseInt(amount),category||'운영비',req.user.id,expense_date||null,'승인',note||'');
   res.json({id,success:true});
+});
+
+app.put('/api/erp/expenses/:id', erpAuth, erpManager, (req, res) => {
+  const {title,amount,category,expense_date,status,note}=req.body;
+  db.prepare("UPDATE erp_expenses SET title=COALESCE(?,title),amount=COALESCE(?,amount),category=COALESCE(?,category),expense_date=COALESCE(?,expense_date),status=COALESCE(?,status),note=COALESCE(?,note) WHERE id=?")
+    .run(title||null,amount?parseInt(amount):null,category||null,expense_date||null,status||null,note||null,req.params.id);
+  res.json({success:true});
+});
+
+app.delete('/api/erp/expenses/:id', erpAuth, erpCeo, (req, res) => {
+  db.prepare("DELETE FROM erp_expenses WHERE id=?").run(req.params.id); res.json({success:true});
 });
 
 // ── OKR ──────────────────────────────────────────────
