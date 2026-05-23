@@ -673,16 +673,125 @@ async function deleteExpense(id) {
 async function renderEmployees(parent) {
   if (!['ceo', 'manager'].includes(state.user.erpRole)) { parent.innerHTML = '<p>접근 권한이 없습니다</p>'; return; }
 
-  const emps = await api('GET', '/erp/employees');
-  let html = '<div class="page on"><div class="page-header"><h1 class="page-title">직원 관리</h1><button class="btn sm" onclick="editEmployee()">+ 직원 추가</button></div>';
-  html += '<div class="table-wrap"><table><tr><th>이름</th><th>부서</th><th>직급</th><th>입사일</th><th>기본급</th><th>상태</th><th></th></tr>';
-  (emps || []).forEach(e => {
-    html += `<tr><td>${e.name}</td><td>${e.department||'-'}</td><td>${e.position||'-'}</td><td>${e.hire_date||'-'}</td><td>${(e.base_salary||0).toLocaleString()}원</td>
-      <td><span class="badge ${e.status==='재직'?'ready':'done'}">${e.status||'-'}</span></td>
-      <td><button class="btn sm" onclick="editEmployee('${e.user_id}')">편집</button></td></tr>`;
+  const isCeo = state.user.erpRole === 'ceo';
+  const emps  = await api('GET', '/erp/employees');
+
+  parent.innerHTML = `
+    <div class="page-header">
+      <div class="page-title">👥 직원 현황</div>
+      ${isCeo ? '<button class="btn sm" onclick="openEmployeeForm()">+ 직원 추가</button>' : ''}
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>이름</th><th>부서</th><th>직급</th><th>고용형태</th>
+            <th>입사일</th><th>기본급</th><th>연락처</th><th>상태</th>
+            ${isCeo ? '<th>관리</th>' : ''}
+          </tr>
+        </thead>
+        <tbody>
+          ${(emps || []).map(e => `
+            <tr>
+              <td style="font-weight:600">${e.name}</td>
+              <td>${e.department || '-'}</td>
+              <td>${e.position || '-'}</td>
+              <td>${e.employment_type || '-'}</td>
+              <td>${e.hire_date || '-'}</td>
+              <td>${(e.base_salary || 0).toLocaleString()}원</td>
+              <td>${e.phone || '-'}</td>
+              <td><span class="badge ${e.status === '재직' ? 'ready' : 'done'}">${e.status || '-'}</span></td>
+              ${isCeo ? `<td><button class="btn sm" onclick='openEmployeeForm(${JSON.stringify(e)})'>편집</button></td>` : ''}
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function openEmployeeForm(emp = null) {
+  const isEdit = emp && emp.user_id;
+  const modal  = document.createElement('div');
+  modal.className = 'modal on';
+  modal.id = 'emp-modal';
+  modal.innerHTML = `
+    <div class="modal-content">
+      <button class="modal-close" onclick="document.getElementById('emp-modal').remove()">✕</button>
+      <div class="modal-title">${isEdit ? emp.name + ' 정보 수정' : '직원 추가'}</div>
+      <form onsubmit="submitEmployee(event, '${isEdit ? emp.user_id : ''}')">
+        <div class="form-row">
+          <div class="form-col">
+            <label class="form-label">부서</label>
+            <select id="emp-dept">
+              ${['경영진','운영팀','컨설팅팀','마케팅팀','기타'].map(d =>
+                `<option value="${d}" ${isEdit && emp.department===d ? 'selected' : ''}>${d}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-col">
+            <label class="form-label">직급</label>
+            <input type="text" id="emp-position" value="${isEdit ? emp.position||'' : ''}" placeholder="예: 팀장, 컨설턴트">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-col">
+            <label class="form-label">고용형태</label>
+            <select id="emp-type">
+              ${['정규직','계약직','파트타임','인턴'].map(t =>
+                `<option value="${t}" ${isEdit && emp.employment_type===t ? 'selected' : ''}>${t}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-col">
+            <label class="form-label">입사일</label>
+            <input type="date" id="emp-hire" value="${isEdit ? emp.hire_date||'' : ''}">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-col">
+            <label class="form-label">기본급 (원)</label>
+            <input type="number" id="emp-salary" value="${isEdit ? emp.base_salary||0 : 0}">
+          </div>
+          <div class="form-col">
+            <label class="form-label">연락처</label>
+            <input type="text" id="emp-phone" value="${isEdit ? emp.phone||'' : ''}" placeholder="010-0000-0000">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-col">
+            <label class="form-label">재직 상태</label>
+            <select id="emp-status">
+              ${['재직','휴직','퇴직'].map(s =>
+                `<option value="${s}" ${isEdit && emp.status===s ? 'selected' : ''}>${s}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-col">
+            <label class="form-label">비상 연락처</label>
+            <input type="text" id="emp-emergency" value="${isEdit ? emp.emergency_contact||'' : ''}">
+          </div>
+        </div>
+        <button type="submit" class="btn" style="margin-top:8px">${isEdit ? '저장하기' : '추가하기'}</button>
+      </form>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+async function submitEmployee(e, userId) {
+  e.preventDefault();
+  if (!userId) { toast('직원 ID가 없습니다. 기존 사용자만 편집 가능합니다.', 'error'); return; }
+  const res = await api('PUT', `/erp/employees/${userId}`, {
+    department:       document.getElementById('emp-dept').value,
+    position:         document.getElementById('emp-position').value,
+    employment_type:  document.getElementById('emp-type').value,
+    hire_date:        document.getElementById('emp-hire').value,
+    base_salary:      document.getElementById('emp-salary').value,
+    phone:            document.getElementById('emp-phone').value,
+    emergency_contact:document.getElementById('emp-emergency').value,
+    status:           document.getElementById('emp-status').value,
   });
-  html += '</table></div></div>';
-  parent.innerHTML = html;
+  if (res.success) {
+    document.getElementById('emp-modal')?.remove();
+    toast('직원 정보가 저장되었습니다', 'success');
+    renderEmployees(document.getElementById('content'));
+  } else { toast(res.error || '저장 실패', 'error'); }
 }
 
 async function renderOKR(parent) {

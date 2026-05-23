@@ -3334,7 +3334,7 @@ app.get('/api/erp/employees', erpAuth, erpManager, (req, res) => {
   res.json(db.prepare("SELECT u.id,u.name,u.username,u.role,u.erp_role,u.email,e.department,e.position,e.employment_type,e.hire_date,e.base_salary,e.phone,e.status FROM users u LEFT JOIN erp_employees e ON u.id=e.user_id WHERE u.erp_role IS NOT NULL AND u.role!='student' ORDER BY e.department,u.name").all());
 });
 
-app.put('/api/erp/employees/:id', erpAuth, erpManager, (req, res) => {
+app.put('/api/erp/employees/:id', erpAuth, erpCeo, (req, res) => {
   const {department,position,employment_type,hire_date,base_salary,phone,emergency_contact,bank_info,status} = req.body;
   db.prepare("INSERT INTO erp_employees (user_id,department,position,employment_type,hire_date,base_salary,phone,emergency_contact,bank_info,status) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET department=excluded.department,position=excluded.position,employment_type=excluded.employment_type,hire_date=excluded.hire_date,base_salary=excluded.base_salary,phone=excluded.phone,emergency_contact=excluded.emergency_contact,bank_info=excluded.bank_info,status=excluded.status")
     .run(req.params.id,department||'',position||'',employment_type||'정규직',hire_date||'',parseInt(base_salary)||0,phone||'',emergency_contact||'',bank_info||'',status||'재직');
