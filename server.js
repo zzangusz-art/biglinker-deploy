@@ -3936,6 +3936,595 @@ app.delete('/api/erp/calendar/events/:id', erpAuth, (req, res) => {
   res.json({ success: true, message: '일정이 삭제되었습니다' });
 });
 
+// ═══════════════════════════════════════════════════════
+// 학생 분석 보고서 PDF 다운로드 페이지
+// GET /report/:studentId?token=JWT  — 단일 페이지 A4 분석 보고서
+// ═══════════════════════════════════════════════════════
+app.get('/report/:studentId', (req, res) => {
+  try {
+    const token = req.query.token || req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).send('<h2>로그인이 필요합니다.</h2>');
+
+    let caller;
+    try { caller = jwt.verify(token, JWT_SECRET); }
+    catch { return res.status(401).send('<h2>세션이 만료되었습니다. 다시 로그인하세요.</h2>'); }
+
+    const { studentId } = req.params;
+    if (caller.role === 'student' && caller.id !== studentId)
+      return res.status(403).send('<h2>접근 권한이 없습니다.</h2>');
+
+    // ── 데이터 로드 ──────────────────────────────────────────────
+    const student = db.prepare('SELECT * FROM users WHERE id=?').get(studentId);
+    if (!student) return res.status(404).send('<h2>학생을 찾을 수 없습니다.</h2>');
+
+    const consultant = student.consultant_id
+      ? db.prepare('SELECT name FROM users WHERE id=?').get(student.consultant_id) : null;
+
+    const analysisRows = db.prepare(
+      'SELECT type, content FROM analysis_results WHERE student_id=?'
+    ).all(studentId);
+    const analysisMap = {};
+    analysisRows.forEach(r => { analysisMap[r.type] = r.content || ''; });
+
+    // score_history에서 최신 점수 추출
+    const scoreRows = db.prepare(`
+      SELECT analysis_type, scores FROM score_history
+      WHERE student_id=? ORDER BY created_at DESC LIMIT 30
+    `).all(studentId);
+    const latestScores = {};
+    scoreRows.forEach(r => {
+      if (!latestScores[r.analysis_type]) {
+        try { latestScores[r.analysis_type] = JSON.parse(r.scores); } catch {}
+      }
+    });
+
+    // content에서 직접 SCORE 태그 파싱 (score_history 없는 경우 폴백)
+    function parseScoreFromContent(content) {
+      if (!content) return {};
+      const out = {};
+      const re = /\[SCORE:([^\]]+)\]\s*(\d+)/g;
+      let m;
+      while ((m = re.exec(content)) !== null) {
+        const v = parseInt(m[2]);
+        if (v >= 0 && v <= 100) out[m[1]] = v;
+      }
+      return out;
+    }
+
+    // 3대 역량 점수: score_history 우선, 없으면 content에서 파싱
+    function getMainScore(type, key) {
+      const sh = latestScores[type];
+      if (sh && sh[key] !== undefined) return sh[key];
+      const cp = parseScoreFromContent(analysisMap[type]);
+      if (cp[key] !== undefined) return cp[key];
+      // dashboard에서도 시도
+      const dp = parseScoreFromContent(analysisMap.dashboard);
+      if (dp[key] !== undefined) return dp[key];
+      return null;
+    }
+
+    function getSubScores(type, keys) {
+      const sh = latestScores[type] || {};
+      const cp = parseScoreFromContent(analysisMap[type]);
+      const out = {};
+      for (const k of keys) {
+        const v = sh[k] !== undefined ? sh[k] : cp[k];
+        if (v !== undefined) out[k] = v;
+      }
+      return out;
+    }
+
+    const acadScore = getMainScore('academic', '학업역량');
+    const jinScore  = getMainScore('career',   '진로역량');
+    const gongScore = getMainScore('community','공동체역량')
+                   || getMainScore('dashboard','공동체역량');
+    const dashScore = getMainScore('dashboard','학업역량'); // fallback
+
+    // 11개 세부 항목
+    const acadSub = getSubScores('academic', ['학업성취도','탐구역량','학업태도']);
+    const jinSub  = getSubScores('career',   ['전공연계교과선택','전공연계성취도','진로탐색활동','기록충실성','자기주도탐색']);
+    const gongSub = getSubScores('community',['소통협업','리더십경험','배려책임감']);
+
+    // 종합 점수
+    const mainScores = [acadScore, jinScore, gongScore].filter(v => v !== null);
+    const overallAvg = mainScores.length
+      ? Math.round(mainScores.reduce((a,b)=>a+b,0)/mainScores.length) : null;
+
+    const grades = db.prepare(
+      'SELECT * FROM grades WHERE student_id=? ORDER BY year,semester,subject'
+    ).all(studentId);
+    const gradeVals = grades.map(g=>g.grade_level).filter(v=>v!=null&&!isNaN(v));
+    const gradeAvg  = gradeVals.length
+      ? (gradeVals.reduce((a,b)=>a+b,0)/gradeVals.length).toFixed(2) : null;
+
+    const recs = db.prepare(
+      'SELECT * FROM recommendations WHERE student_id=? ORDER BY priority DESC LIMIT 4'
+    ).all(studentId);
+
+    const examCount = db.prepare("SELECT COUNT(*) AS n FROM exams WHERE student_id=?").get(studentId)?.n || 0;
+    const analysisCount = analysisRows.length;
+
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}. ${now.getMonth()+1}. ${now.getDate()}`;
+
+    // ── 점수 색상 ─────────────────────────────────────────────────
+    const C = { blue:'#4f7dff', green:'#2dd4a0', purple:'#a78bfa', amber:'#fbbf24', orange:'#ff6b35', red:'#f87171' };
+    function scoreColor(v) {
+      if (v === null) return '#555';
+      return v>=80?C.green:v>=65?C.blue:v>=50?C.amber:C.red;
+    }
+    function scoreLabel(v) {
+      if (v === null) return '미분석';
+      return v>=85?'우수':v>=70?'양호':v>=55?'보통':v>=40?'미흡':'부족';
+    }
+
+    // ── SVG 원형 게이지 ───────────────────────────────────────────
+    function ringGauge(score, size=72, strokeW=7) {
+      const col = scoreColor(score);
+      if (score === null) {
+        return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+          <circle cx="${size/2}" cy="${size/2}" r="${size/2-strokeW/2-1}" fill="none" stroke="#1e2235" stroke-width="${strokeW}"/>
+          <text x="${size/2}" y="${size/2}" text-anchor="middle" dominant-baseline="central" font-size="11" fill="#444" font-family="Noto Sans KR,sans-serif">—</text>
+        </svg>`;
+      }
+      const r = size/2 - strokeW/2 - 1;
+      const circ = 2*Math.PI*r;
+      const off  = circ*(1-score/100);
+      const fs   = score>=100?12:13;
+      return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+        <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="#1e2235" stroke-width="${strokeW}"/>
+        <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${col}" stroke-width="${strokeW}"
+          stroke-dasharray="${circ.toFixed(2)}" stroke-dashoffset="${off.toFixed(2)}"
+          stroke-linecap="round" transform="rotate(-90 ${size/2} ${size/2})"/>
+        <text x="${size/2}" y="${size/2}" text-anchor="middle" dominant-baseline="central"
+          font-size="${fs}" font-weight="700" fill="${col}" font-family="Noto Sans KR,sans-serif">${score}</text>
+      </svg>`;
+    }
+
+    // ── 가로 바 ───────────────────────────────────────────────────
+    function hbar(label, score, color, showPt=true) {
+      const v = score !== null && score !== undefined ? score : 0;
+      const col = color || scoreColor(v);
+      const disp = score !== null && score !== undefined ? score : '—';
+      return `<div style="margin-bottom:6px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+          <span style="font-size:10px;color:#7a80a8">${label}</span>
+          <span style="font-size:10px;font-weight:700;color:${col};font-family:monospace">${showPt?disp+'점':disp}</span>
+        </div>
+        <div style="background:#1a1d2e;border-radius:3px;height:5px;overflow:hidden">
+          <div style="background:${col};width:${v}%;height:100%;border-radius:3px"></div>
+        </div>
+      </div>`;
+    }
+
+    // ── 레이더 차트 SVG ───────────────────────────────────────────
+    function radarSVG(data /* [{label,value}] */, size=180) {
+      const n = data.length;
+      if (n < 3) return '';
+      const cx=size/2, cy=size/2, R=size/2-32;
+      const step = 2*Math.PI/n;
+      function pt(i, ratio) {
+        const a = step*i - Math.PI/2;
+        return {x: cx + R*ratio*Math.cos(a), y: cy + R*ratio*Math.sin(a)};
+      }
+      // 격자선 (5단계)
+      const grid = [0.2,0.4,0.6,0.8,1.0].map(r => {
+        const pts = data.map((_,i) => pt(i,r));
+        return `<polygon points="${pts.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')}"
+          fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>`;
+      }).join('');
+      // 축선
+      const axes = data.map((_,i) => {
+        const p = pt(i,1);
+        return `<line x1="${cx}" y1="${cy}" x2="${p.x.toFixed(1)}" y2="${p.y.toFixed(1)}"
+          stroke="rgba(255,255,255,0.08)" stroke-width="1"/>`;
+      }).join('');
+      // 데이터 폴리곤
+      const dataPts = data.map((d,i) => pt(i,(d.value||0)/100));
+      const poly = dataPts.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+      // 레이블
+      const labels = data.map((d,i) => {
+        const lp = pt(i,1.22);
+        const anchor = Math.abs(lp.x-cx)<5?'middle':lp.x<cx?'end':'start';
+        return `<text x="${lp.x.toFixed(1)}" y="${lp.y.toFixed(1)}"
+          text-anchor="${anchor}" dominant-baseline="central"
+          font-size="9" fill="#7a80a8" font-family="Noto Sans KR,sans-serif">${d.label}</text>`;
+      }).join('');
+      return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+        ${grid}${axes}
+        <polygon points="${poly}" fill="rgba(79,125,255,0.15)" stroke="#4f7dff" stroke-width="1.5" stroke-linejoin="round"/>
+        ${dataPts.map(p=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3" fill="#4f7dff"/>`).join('')}
+        ${labels}
+      </svg>`;
+    }
+
+    // 레이더 데이터 (3대 역량)
+    const radarData = [
+      {label:'학업역량', value:acadScore||0},
+      {label:'진로역량', value:jinScore||0},
+      {label:'공동체역량', value:gongScore||0},
+    ];
+    // 11항목 레이더 (점수 있을 때만)
+    const allSub = {...acadSub,...jinSub,...gongSub};
+    const subKeys = Object.keys(allSub);
+    const subRadarData = subKeys.map(k=>({label:k,value:allSub[k]||0}));
+    const showSubRadar = subKeys.length >= 3;
+
+    // ── 분석 텍스트 정제 ─────────────────────────────────────────
+    function cleanText(type, maxLen=220) {
+      const t = (analysisMap[type]||'')
+        .replace(/\[SCORE:[^\]]+\]\s*\d+\s*\n?/g,'')
+        .replace(/#{1,6}\s*/g,'').replace(/\*\*/g,'').replace(/\*/g,'')
+        .replace(/\n+/g,' ').replace(/\s+/g,' ').trim();
+      return t.slice(0,maxLen)+(t.length>maxLen?'…':'');
+    }
+
+    // ── 내신 테이블 (최대 10개) ──────────────────────────────────
+    function gradeTableRows() {
+      return grades.slice(0,10).map(g => {
+        const gl = g.grade_level;
+        const col = gl<=2?C.green:gl<=4?C.blue:gl<=6?C.amber:C.red;
+        return `<tr>
+          <td>${g.year || '-'}학년 ${g.semester || '-'}학기</td>
+          <td>${g.subject}</td>
+          <td><span style="background:${col}22;color:${col};padding:1px 6px;border-radius:10px;font-size:10px;font-weight:700">${gl !== null ? gl+'등급' : '—'}</span></td>
+          <td>${g.raw_score !== null ? g.raw_score : '—'}</td>
+          <td>${g.subject_avg !== null ? g.subject_avg : '—'}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    // ── 추천 색상 ─────────────────────────────────────────────────
+    function recColor(priority) {
+      return priority>=8?C.orange:priority>=5?C.amber:C.blue;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // HTML 생성 (A4 가로 레이아웃)
+    // ─────────────────────────────────────────────────────────────
+    const overallCol = scoreColor(overallAvg);
+    const html = `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>${student.name} · 생기부 AI 분석 보고서</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{
+  font-family:'Noto Sans KR',sans-serif;
+  background:#07090f;color:#dde1f5;
+  font-size:11px;line-height:1.5;
+}
+
+/* ───── 인쇄 바 ───── */
+.pbar{
+  position:fixed;top:0;left:0;right:0;z-index:999;
+  background:rgba(7,9,15,.97);backdrop-filter:blur(20px);
+  border-bottom:1px solid rgba(255,255,255,.07);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 28px;
+}
+.pbar-logo{font-size:14px;font-weight:900;letter-spacing:-0.5px;color:#fff}
+.pbar-logo em{color:#4f7dff;font-style:normal}
+.pbar-hint{font-size:11px;color:#5a5e80;margin-left:12px}
+.pbar-btns{display:flex;gap:8px;align-items:center}
+.btn-pdf{
+  background:linear-gradient(135deg,#4f7dff,#6b93ff);
+  color:#fff;border:none;border-radius:8px;
+  padding:8px 22px;font-size:12px;font-weight:700;cursor:pointer;
+  font-family:'Noto Sans KR',sans-serif;
+  box-shadow:0 4px 12px rgba(79,125,255,.4);
+}
+.btn-pdf:hover{background:linear-gradient(135deg,#3d6de8,#5b80e8)}
+.btn-cls{
+  background:rgba(255,255,255,.05);color:#8a8fb5;
+  border:1px solid rgba(255,255,255,.1);border-radius:8px;
+  padding:8px 14px;font-size:11px;cursor:pointer;
+  font-family:'Noto Sans KR',sans-serif;
+}
+
+/* ───── 보고서 레이아웃 ───── */
+.report{
+  max-width:1060px;margin:0 auto;
+  padding:58px 20px 32px;
+}
+
+/* ───── 헤더 ───── */
+.rpt-hdr{
+  background:linear-gradient(135deg,#0c1128 0%,#0f1630 60%,#131b3a 100%);
+  border:1px solid rgba(79,125,255,.25);border-radius:14px;
+  padding:20px 24px;margin-bottom:12px;
+  display:grid;grid-template-columns:1fr auto auto;gap:16px;align-items:center;
+}
+.hdr-brand{font-size:9px;color:#4f7dff;font-weight:700;letter-spacing:1.5px;margin-bottom:5px}
+.hdr-name{font-size:26px;font-weight:900;color:#fff;letter-spacing:-0.5px;margin-bottom:4px}
+.hdr-meta{font-size:10px;color:#5a5e80;display:flex;flex-wrap:wrap;gap:0 14px}
+.hdr-meta b{color:#9ba3cc}
+.hdr-score-ring{display:flex;flex-direction:column;align-items:center;gap:3px}
+.hdr-score-label{font-size:9px;color:#5a5e80;letter-spacing:.8px;text-align:center}
+.hdr-score-badge{
+  font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;margin-top:2px;
+  background:${overallAvg!==null?(overallAvg>=80?'rgba(45,212,160,.15)':overallAvg>=65?'rgba(79,125,255,.15)':'rgba(251,191,36,.15)'):'rgba(255,255,255,.05)'};
+  color:${overallCol};
+}
+.hdr-stats{
+  display:flex;flex-direction:column;gap:5px;
+  padding-left:16px;border-left:1px solid rgba(255,255,255,.07);
+}
+.hdr-stat{display:flex;align-items:center;gap:8px}
+.hdr-stat-ic{font-size:13px}
+.hdr-stat-v{font-size:14px;font-weight:900;color:#fff;font-family:monospace}
+.hdr-stat-l{font-size:9px;color:#5a5e80}
+
+/* ───── 메인 그리드 ───── */
+.main-grid{
+  display:grid;
+  grid-template-columns:180px 1fr 1fr 1fr;
+  gap:10px;margin-bottom:10px;
+}
+.sub-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;margin-bottom:10px;
+}
+
+/* ───── 카드 ───── */
+.card{
+  background:#0b0d1a;border:1px solid rgba(255,255,255,.06);
+  border-radius:11px;padding:13px 14px;
+}
+.card-hd{
+  font-size:9px;font-weight:700;color:#5a5e80;letter-spacing:.8px;
+  text-transform:uppercase;margin-bottom:10px;
+  display:flex;align-items:center;gap:5px;
+}
+.card-hd .dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+
+/* ───── 역량 카드 ───── */
+.cap-card{
+  background:#0b0d1a;border:1px solid rgba(255,255,255,.06);
+  border-radius:11px;padding:13px 14px;
+  display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;
+}
+.cap-card-title{font-size:9px;font-weight:700;color:#5a5e80;letter-spacing:.8px;text-transform:uppercase}
+.cap-card-label{font-size:9px;font-weight:700;margin-top:1px}
+
+/* ───── 텍스트 박스 ───── */
+.txt-box{
+  background:#07090f;border:1px solid rgba(255,255,255,.04);
+  border-radius:7px;padding:10px 12px;
+  font-size:10px;color:#7a80a8;line-height:1.75;
+  overflow:hidden;display:-webkit-box;
+  -webkit-line-clamp:4;-webkit-box-orient:vertical;
+}
+
+/* ───── 추천 ───── */
+.rec{
+  padding:7px 10px;margin-bottom:5px;
+  border-radius:7px;border-left:3px solid #4f7dff;
+  background:rgba(79,125,255,.05);
+}
+.rec-t{font-size:10px;font-weight:700;color:#dde1f5;margin-bottom:2px}
+.rec-b{font-size:9px;color:#5a5e80;line-height:1.6}
+
+/* ───── 내신 테이블 ───── */
+.gt{width:100%;border-collapse:collapse;font-size:10px}
+.gt th{background:rgba(255,255,255,.04);color:#5a5e80;font-weight:600;
+  padding:4px 7px;text-align:left;border-bottom:1px solid rgba(255,255,255,.05)}
+.gt td{padding:4px 7px;border-bottom:1px solid rgba(255,255,255,.03);color:#8a8fb5}
+.gt tr:last-child td{border-bottom:none}
+
+/* ───── 푸터 ───── */
+.rpt-footer{
+  padding:10px 18px;margin-top:10px;
+  border:1px solid rgba(255,255,255,.05);border-radius:9px;
+  background:#0b0d1a;
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:9px;color:#3d4166;
+}
+
+/* ═══════════════════════
+   인쇄 모드 — 다크 테마 유지
+   ═══════════════════════ */
+@media print{
+  @page{size:A4 landscape;margin:8mm 9mm}
+  .pbar{display:none!important}
+  html,body{background:#07090f!important;color:#dde1f5!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  .report{padding:0!important;max-width:100%!important}
+  .card,.cap-card,.rpt-hdr,.rec,.rpt-footer{page-break-inside:avoid}
+  .main-grid,.sub-grid{page-break-inside:avoid}
+}
+</style>
+</head>
+<body>
+
+<!-- 인쇄 바 -->
+<div class="pbar">
+  <div style="display:flex;align-items:center">
+    <div class="pbar-logo">big<em>link</em>er</div>
+    <div class="pbar-hint">생기부 AI 분석 보고서 · ${student.name} · ${dateStr}</div>
+  </div>
+  <div class="pbar-btns">
+    <button class="btn-pdf" onclick="window.print()">⬇ PDF 저장</button>
+    <button class="btn-cls" onclick="window.close()">✕</button>
+  </div>
+</div>
+
+<!-- 보고서 본문 -->
+<div class="report">
+
+  <!-- ① 헤더 -->
+  <div class="rpt-hdr">
+    <!-- 좌: 이름·프로필 -->
+    <div>
+      <div class="hdr-brand">BIGLINKER · 생기부 AI 분석 보고서 · 2027 수시카드 마스터플랜</div>
+      <div class="hdr-name">${student.name}</div>
+      <div class="hdr-meta">
+        <span><b>학교</b> ${student.school||'미입력'} ${student.grade?student.grade+'학년':''}</span>
+        <span><b>목표</b> ${student.target_univ||'미입력'} ${student.target_dept||''}</span>
+        ${consultant?`<span><b>컨설턴트</b> ${consultant.name}</span>`:''}
+        <span><b>발행</b> ${dateStr}</span>
+      </div>
+    </div>
+
+    <!-- 우: 통계 -->
+    <div class="hdr-stats">
+      <div class="hdr-stat">
+        <span class="hdr-stat-ic">📋</span>
+        <div><div class="hdr-stat-v">${analysisCount}</div><div class="hdr-stat-l">AI 분석 완료</div></div>
+      </div>
+      <div class="hdr-stat">
+        <span class="hdr-stat-ic">📊</span>
+        <div><div class="hdr-stat-v">${gradeAvg!==null?gradeAvg+'등급':'—'}</div><div class="hdr-stat-l">내신 평균</div></div>
+      </div>
+      <div class="hdr-stat">
+        <span class="hdr-stat-ic">📅</span>
+        <div><div class="hdr-stat-v">${examCount}</div><div class="hdr-stat-l">수행평가</div></div>
+      </div>
+    </div>
+
+    <!-- 우: 종합 점수 링 -->
+    <div class="hdr-score-ring">
+      <div class="hdr-score-label">종합 역량 점수</div>
+      ${ringGauge(overallAvg, 80, 8)}
+      <div class="hdr-score-badge">${scoreLabel(overallAvg)}</div>
+      <div style="font-size:8px;color:#3d4166;margin-top:1px">100점 만점</div>
+    </div>
+  </div>
+
+  <!-- ② 메인: 레이더 + 3대 역량 점수 + 세부 항목 -->
+  <div class="main-grid">
+
+    <!-- 레이더 차트 -->
+    <div class="cap-card" style="justify-content:center">
+      <div class="cap-card-title">역량 레이더</div>
+      <div style="margin:6px 0">${radarSVG(radarData, 160)}</div>
+      <div style="display:flex;flex-direction:column;gap:3px;width:100%">
+        ${radarData.map(d=>`<div style="display:flex;justify-content:space-between;font-size:9px">
+          <span style="color:#7a80a8">${d.label}</span>
+          <span style="font-weight:700;color:${scoreColor(d.value||null)};font-family:monospace">${d.value||'—'}점</span>
+        </div>`).join('')}
+      </div>
+    </div>
+
+    <!-- 학업역량 -->
+    <div class="card">
+      <div class="card-hd">
+        <span class="dot" style="background:${C.blue}"></span>학업역량
+        <span style="margin-left:auto;font-size:14px;font-weight:900;color:${scoreColor(acadScore)};font-family:monospace">${acadScore!==null?acadScore+'점':'—'}</span>
+        <span style="font-size:9px;font-weight:700;color:${scoreColor(acadScore)}">${scoreLabel(acadScore)}</span>
+      </div>
+      ${hbar('학업성취도', acadSub['학업성취도'], C.blue)}
+      ${hbar('탐구역량',   acadSub['탐구역량'],   C.blue)}
+      ${hbar('학업태도',   acadSub['학업태도'],   C.blue)}
+      ${analysisMap.academic?`<div class="txt-box" style="margin-top:8px">${cleanText('academic',180)}</div>`:'<div style="font-size:10px;color:#3d4166;margin-top:8px">생기부 분석 후 결과가 표시됩니다</div>'}
+    </div>
+
+    <!-- 진로역량 -->
+    <div class="card">
+      <div class="card-hd">
+        <span class="dot" style="background:${C.green}"></span>진로역량
+        <span style="margin-left:auto;font-size:14px;font-weight:900;color:${scoreColor(jinScore)};font-family:monospace">${jinScore!==null?jinScore+'점':'—'}</span>
+        <span style="font-size:9px;font-weight:700;color:${scoreColor(jinScore)}">${scoreLabel(jinScore)}</span>
+      </div>
+      ${hbar('전공연계교과선택', jinSub['전공연계교과선택'], C.green)}
+      ${hbar('전공연계성취도',   jinSub['전공연계성취도'],   C.green)}
+      ${hbar('진로탐색활동',     jinSub['진로탐색활동'],     C.green)}
+      ${hbar('기록충실성',       jinSub['기록충실성'],       C.green)}
+      ${hbar('자기주도탐색',     jinSub['자기주도탐색'],     C.green)}
+      ${analysisMap.career?`<div class="txt-box" style="margin-top:6px">${cleanText('career',150)}</div>`:'<div style="font-size:10px;color:#3d4166;margin-top:6px">생기부 분석 후 결과가 표시됩니다</div>'}
+    </div>
+
+    <!-- 공동체역량 -->
+    <div class="card">
+      <div class="card-hd">
+        <span class="dot" style="background:${C.purple}"></span>공동체역량
+        <span style="margin-left:auto;font-size:14px;font-weight:900;color:${scoreColor(gongScore)};font-family:monospace">${gongScore!==null?gongScore+'점':'—'}</span>
+        <span style="font-size:9px;font-weight:700;color:${scoreColor(gongScore)}">${scoreLabel(gongScore)}</span>
+      </div>
+      ${hbar('소통협업',   gongSub['소통협업'],   C.purple)}
+      ${hbar('리더십경험', gongSub['리더십경험'], C.purple)}
+      ${hbar('배려책임감', gongSub['배려책임감'], C.purple)}
+      ${analysisMap.community?`<div class="txt-box" style="margin-top:8px">${cleanText('community',180)}</div>`:'<div style="font-size:10px;color:#3d4166;margin-top:8px">생기부 분석 후 결과가 표시됩니다</div>'}
+      ${analysisMap.dashboard&&!analysisMap.community?`<div class="txt-box" style="margin-top:8px">${cleanText('dashboard',180)}</div>`:''}
+    </div>
+  </div>
+
+  <!-- ③ 하단: 내신 + 추천 활동 + 종합 분석 요약 -->
+  <div class="sub-grid">
+
+    <!-- 내신 성적 -->
+    <div class="card">
+      <div class="card-hd"><span class="dot" style="background:${C.amber}"></span>내신 성적 현황
+        ${gradeAvg!==null?`<span style="margin-left:auto;font-size:11px;font-weight:700;color:${C.amber};font-family:monospace">평균 ${gradeAvg}등급</span>`:''}
+      </div>
+      ${grades.length?`
+      <table class="gt">
+        <thead><tr><th>학년/학기</th><th>과목</th><th>등급</th><th>원점수</th><th>평균</th></tr></thead>
+        <tbody>${gradeTableRows()}</tbody>
+      </table>
+      ${grades.length>10?`<div style="text-align:center;margin-top:5px;font-size:9px;color:#3d4166">+ ${grades.length-10}개 과목 더 있음</div>`:''}
+      `:'<div style="font-size:10px;color:#3d4166">등록된 성적이 없습니다</div>'}
+    </div>
+
+    <!-- AI 추천 + 종합 요약 -->
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <!-- 추천 -->
+      <div class="card" style="flex:1">
+        <div class="card-hd"><span class="dot" style="background:${C.orange}"></span>AI 맞춤 추천</div>
+        ${recs.length?recs.map(r=>`
+          <div class="rec" style="border-left-color:${recColor(r.priority)}">
+            <div class="rec-t">${r.title}</div>
+            <div class="rec-b">${(r.content||'').slice(0,110)}${(r.content||'').length>110?'…':''}</div>
+          </div>
+        `).join(''):'<div style="font-size:10px;color:#3d4166">생기부 분석 후 맞춤 추천이 제공됩니다</div>'}
+      </div>
+
+      <!-- 종합 분석 요약 -->
+      ${analysisMap.dashboard?`
+      <div class="card">
+        <div class="card-hd"><span class="dot" style="background:${C.amber}"></span>종합 AI 진단</div>
+        <div class="txt-box" style="-webkit-line-clamp:5">${cleanText('dashboard',260)}</div>
+      </div>
+      `:''}
+    </div>
+  </div>
+
+  <!-- 푸터 -->
+  <div class="rpt-footer">
+    <div>BIGLINKER 코칭그룹 · 2027 수시카드 마스터플랜 기반 생기부 AI 분석 시스템 · 본 보고서는 AI 분석 결과이며 참고용으로만 활용하시기 바랍니다</div>
+    <div style="flex-shrink:0;margin-left:16px">발행: ${dateStr} · ${student.name}</div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  // 인쇄 전 힌트
+  var p=document.querySelector('.btn-pdf');
+  if(p) p.addEventListener('click',function(){
+    if(!window._hinted){
+      window._hinted=true;
+      setTimeout(function(){window.print();},100);
+    } else { window.print(); }
+  });
+})();
+</script>
+</body>
+</html>`;
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+
+  } catch (err) {
+    log('error', '보고서 생성 오류', { err: err.message });
+    res.status(500).send('<h2>보고서 생성 중 오류가 발생했습니다.</h2>');
+  }
+});
+
 // ── 기본 경로: ERP로 리다이렉트 ────────────────────
 app.get('/', (_req, res) => res.redirect('/erp'));
 
