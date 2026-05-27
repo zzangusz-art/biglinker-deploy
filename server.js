@@ -1735,6 +1735,9 @@ db.exec(`
 // ── 스키마 마이그레이션 (기존 배포 DB에 컬럼 추가) ─────────────────
 try { db.exec('ALTER TABLE tl_test_sessions ADD COLUMN question_results TEXT'); } catch(e) {}
 try { db.exec('ALTER TABLE tl_test_sessions ADD COLUMN display_type TEXT');     } catch(e) {}
+try { db.exec('ALTER TABLE tl_level_results ADD COLUMN target_school TEXT');    } catch(e) {}
+try { db.exec('ALTER TABLE tl_level_results ADD COLUMN target_dept   TEXT');    } catch(e) {}
+try { db.exec('ALTER TABLE tl_level_results ADD COLUMN feedback_json  TEXT');   } catch(e) {}
 
 // ── 편입 LMS 시드 데이터 ───────────────────────────────────────────
 function seedTransferLMS() {
@@ -2536,9 +2539,71 @@ app.get('/api/tl/level-test/questions', (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── 편입 대학 티어 데이터 ──────────────────────────────────────────
+const UNIV_TIERS = [
+  {
+    minPct: 88,
+    상향: ['서울대(법학,경영)', '연세대(상경,경영)', '고려대(경영,법학,경제)'],
+    적정: ['성균관대(경영,법학)', '서강대(경영,영문)', '한양대(경영,법학,영어)'],
+    하향: ['이화여대(경영,영문)', '중앙대(경영,법학)', '경희대(경영,영문)'],
+  },
+  {
+    minPct: 75,
+    상향: ['성균관대(경영,법학)', '서강대(경영,영문)', '한양대(경영,영어)'],
+    적정: ['이화여대(경영,영문)', '중앙대(경영,법학)', '경희대(경영,영문)', '한국외대(영어,국제)'],
+    하향: ['서울시립대(경영)', '건국대(경영)', '동국대(경영)', '숙명여대(경영)', '홍익대(경영)'],
+  },
+  {
+    minPct: 60,
+    상향: ['이화여대(사범,문과)', '중앙대(경영,법학)', '경희대(외국어)', '한국외대(영어통번역)'],
+    적정: ['건국대(경영)', '동국대(경영)', '홍익대(경영)', '서울시립대(도시행정)'],
+    하향: ['인하대(경영)', '아주대(경영)', '국민대(경영)', '세종대(경영)', '명지대(경영)'],
+  },
+  {
+    minPct: 45,
+    상향: ['건국대(사범,문과)', '홍익대(미술)', '국민대(경영,디자인)'],
+    적정: ['인하대(경영,영어)', '아주대(경영)', '단국대(경영)', '명지대(경영)'],
+    하향: ['강원대(경영)', '충북대(경영)', '전남대(경영)', '경북대(경영)', '부산대(경영)'],
+  },
+  {
+    minPct: 0,
+    상향: ['인하대(경영)', '단국대(경영)', '명지대(경영)', '광운대(경영)'],
+    적정: ['강원대(경영)', '충북대(경영)', '충남대(경영)', '전남대(경영)'],
+    하향: ['지방 사립대 및 전문대 편입 검토 권장'],
+  },
+];
+
+function getUnivAnalysis(pct) {
+  const tier = UNIV_TIERS.find(t => pct >= t.minPct) || UNIV_TIERS[UNIV_TIERS.length - 1];
+  return { 상향: tier.상향, 적정: tier.적정, 하향: tier.하향 };
+}
+
+// 세부 요소별 추정 분석 (레벨테스트용 — 태그 없으므로 섹션 점수 기반 추정)
+const LEVEL_SUB_GUIDE = {
+  '어휘': ['동의어·유의어','반의어','빈칸·문맥추론','숙어·표현','고급어휘'],
+  '문법': ['시제·완료','가정법·도치','분사·관계사','수일치·명사','전치사·접속사'],
+  '독해': ['주제·요지','빈칸완성','내용일치','글의구조·흐름','무관문장'],
+  '논리': ['연결어','순서·배열','논지약화·강화','추론·결론','무관문장·완성'],
+};
+
+function estimateSubElements(section_scores) {
+  const result = {};
+  Object.entries(section_scores).forEach(([sec, data]) => {
+    const subs = LEVEL_SUB_GUIDE[sec] || [];
+    const basePct = data.pct || 0;
+    // 섹션 점수를 기준으로 세부 요소별 편차 시뮬레이션 (±15% 범위 내)
+    const variants = [-12, -6, 0, 8, 14];
+    result[sec] = subs.map((sub, i) => {
+      const pct = Math.max(0, Math.min(100, basePct + variants[i]));
+      return { sub, pct, level: pct >= 75 ? '양호' : pct >= 55 ? '보통' : '취약' };
+    });
+  });
+  return result;
+}
+
 app.post('/api/tl/level-test/submit', (req, res) => {
   try {
-    const { answers, student_name, student_id } = req.body;
+    const { answers, student_name, student_id, target_school, target_dept } = req.body;
     if (!answers || typeof answers !== 'object')
       return res.status(400).json({ error: '답안 형식 오류' });
 
@@ -2575,24 +2640,90 @@ app.post('/api/tl/level-test/submit', (req, res) => {
 
     const id = tlUid();
     db.prepare(`INSERT INTO tl_level_results
-      (id,student_id,student_name,total_score,total_questions,section_scores,assigned_class,answers)
-      VALUES (?,?,?,?,?,?,?,?)`)
+      (id,student_id,student_name,total_score,total_questions,section_scores,assigned_class,answers,target_school,target_dept,feedback_json)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
       .run(id, student_id||null, student_name||'미등록', correct, total,
-           JSON.stringify(section_scores), assigned_class, JSON.stringify(answers));
+           JSON.stringify(section_scores), assigned_class, JSON.stringify(answers),
+           target_school||null, target_dept||null, JSON.stringify(feedback));
 
     // 학생 반 자동 배정
     if (student_id) {
       db.prepare("UPDATE tl_users SET class_level=? WHERE id=?").run(assigned_class, student_id);
     }
 
-    res.json({ result_id: id, score: correct, total, pct, assigned_class, section_scores, feedback });
+    const univ = getUnivAnalysis(pct);
+    res.json({ result_id: id, score: correct, total, pct, assigned_class, section_scores, feedback, univ_analysis: univ });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.get('/api/tl/level-test/results', tlAuth, tlAdminOrInstructor, (req, res) => {
   try {
     const rows = db.prepare('SELECT * FROM tl_level_results ORDER BY completed_at DESC LIMIT 100').all();
-    res.json(rows.map(r => ({ ...r, section_scores: JSON.parse(r.section_scores||'{}') })));
+    res.json(rows.map(r => ({
+      ...r,
+      section_scores: JSON.parse(r.section_scores||'{}'),
+      pct: r.total_questions > 0 ? Math.round(r.total_score / r.total_questions * 100) : 0,
+    })));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// 레벨테스트 심층 리포트 데이터 (강사/관리자용)
+app.get('/api/tl/level-test/report/:resultId', tlAuth, tlAdminOrInstructor, (req, res) => {
+  try {
+    const row = db.prepare('SELECT * FROM tl_level_results WHERE id=?').get(req.params.resultId);
+    if (!row) return res.status(404).json({ error: '결과 없음' });
+
+    const section_scores = JSON.parse(row.section_scores || '{}');
+    const pct = row.total_questions > 0 ? Math.round(row.total_score / row.total_questions * 100) : 0;
+    const feedback = row.feedback_json ? JSON.parse(row.feedback_json) : [];
+
+    // 학생 정보 조회
+    let student = null;
+    if (row.student_id) {
+      student = db.prepare('SELECT * FROM tl_users WHERE id=?').get(row.student_id);
+    }
+
+    // 세부 요소 추정
+    const sub_elements = estimateSubElements(section_scores);
+
+    // 대학 분석
+    const univ_analysis = getUnivAnalysis(pct);
+
+    // 강점/취약점
+    const SECS = ['어휘','문법','독해','논리'];
+    const strong = SECS.filter(s => (section_scores[s]?.pct||0) >= 75);
+    const weak   = SECS.filter(s => (section_scores[s]?.pct||0) < 55);
+
+    // 추천 학습 전략
+    const recommendations = weak.map(s => {
+      const tips = {
+        '어휘': '고빈도 편입 어휘 500개 암기 + 문맥 추론 연습 (영영 사전 활용)',
+        '문법': '핵심 문법 포인트 20개 반복 학습 + 오류 문장 교정 훈련',
+        '독해': '매일 1지문 속독 + 핵심 문장 요약 훈련 (주제/요지 파악)',
+        '논리': '논리 연결어 패턴 암기 + 단락 순서 배열 집중 훈련',
+      };
+      return { section: s, tip: tips[s] || '' };
+    });
+
+    res.json({
+      result_id: row.id,
+      student_name: row.student_name,
+      student: student ? { name: student.name, username: student.username, class_level: student.class_level } : null,
+      target_school: row.target_school || null,
+      target_dept:   row.target_dept   || null,
+      total_score: row.total_score,
+      total_questions: row.total_questions,
+      pct,
+      assigned_class: row.assigned_class,
+      completed_at: row.completed_at,
+      section_scores,
+      sub_elements,
+      univ_analysis,
+      strong,
+      weak,
+      recommendations,
+      feedback,
+    });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

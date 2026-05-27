@@ -553,7 +553,7 @@ tbody tr:hover{background:var(--s2)}
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>이름</th><th>점수</th><th>정답률</th><th>배정 반</th><th>어휘</th><th>문법</th><th>독해</th><th>논리</th><th>응시일</th></tr></thead>
+            <thead><tr><th>이름</th><th>점수</th><th>정답률</th><th>배정 반</th><th>어휘</th><th>문법</th><th>독해</th><th>논리</th><th>목표 학교</th><th>응시일</th><th>리포트</th></tr></thead>
             <tbody id="level-results-body"></tbody>
           </table>
         </div>
@@ -1012,6 +1012,20 @@ tbody tr:hover{background:var(--s2)}
                   총 40문제 · 제한시간 없음 · 즉시 결과 확인<br>
                   결과에 따라 반이 자동 배정됩니다
                 </div>
+                <!-- 목표 학교/학과 입력 -->
+                <div style="text-align:left;background:var(--surface2);border-radius:10px;padding:16px;margin-bottom:16px">
+                  <div style="font-size:12px;font-weight:700;margin-bottom:10px;color:var(--text)">🎯 목표 설정 (선택)</div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                    <div>
+                      <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">희망 학교</label>
+                      <input type="text" id="lt-target-school" class="form-input" placeholder="예: 연세대학교" style="font-size:12px">
+                    </div>
+                    <div>
+                      <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">희망 학과</label>
+                      <input type="text" id="lt-target-dept" class="form-input" placeholder="예: 경영학과" style="font-size:12px">
+                    </div>
+                  </div>
+                </div>
                 <div id="level-prev-result-box" style="margin-bottom:16px"></div>
                 <button class="btn btn-primary btn-lg" onclick="startLevelTest()">🎯 레벨테스트 시작</button>
               </div>
@@ -1052,6 +1066,11 @@ tbody tr:hover{background:var(--s2)}
               <div class="card mb-16">
                 <div class="card-title"><span class="ct-icon">📊</span> 영역별 점수</div>
                 <div id="lt-section-scores"></div>
+              </div>
+              <!-- 지원 가능 대학 분석 -->
+              <div class="card mb-16" id="lt-univ-card" style="display:none">
+                <div class="card-title"><span class="ct-icon">🏫</span> 지원 가능 대학 분석</div>
+                <div id="lt-univ-analysis"></div>
               </div>
               <div class="card mb-16">
                 <div class="card-title"><span class="ct-icon">💬</span> 문항별 피드백</div>
@@ -1678,8 +1697,21 @@ async function loadLevelResults() {
     const filter = document.getElementById('level-filter-class')?.value || '';
     const filtered = filter ? results.filter(r=>r.assigned_class===filter) : results;
     document.getElementById('level-results-body').innerHTML = filtered.length
-      ? filtered.map(r => { const ss=r.section_scores||{}; return `<tr><td><b>${r.student_name}</b></td><td>${r.total_score}/${r.total_questions}</td><td><b>${Math.round(r.total_score/r.total_questions*100)}%</b></td><td>${classBadgeHtml(r.assigned_class)}</td>${['어휘','문법','독해','논리'].map(s=>`<td style="font-size:11px">${ss[s]?ss[s].pct+'%':'—'}</td>`).join('')}<td style="font-size:11px;color:var(--muted)">${formatTs(r.completed_at)}</td></tr>`; }).join('')
-      : '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">결과 없음</td></tr>';
+      ? filtered.map(r => {
+          const ss=r.section_scores||{};
+          const pct=r.pct||Math.round(r.total_score/r.total_questions*100);
+          return `<tr>
+            <td><b>${r.student_name}</b></td>
+            <td>${r.total_score}/${r.total_questions}</td>
+            <td><b>${pct}%</b></td>
+            <td>${classBadgeHtml(r.assigned_class)}</td>
+            ${['어휘','문법','독해','논리'].map(s=>`<td style="font-size:11px">${ss[s]?ss[s].pct+'%':'—'}</td>`).join('')}
+            <td style="font-size:11px;color:var(--muted)">${r.target_school||'—'}${r.target_dept?` / ${r.target_dept}`:''}</td>
+            <td style="font-size:11px;color:var(--muted)">${formatTs(r.completed_at)}</td>
+            <td><button class="btn btn-ghost btn-sm" onclick="printLevelReport('${r.id}')">📄 PDF</button></td>
+          </tr>`;
+        }).join('')
+      : '<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:32px">결과 없음</td></tr>';
   } catch (e) { toast(e.message, 'error'); }
 }
 
@@ -1849,11 +1881,225 @@ async function showInstStudentDetail(id, name) {
     const analytics = await api('GET', '/analytics?student_id='+id);
     const ss = data.sessions||[];
     const sections = analytics.sections||{};
+    // 레벨테스트 결과 조회
+    const levelRows = await api('GET', '/level-test/results').catch(()=>[]);
+    const latestLevel = levelRows.find(r=>r.student_id===id);
     document.getElementById('mis-content').innerHTML = `
-      <div class="flex gap-8 mb-12">${classBadgeHtml(data.user.class_level)}<span style="font-size:11px;color:var(--muted)">테스트 ${ss.length}회 · 종합 ${analytics.overall||0}%</span></div>
+      <div class="flex gap-8 mb-12">${classBadgeHtml(data.user.class_level)}<span style="font-size:11px;color:var(--muted)">테스트 ${ss.length}회 · 종합 ${analytics.overall||0}%</span>
+        ${latestLevel?`<button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="printLevelReport('${latestLevel.id}')">📄 PDF 리포트</button>`:''}
+      </div>
       <div class="analytics-grid mb-12">${Object.entries(sections).map(([sec,d])=>`<div class="analytics-card"><div class="analytics-section-name">${sec}</div><span class="analytics-level ${d.level==='우수'?'level-excellent':d.level==='보통'?'level-normal':'level-weak'}">${d.level}</span><div class="progress-bar-wrap mb-8"><div class="progress-bar-fill" style="width:${d.pct}%;background:${sectionColor(sec)}"></div></div><div class="analytics-feedback">${d.feedback}</div></div>`).join('')}</div>
       ${ss.length?`<div class="card-title mb-8">최근 테스트</div><div class="table-wrap"><table><thead><tr><th>유형</th><th>점수</th><th>정답률</th><th>일시</th></tr></thead><tbody>${ss.slice(0,8).map(s=>`<tr><td><span class="chip">${s.session_type}</span></td><td>${s.score}/${s.total}</td><td><b>${s.pct}%</b></td><td style="font-size:11px;color:var(--muted)">${formatTs(s.completed_at)}</td></tr>`).join('')}</tbody></table></div>`:''}`;
   } catch(e) { document.getElementById('mis-content').innerHTML=`<div class="empty-state"><div class="empty-text">오류: ${e.message}</div></div>`; }
+}
+
+// ══════════════════════════════════════════════
+// PDF REPORT — 레벨테스트 심층 분석 리포트
+// ══════════════════════════════════════════════
+async function printLevelReport(resultId) {
+  toast('리포트 생성 중...', 'info');
+  try {
+    const d = await api('GET', '/level-test/report/' + resultId);
+    const ss = d.section_scores || {};
+    const SECS = ['어휘','문법','독해','논리'];
+    const CLASS_COLOR = { A:'#4f7dff', B:'#a78bfa', C:'#2dd4a0' };
+    const cls = d.assigned_class;
+    const clsColor = CLASS_COLOR[cls] || '#4f7dff';
+    const dateStr = d.completed_at ? new Date(d.completed_at * 1000).toLocaleDateString('ko-KR') : '—';
+    const pct = d.pct || 0;
+
+    // 섹션 바 HTML
+    const secBars = SECS.map(s => {
+      const v = ss[s] || { pct:0, correct:0, total:0 };
+      const c = s==='어휘'?'#4f7dff':s==='문법'?'#a78bfa':s==='독해'?'#2dd4a0':'#fb923c';
+      return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+        <span style="width:28px;font-size:10px;font-weight:700;color:${c}">${s}</span>
+        <div style="flex:1;background:#e5e7eb;border-radius:4px;height:10px;overflow:hidden">
+          <div style="width:${v.pct}%;height:100%;background:${c};border-radius:4px"></div>
+        </div>
+        <span style="font-size:11px;font-weight:700;color:#111;width:32px;text-align:right">${v.pct}%</span>
+        <span style="font-size:10px;color:#6b7280">(${v.correct}/${v.total})</span>
+      </div>`;
+    }).join('');
+
+    // 세부 요소 HTML
+    const subEl = d.sub_elements || {};
+    const subHtml = SECS.map(s => {
+      const items = subEl[s] || [];
+      const c = s==='어휘'?'#4f7dff':s==='문법'?'#a78bfa':s==='독해'?'#2dd4a0':'#fb923c';
+      return `<div style="margin-bottom:10px">
+        <div style="font-size:10px;font-weight:700;color:${c};margin-bottom:5px">${s}</div>
+        ${items.map(it=>`
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+            <span style="font-size:9px;color:#374151;width:90px;flex-shrink:0">${it.sub}</span>
+            <div style="flex:1;background:#e5e7eb;border-radius:3px;height:7px;overflow:hidden">
+              <div style="width:${it.pct}%;height:100%;background:${it.level==='양호'?'#22c55e':it.level==='보통'?'#f59e0b':'#ef4444'};border-radius:3px"></div>
+            </div>
+            <span style="font-size:9px;font-weight:700;width:28px;text-align:right;color:${it.level==='양호'?'#16a34a':it.level==='보통'?'#d97706':'#dc2626'}">${it.pct}%</span>
+          </div>`).join('')}
+      </div>`;
+    }).join('');
+
+    // 대학 분석 HTML
+    const ua = d.univ_analysis || {};
+    const univRow = (label, color, list) =>
+      `<tr><td style="padding:6px 8px;font-size:10px;font-weight:700;color:${color};white-space:nowrap;vertical-align:top">${label}</td>
+       <td style="padding:6px 8px">${(list||[]).map(u=>`<span style="display:inline-block;font-size:9px;background:${color}18;color:${color};padding:2px 7px;border-radius:10px;border:1px solid ${color}40;margin:1px">${u}</span>`).join(' ')}</td></tr>`;
+
+    // 추천 학습
+    const recHtml = (d.recommendations||[]).map(r=>
+      `<div style="display:flex;gap:6px;margin-bottom:5px;align-items:flex-start">
+        <span style="font-size:9px;font-weight:700;color:#ef4444;background:#fef2f2;padding:2px 6px;border-radius:4px;flex-shrink:0">${r.section}</span>
+        <span style="font-size:9px;color:#374151;line-height:1.5">${r.tip}</span>
+      </div>`
+    ).join('') || '<div style="font-size:9px;color:#6b7280">취약 영역 없음 — 전 영역 양호</div>';
+
+    const html = `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>편입 레벨테스트 분석 리포트 — ${d.student_name}</title>
+<style>
+  @page { size: A4; margin: 12mm 14mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Apple SD Gothic Neo','Malgun Gothic',sans-serif; font-size:11px; color:#111; background:#fff; }
+  .page { width:100%; max-width:182mm; margin:0 auto; }
+
+  /* 헤더 */
+  .rpt-header { display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid ${clsColor}; padding-bottom:8px; margin-bottom:12px; }
+  .rpt-logo { font-size:16px; font-weight:800; color:${clsColor}; letter-spacing:-0.5px; }
+  .rpt-subtitle { font-size:9px; color:#6b7280; margin-top:2px; }
+  .rpt-meta { text-align:right; font-size:9px; color:#6b7280; line-height:1.7; }
+
+  /* 학생 정보 배너 */
+  .info-banner { background:linear-gradient(135deg,${clsColor}15,${clsColor}05); border:1px solid ${clsColor}30; border-radius:8px; padding:10px 14px; margin-bottom:12px; display:flex; align-items:center; gap:16px; }
+  .class-badge-big { width:44px;height:44px;border-radius:50%;background:${clsColor};color:#fff;font-size:18px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0; }
+  .info-name { font-size:15px; font-weight:800; color:#111; }
+  .info-sub { font-size:9px; color:#6b7280; margin-top:2px; }
+  .score-big { margin-left:auto; text-align:center; }
+  .score-num { font-size:22px; font-weight:800; color:${clsColor}; }
+  .score-label { font-size:9px; color:#6b7280; }
+
+  /* 2컬럼 레이아웃 */
+  .two-col { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
+  .box { border:1px solid #e5e7eb; border-radius:6px; padding:10px; }
+  .box-title { font-size:10px; font-weight:700; color:#374151; margin-bottom:7px; border-bottom:1px solid #f3f4f6; padding-bottom:4px; }
+
+  /* 대학 분석 */
+  .univ-table { width:100%; border-collapse:collapse; font-size:9px; }
+  .univ-table td { vertical-align:top; border-bottom:1px solid #f3f4f6; }
+
+  /* 3컬럼 */
+  .three-col { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:10px; }
+  .stat-box { border:1px solid #e5e7eb; border-radius:6px; padding:8px; text-align:center; }
+  .stat-val { font-size:16px; font-weight:800; color:${clsColor}; }
+  .stat-lbl { font-size:8px; color:#6b7280; margin-top:2px; }
+
+  /* 반 배정 의미 */
+  .class-desc { font-size:9px; color:#374151; line-height:1.6; }
+
+  /* 푸터 */
+  .rpt-footer { border-top:1px solid #e5e7eb; padding-top:6px; margin-top:10px; display:flex; justify-content:space-between; font-size:8px; color:#9ca3af; }
+
+  @media print {
+    body { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .no-print { display:none!important; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- 헤더 -->
+  <div class="rpt-header">
+    <div>
+      <div class="rpt-logo">BigLinker 편입 영어</div>
+      <div class="rpt-subtitle">Level Test 심층 분석 리포트</div>
+    </div>
+    <div class="rpt-meta">
+      응시일: ${dateStr}<br>
+      ${d.target_school ? `목표: ${d.target_school}${d.target_dept?' / '+d.target_dept:''}` : '목표 학교 미설정'}
+    </div>
+  </div>
+
+  <!-- 학생 정보 배너 -->
+  <div class="info-banner">
+    <div class="class-badge-big">${cls}</div>
+    <div>
+      <div class="info-name">${d.student_name}</div>
+      <div class="info-sub">${cls==='A'?'A반 — SKY 수준 (정답률 80%+)':cls==='B'?'B반 — 서울권 수준 (정답률 60~79%)':'C반 — 일반대학 수준 (정답률 60% 미만)'}</div>
+      ${d.strong.length?`<div style="font-size:9px;margin-top:3px;color:#16a34a">강점: ${d.strong.join(' · ')}</div>`:''}
+      ${d.weak.length?`<div style="font-size:9px;margin-top:1px;color:#dc2626">취약: ${d.weak.join(' · ')}</div>`:''}
+    </div>
+    <div class="score-big">
+      <div class="score-num">${pct}%</div>
+      <div style="font-size:11px;font-weight:700;color:#374151">${d.total_score} / ${d.total_questions}</div>
+      <div class="score-label">정답률 / 점수</div>
+    </div>
+  </div>
+
+  <!-- 3개 통계 -->
+  <div class="three-col">
+    <div class="stat-box">
+      <div class="stat-val">${pct}%</div>
+      <div class="stat-lbl">전체 정답률</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-val" style="color:${d.strong.length?'#22c55e':'#9ca3af'}">${d.strong.length?d.strong[0]:'없음'}</div>
+      <div class="stat-lbl">최강 영역</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-val" style="color:${d.weak.length?'#ef4444':'#9ca3af'}">${d.weak.length?d.weak[0]:'없음'}</div>
+      <div class="stat-lbl">최약 영역</div>
+    </div>
+  </div>
+
+  <!-- 2컬럼: 영역별 점수 + 세부 요소 -->
+  <div class="two-col">
+    <div class="box">
+      <div class="box-title">📊 영역별 점수</div>
+      ${secBars}
+    </div>
+    <div class="box">
+      <div class="box-title">🔬 세부 요소 분석 (추정)</div>
+      ${subHtml}
+    </div>
+  </div>
+
+  <!-- 지원 가능 대학 분석 -->
+  <div class="box" style="margin-bottom:10px">
+    <div class="box-title">🏫 지원 가능 대학 분석 (편입 영어 점수 기준)</div>
+    <table class="univ-table">
+      ${univRow('🚀 상향 지원', '#ef4444', ua.상향)}
+      ${univRow('🎯 적정 지원', '#4f7dff', ua.적정)}
+      ${univRow('✅ 안정 지원', '#22c55e', ua.하향)}
+    </table>
+    <div style="font-size:8px;color:#9ca3af;margin-top:5px">※ 학교별 편입 전형 요건(서류·면접 등)을 반드시 확인하세요.</div>
+  </div>
+
+  <!-- 맞춤 학습 추천 -->
+  <div class="box" style="margin-bottom:10px">
+    <div class="box-title">💡 맞춤 학습 전략</div>
+    ${recHtml}
+  </div>
+
+  <!-- 푸터 -->
+  <div class="rpt-footer">
+    <span>BigLinker 편입 영어 LMS — Level Test Report</span>
+    <span>본 결과는 편입 영어 시험 기반 분석이며 실제 합격을 보장하지 않습니다.</span>
+  </div>
+
+</div>
+</body>
+</html>`;
+
+    const win = window.open('', '_blank', 'width=900,height=1100');
+    win.document.write(html);
+    win.document.close();
+    // 렌더링 완료 후 자동 인쇄 다이얼로그 실행
+    setTimeout(() => { try { win.focus(); win.print(); } catch(e) {} }, 900);
+    toast('리포트 창이 열렸습니다. 인쇄 다이얼로그에서 PDF로 저장하세요.', 'success');
+  } catch(e) { toast('리포트 생성 실패: ' + e.message, 'error'); }
 }
 
 // ══════════════════════════════════════════════
@@ -2346,7 +2592,13 @@ async function ltNext() {
 
 async function submitLevelTest() {
   try {
-    const body = { answers: ltAnswers, student_id: currentUser?.id, student_name: currentUser?.name };
+    const body = {
+      answers: ltAnswers,
+      student_id: currentUser?.id,
+      student_name: currentUser?.name,
+      target_school: document.getElementById('lt-target-school')?.value?.trim() || null,
+      target_dept:   document.getElementById('lt-target-dept')?.value?.trim()   || null,
+    };
     const result = await api('POST', '/level-test/submit', body);
     localStorage.setItem('lt_result', JSON.stringify(result));
     // Update local user
@@ -2373,6 +2625,27 @@ function renderLTResult(r) {
     const d=ss[s]||{correct:0,total:0,pct:0};
     return `<div class="section-score-row"><span class="section-label" style="color:${sectionColor(s)}">${s}</span><div style="flex:1"><div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${d.pct}%;background:${sectionColor(s)}"></div></div></div><span class="section-pct">${d.pct}%</span><span style="font-size:10px;color:var(--muted)">(${d.correct}/${d.total})</span></div>`;
   }).join('');
+  // 지원 가능 대학 분석
+  const univ = r.univ_analysis;
+  const univCard = document.getElementById('lt-univ-card');
+  if (univ) {
+    univCard.style.display = 'block';
+    const univTierHtml = (label, color, icon, list) =>
+      `<div style="margin-bottom:12px">
+        <div style="font-size:12px;font-weight:700;color:${color};margin-bottom:6px">${icon} ${label}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          ${list.map(u=>`<span style="font-size:11px;background:${color}18;color:${color};padding:4px 10px;border-radius:20px;border:1px solid ${color}40">${u}</span>`).join('')}
+        </div>
+      </div>`;
+    document.getElementById('lt-univ-analysis').innerHTML =
+      univTierHtml('상향 지원', 'var(--red)', '🚀', univ.상향) +
+      univTierHtml('적정 지원', 'var(--blue)', '🎯', univ.적정) +
+      univTierHtml('안정 지원', 'var(--green)', '✅', univ.하향) +
+      `<div style="font-size:10px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">※ 편입 영어 점수 기준 분석입니다. 실제 지원 시 학교별 전형 요건을 반드시 확인하세요.</div>`;
+  } else {
+    univCard.style.display = 'none';
+  }
+
   // Feedback
   const fb = r.feedback||[];
   document.getElementById('lt-feedback-list').innerHTML = fb.map((f,i)=>`
