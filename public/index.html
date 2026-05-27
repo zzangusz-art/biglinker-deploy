@@ -2533,7 +2533,7 @@ const ST=()=>{
   const s=MEM.student||S.student||{};
   const gb=MEM.gb||DB.getGb(s.id)||'';
   const gbSection=gb
-    ? `[학생 생기부 (업로드 완료 — ${gb.length}자)]\n${gb.slice(0,6000)}`
+    ? `[학생 생기부 (업로드 완료 — ${gb.length}자)]\n${gb.slice(0,15000)}`
     : '[생기부 미업로드 — 학생이 생기부 분석 페이지에서 업로드해야 개인 맞춤 분석이 가능합니다]';
   const gradeStr=getGradeSummary();
   const gradeSection=gradeStr?`\n\n[성적 현황 (내신 등급)]\n${gradeStr}`:'';
@@ -3135,7 +3135,7 @@ async function runUpload(){
     el.innerHTML='';el.appendChild(prog);
     await callAI(
       PROMPTS.dashboard,
-      `학생: ${s.name||''}, ${s.school||''} ${s.grade||''}학년\n목표: ${s.targetUniv||''} ${s.targetDept||''}\n\n생기부:\n${text.slice(0,6000)}`,
+      `학생: ${s.name||''}, ${s.school||''} ${s.grade||''}학년\n목표: ${s.targetUniv||''} ${s.targetDept||''}\n\n생기부:\n${text.slice(0,15000)}`,
       el,'biglinker AI — 생기부 종합 분석',sid,null,'dashboard');
     // 2단계: 모든 섹션 3개씩 병렬 분석 (백그라운드)
     const progEl=document.createElement('div');
@@ -3153,8 +3153,8 @@ async function runUpload(){
 // 생기부 분석 완료 후 전체 섹션 자동 분석 (순차 실행으로 API 부하 분산)
 async function autoRunAllAnalyses(sid,gbText){
   const s=MEM.student||S.student||{};
-  // 생기부 최대 6000자 사용 (이전 3000자에서 확장)
-  const gbSlice=gbText.slice(0,6000);
+  // 생기부 최대 15000자 사용 (6000자에서 확장 — 전체 생기부 내용 반영)
+  const gbSlice=gbText.slice(0,15000);
   const base=`학생: ${s.name||''}, ${s.school||''} ${s.grade||''}학년\n목표: ${s.targetUniv||''} ${s.targetDept||''}\n\n생기부:\n${gbSlice}`;
   const gradeStr=getGradeSummary();
   const fullBase=gradeStr?`${base}\n\n[성적 현황]\n${gradeStr}`:base;
