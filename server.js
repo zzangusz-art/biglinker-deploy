@@ -4479,8 +4479,9 @@ html,body{
     <div class="pbar-hint">생기부 AI 분석 보고서 · ${student.name} · ${dateStr}</div>
   </div>
   <div class="pbar-btns">
-    <button class="btn-pdf" onclick="window.print()">⬇ PDF 저장</button>
-    <button class="btn-cls" onclick="window.close()">✕</button>
+    <span style="font-size:10px;color:#5a5e80;margin-right:4px">PDF로 저장하려면 아래 버튼 클릭 → <b style="color:#9ba3cc">대상: PDF로 저장</b> 선택</span>
+    <button class="btn-pdf" id="btnPrint">⬇ PDF 저장 (인쇄)</button>
+    <button class="btn-cls" onclick="window.close()">✕ 닫기</button>
   </div>
 </div>
 
@@ -4634,13 +4635,13 @@ html,body{
 
 <script>
 (function(){
-  // 인쇄 전 힌트
-  var p=document.querySelector('.btn-pdf');
-  if(p) p.addEventListener('click',function(){
-    if(!window._hinted){
-      window._hinted=true;
-      setTimeout(function(){window.print();},100);
-    } else { window.print(); }
+  var btn = document.getElementById('btnPrint');
+  if(btn) btn.addEventListener('click', function(){
+    window.print();
+  });
+  // 인쇄 후 버튼 텍스트 원복
+  window.addEventListener('afterprint', function(){
+    if(btn) btn.textContent = '⬇ PDF 저장 (인쇄)';
   });
 })();
 </script>

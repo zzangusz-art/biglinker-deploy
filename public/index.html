@@ -1181,7 +1181,14 @@ function openReportPdf(){
     return;
   }
   const url = `/report/${sid}?token=${encodeURIComponent(TOKEN)}`;
-  window.open(url, '_blank', 'width=1100,height=900,scrollbars=yes');
+  // 팝업 크기 지정 시 브라우저 팝업 차단기에 막히므로 <a> 태그 방식으로 새 탭 열기
+  const a = document.createElement('a');
+  a.href = url;
+  a.target = '_blank';
+  a.rel = 'noopener noreferrer';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 function show(id){document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));q(id).classList.add('on')}
 
