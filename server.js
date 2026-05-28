@@ -4472,16 +4472,16 @@ html,body{
 </head>
 <body>
 
-<!-- 인쇄 바 -->
-<div class="pbar">
+<!-- 인쇄 바 (iframe 내부에서는 숨김, 직접 접근 시에는 표시) -->
+<div class="pbar" id="reportPbar">
   <div style="display:flex;align-items:center">
     <div class="pbar-logo">big<em>link</em>er</div>
     <div class="pbar-hint">생기부 AI 분석 보고서 · ${student.name} · ${dateStr}</div>
   </div>
   <div class="pbar-btns">
-    <span style="font-size:10px;color:#5a5e80;margin-right:4px">PDF로 저장하려면 아래 버튼 클릭 → <b style="color:#9ba3cc">대상: PDF로 저장</b> 선택</span>
-    <button class="btn-pdf" id="btnPrint">⬇ PDF 저장 (인쇄)</button>
-    <button class="btn-cls" onclick="window.close()">✕ 닫기</button>
+    <span style="font-size:10px;color:#5a5e80;margin-right:4px">PDF 저장: 아래 버튼 → 인쇄 대화상자 → <b style="color:#9ba3cc">대상: PDF로 저장</b></span>
+    <button class="btn-pdf" id="btnPrint">🖨️ PDF로 저장</button>
+    <button class="btn-cls" id="btnClose">✕ 닫기</button>
   </div>
 </div>
 
@@ -4635,13 +4635,34 @@ html,body{
 
 <script>
 (function(){
-  var btn = document.getElementById('btnPrint');
-  if(btn) btn.addEventListener('click', function(){
+  var btnPrint = document.getElementById('btnPrint');
+  var btnClose = document.getElementById('btnClose');
+
+  // 인쇄 버튼
+  if(btnPrint) btnPrint.addEventListener('click', function(){
     window.print();
   });
-  // 인쇄 후 버튼 텍스트 원복
-  window.addEventListener('afterprint', function(){
-    if(btn) btn.textContent = '⬇ PDF 저장 (인쇄)';
+
+  // 닫기 버튼: iframe 내부면 부모 오버레이 제거, 아니면 탭 닫기
+  if(btnClose) btnClose.addEventListener('click', function(){
+    try {
+      if(window.parent && window.parent !== window){
+        var overlay = window.parent.document.getElementById('report-overlay');
+        if(overlay) { overlay.remove(); return; }
+      }
+    } catch(e) {}
+    window.close();
+  });
+
+  // iframe 내부일 때 pbar의 인쇄 버튼도 부모 인쇄 연동
+  if(btnPrint) btnPrint.addEventListener('click', function(){
+    try {
+      if(window.parent && window.parent !== window){
+        window.print();
+        return;
+      }
+    } catch(e) {}
+    window.print();
   });
 })();
 </script>

@@ -1181,14 +1181,44 @@ function openReportPdf(){
     return;
   }
   const url = `/report/${sid}?token=${encodeURIComponent(TOKEN)}`;
-  // 팝업 크기 지정 시 브라우저 팝업 차단기에 막히므로 <a> 태그 방식으로 새 탭 열기
-  const a = document.createElement('a');
-  a.href = url;
-  a.target = '_blank';
-  a.rel = 'noopener noreferrer';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+
+  // 팝업/새탭 차단 우회: fetch로 HTML을 받아 현재 페이지 안 iframe 오버레이로 표시
+  const overlay = document.createElement('div');
+  overlay.id = 'report-overlay';
+  overlay.style.cssText = `
+    position:fixed;inset:0;z-index:99999;background:#07090f;
+    display:flex;flex-direction:column;
+  `;
+  overlay.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;
+      padding:10px 20px;background:#0b0d1a;border-bottom:1px solid rgba(255,255,255,.1);
+      flex-shrink:0;">
+      <div style="font-size:13px;font-weight:700;color:#fff">📄 역량 분석 보고서</div>
+      <div style="display:flex;gap:8px">
+        <button onclick="document.getElementById('report-iframe')?.contentWindow?.print()"
+          style="background:linear-gradient(135deg,#4f7dff,#6b93ff);color:#fff;border:none;
+          border-radius:7px;padding:7px 18px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">
+          🖨️ PDF로 저장 (인쇄)
+        </button>
+        <button onclick="document.getElementById('report-overlay').remove()"
+          style="background:rgba(255,255,255,.07);color:#aaa;border:1px solid rgba(255,255,255,.15);
+          border-radius:7px;padding:7px 14px;font-size:12px;cursor:pointer;font-family:inherit;">
+          ✕ 닫기
+        </button>
+      </div>
+    </div>
+    <div id="report-loading" style="flex:1;display:flex;align-items:center;justify-content:center;
+      color:#5a5e80;font-size:14px;">⏳ 보고서 생성 중...</div>
+    <iframe id="report-iframe" src="${url}"
+      style="display:none;flex:1;border:none;width:100%;background:#07090f;"
+      onload="
+        this.style.display='block';
+        document.getElementById('report-loading').style.display='none';
+      "
+      onerror="document.getElementById('report-loading').textContent='❌ 보고서를 불러올 수 없습니다. 다시 시도해주세요.'">
+    </iframe>
+  `;
+  document.body.appendChild(overlay);
 }
 function show(id){document.querySelectorAll('.scr').forEach(s=>s.classList.remove('on'));q(id).classList.add('on')}
 
