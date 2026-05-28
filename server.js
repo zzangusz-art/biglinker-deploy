@@ -4678,8 +4678,8 @@ html,body{
   }
 });
 
-// ── 기본 경로: ERP로 리다이렉트 ────────────────────
-app.get('/', (_req, res) => res.redirect('/erp'));
+// ── 기본 경로: 메인 앱 (index.html) ────────────────
+app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 // ── ERP 프론트엔드 ────────────────────────────────────
 app.get('/erp', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'erp.html')));
